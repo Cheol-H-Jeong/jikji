@@ -14,12 +14,14 @@ Supported containers:
                  — Python stdlib :mod:`tarfile`
     .jar / .war — same as zip
 
-7z and rar would need third-party libs (``py7zr``, ``rarfile``); not
-included here, but adding them is just a new branch in :func:`parse`.
+7z and rar are listed with the local ``7z`` command when available.
+No archive is extracted to disk.
 """
 from __future__ import annotations
 
 import logging
+import shutil
+import subprocess
 import tarfile
 import zipfile
 from pathlib import Path
@@ -32,11 +34,36 @@ _TAR_EXTS = (
     ".tar.xz", ".txz",
 )
 _ZIP_EXTS = (".zip", ".jar", ".war")
+_SEVEN_Z_EXTS = (".7z", ".rar")
+
+
+def _zip_member_name(info: zipfile.ZipInfo) -> str:
+    """Return a best-effort decoded ZIP member path.
+
+    Python already decodes UTF-8 ZIP entries correctly.  Older Korean ZIPs
+    often omit the UTF-8 flag and store CP949 bytes that Python decodes as
+    CP437; round-trip through CP437 and try CP949/EUC-KR to recover names.
+    """
+    name = info.filename
+    if info.flag_bits & 0x800:
+        return name
+    try:
+        raw = name.encode("cp437")
+    except UnicodeEncodeError:
+        return name
+    for enc in ("cp949", "euc-kr"):
+        try:
+            decoded = raw.decode(enc)
+        except UnicodeDecodeError:
+            continue
+        if decoded and decoded != name:
+            return decoded
+    return name
 
 
 def is_archive(path: Path) -> bool:
     name = path.name.lower()
-    return name.endswith(_ZIP_EXTS) or name.endswith(_TAR_EXTS)
+    return name.endswith(_ZIP_EXTS) or name.endswith(_TAR_EXTS) or name.endswith(_SEVEN_Z_EXTS)
 
 
 def _format_listing(archive_name: str, names: list[str], max_chars: int) -> str:
@@ -74,15 +101,42 @@ def parse(path: Path, max_chars: int) -> str:
     try:
         if name_lc.endswith(_ZIP_EXTS):
             with zipfile.ZipFile(str(path), "r") as zf:
-                # ZipInfo.filename is the archive-internal path.
-                names = [zi.filename for zi in zf.infolist()]
+                names = [_zip_member_name(zi) for zi in zf.infolist()]
             return _format_listing(name, names, max_chars)
         if name_lc.endswith(_TAR_EXTS):
             # tarfile auto-detects the compression suffix.
             with tarfile.open(str(path), "r:*") as tf:
                 names = [m.name for m in tf.getmembers()]
             return _format_listing(name, names, max_chars)
-    except (zipfile.BadZipFile, tarfile.TarError, OSError) as exc:
+        if name_lc.endswith(_SEVEN_Z_EXTS):
+            seven_z = shutil.which("7z")
+            if not seven_z:
+                return ""
+            proc = subprocess.run(  # noqa: S603 - executable resolved by shutil.which.
+                [seven_z, "l", "-slt", str(path.resolve())],
+                check=False,
+                capture_output=True,
+                text=True,
+                errors="ignore",
+                timeout=10,
+            )
+            if proc.returncode != 0:
+                log.warning("7z archive list failed for %s: %s", path, proc.stderr[:200])
+                return ""
+            names = []
+            for line in proc.stdout.splitlines():
+                if line.startswith("Path = "):
+                    member = line.partition(" = ")[2].strip()
+                    if not member:
+                        continue
+                    try:
+                        if Path(member).resolve() == path.resolve():
+                            continue
+                    except OSError:
+                        pass
+                    names.append(member)
+            return _format_listing(name, names, max_chars)
+    except (zipfile.BadZipFile, tarfile.TarError, OSError, subprocess.TimeoutExpired) as exc:
         log.warning("archive parse failed for %s: %s", path, exc)
         return ""
     except Exception as exc:  # pragma: no cover — defensive

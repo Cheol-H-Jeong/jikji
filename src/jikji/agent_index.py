@@ -15,6 +15,7 @@ import shutil
 import tempfile
 from collections import Counter, defaultdict
 from collections.abc import Callable, Iterable
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -25,12 +26,23 @@ from .models import FileEntry
 from .parsers import extract_excerpt
 from .parsers.registry import SUPPORTED_EXTENSIONS
 from .scanner import ScanTooLargeError
+from .search_index import (
+    INSTANT_SEARCH_INDEX,
+    INSTANT_SEARCH_SCHEMA_VERSION,
+    build_instant_search_index,
+)
 
 ProgressCB = Callable[[str, float], None]
 
 AGENT_DIR_NAME = ".jikji"
 DOCUMENT_CACHE_EXTENSIONS = {
     ".pdf",
+    ".epub",
+    ".eml",
+    ".ics",
+    ".sqlite",
+    ".sqlite3",
+    ".db",
     ".doc",
     ".docx",
     ".ppt",
@@ -43,10 +55,108 @@ DOCUMENT_CACHE_EXTENSIONS = {
     ".hwpx",
     ".odt",
     ".rtf",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".tif",
+    ".tiff",
+    ".webp",
+    ".bmp",
+    ".gif",
+    ".mp3",
+    ".wav",
+    ".m4a",
+    ".flac",
+    ".ogg",
+    ".aac",
+    ".opus",
+    ".wma",
+    ".zip",
+    ".jar",
+    ".war",
+    ".tar",
+    ".tgz",
+    ".tbz",
+    ".txz",
+    ".7z",
+    ".rar",
 }
 TEXT_LIKE_EXTENSIONS = SUPPORTED_EXTENSIONS - DOCUMENT_CACHE_EXTENSIONS
 _DEFAULT_TEXT_MAX_CHARS = 2_000_000
 _DEFAULT_CHUNK_CHARS = 1_000_000
+CACHE_KEY_POLICY = "sha256, recomputed only when size or mtime_ns changed or cache is missing"
+LOCK_STALE_AFTER_SECONDS = 60 * 60
+OWNED_GENERATED_PATHS = [
+    "000_JIKJI_AGENT_MAP.md",
+    ".jikji/manifest.json",
+    ".jikji/file_index.jsonl",
+    ".jikji/folder_index.jsonl",
+    ".jikji/document_index.jsonl",
+    ".jikji/file_cards.jsonl",
+    ".jikji/chunk_map.jsonl",
+    f".jikji/{INSTANT_SEARCH_INDEX}",
+    ".jikji/duplicate_map.jsonl",
+    ".jikji/folder_profile.jsonl",
+    ".jikji/corpus_profile.json",
+    ".jikji/intent_taxonomy.json",
+    ".jikji/autorag_manifest.json",
+    ".jikji/parse_errors.jsonl",
+    ".jikji/agent_map.md",
+    ".jikji/agent_routes.md",
+    ".jikji/agent_skill_context.md",
+    ".jikji/human_guide.md",
+    ".jikji/.lock",
+    ".jikji/doc_text/",
+    ".jikji/doc_meta/",
+    ".jikji/eval/",
+]
+RETIRED_GENERATED_PATHS = [
+    ".jikji/search_terms.json",
+    ".jikji/search_terms.jsonl",
+    ".jikji/folder_cards/",
+    ".jikji/file_cards/",
+]
+
+INTENT_TAXONOMY: dict[str, tuple[str, ...]] = {
+    "계약검토": ("계약", "견적", "발주", "납품", "정산", "대금", "입찰", "협약"),
+    "제안준비": ("제안요청서", "RFP", "제안서", "요구사항", "입찰", "제안", "공고"),
+    "평가자료": ("평가", "평가항목", "점수", "배점", "채점", "심사", "평가지표", "판정"),
+    "교육자료": ("교육", "강의", "창의력", "아이디어", "수업", "발표", "학습", "교재"),
+    "점검자료": ("점검", "수행일지", "최종점검", "수시점검", "보고", "회의", "검토의견"),
+    "설계자료": ("설계", "클래스설계", "요구사항정의", "화면설계", "아키텍처", "인터페이스"),
+    "학습데이터": ("학습데이터", "데이터셋", "말뭉치", "라벨링", "품질검증", "검수", "데이터구축"),
+    "감리검수": ("감리", "검수", "검사", "승인", "완료보고", "산출물", "종료"),
+}
+
+_FORMAT_HINTS_BY_EXT: dict[str, tuple[str, ...]] = {
+    ".hwp": ("한글 문서", "hwp", "문서"),
+    ".hwpx": ("한글 문서", "hwpx", "문서"),
+    ".pdf": ("PDF", "pdf", "문서"),
+    ".ppt": ("파워포인트", "ppt", "발표자료"),
+    ".pptx": ("파워포인트", "pptx", "발표자료"),
+    ".xls": ("엑셀", "xls", "스프레드시트"),
+    ".xlsx": ("엑셀", "xlsx", "스프레드시트"),
+    ".doc": ("워드", "doc", "문서"),
+    ".docx": ("워드", "docx", "문서"),
+    ".txt": ("텍스트", "txt"),
+    ".md": ("마크다운", "markdown"),
+    ".csv": ("CSV", "표"),
+}
+
+_MAP_NOISE_TERMS = {
+    "source", "parsed", "jikji", "sha256", "metadata", "cache", "chunk", "parser", "json", "jsonl",
+    "path", "name", "file", "data", "true", "false", "null", "none", "sheet", "slide", "page",
+    "문서", "파일", "자료", "내용", "관련", "항목", "정보", "관리", "사업", "계획", "보고", "기준",
+    "작성", "검토", "확인", "대한", "통해", "위한", "경우", "현재", "사용", "제공", "포함", "결과",
+    "일반", "가능", "사항", "부분", "전체", "방법", "대상", "업무", "서비스", "시스템", "데이터",
+}
+_MAP_NOISE_RE = re.compile(
+    r"(?:백업|다운로드|download|kakao|카카오|source|sha256|json|cache|metadata|copyright|"
+    r"confidential|reserved|parsed|sheet|android|ios|노트북|usb|desktop|바탕화면|문서백업|"
+    r"과거백업|chunk|parser)",
+    re.IGNORECASE,
+)
+_COPY_SUFFIX_RE = re.compile(r"(?:\s*\(\d+\)|\s*-\s*copy|\s+copy|_copy|\s*사본)$", re.IGNORECASE)
 
 
 def _now_iso() -> str:
@@ -92,12 +202,110 @@ def _remove_path_quietly(path: Path) -> None:
         return
 
 
+@contextmanager
+def _index_lock(index_dir: Path):
+    """Best-effort same-root prepare lock.
+
+    Jikji writes files atomically, but a concurrent prepare for the same root can
+    still make summaries inconsistent. The lock itself is a generated artifact
+    and is removed on normal exit.
+    """
+    lock_path = index_dir / ".lock"
+    try:
+        fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError as exc:
+        if _remove_stale_lock(lock_path):
+            try:
+                fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            except FileExistsError as retry_exc:
+                raise RuntimeError(
+                    f"Jikji index is already being prepared: {lock_path}. "
+                    "If no Jikji process is running, remove this stale lock and retry."
+                ) from retry_exc
+        else:
+            raise RuntimeError(
+                f"Jikji index is already being prepared: {lock_path}. "
+                "If no Jikji process is running, remove this stale lock and retry."
+            ) from exc
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(json.dumps({"pid": os.getpid(), "started_at": _now_iso()}, ensure_ascii=False))
+        yield
+    finally:
+        try:
+            lock_path.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def _remove_stale_lock(lock_path: Path) -> bool:
+    try:
+        raw = lock_path.read_text(encoding="utf-8", errors="ignore")
+        data = json.loads(raw) if raw.strip() else {}
+    except (OSError, json.JSONDecodeError):
+        return False
+    pid = data.get("pid")
+    if not isinstance(pid, int) or pid <= 0:
+        return _unlink_if_lock_age_stale(lock_path, data)
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        try:
+            lock_path.unlink()
+            return True
+        except OSError:
+            return False
+    except OSError:
+        return False
+    # PID reuse can make an unrelated live process look like the original
+    # Jikji writer. A coarse age fallback prevents permanent deadlocks while
+    # still giving normal prepare runs ample time to finish.
+    return _unlink_if_lock_age_stale(lock_path, data)
+
+
+def _unlink_if_lock_age_stale(lock_path: Path, data: dict) -> bool:
+    started = str(data.get("started_at") or "")
+    try:
+        started_at = datetime.fromisoformat(started)
+        if started_at.tzinfo is None:
+            started_at = started_at.replace(tzinfo=UTC)
+    except ValueError:
+        try:
+            age = datetime.now(tz=UTC).timestamp() - lock_path.stat().st_mtime
+        except OSError:
+            return False
+        if age < LOCK_STALE_AFTER_SECONDS:
+            return False
+        try:
+            lock_path.unlink()
+            return True
+        except OSError:
+            return False
+    age = (datetime.now(tz=UTC) - started_at.astimezone(UTC)).total_seconds()
+    if age < LOCK_STALE_AFTER_SECONDS:
+        return False
+    try:
+        lock_path.unlink()
+        return True
+    except OSError:
+        return False
+
+
 def _sha256(path: Path) -> str:
     h = hashlib.sha256()
     with path.open("rb") as fh:
         for chunk in iter(lambda: fh.read(1024 * 1024), b""):
             h.update(chunk)
     return h.hexdigest()
+
+
+def _hash_allowed(path: Path, max_hash_bytes: int) -> bool:
+    if max_hash_bytes <= 0:
+        return True
+    try:
+        return path.stat().st_size <= max_hash_bytes
+    except OSError:
+        return False
 
 
 def _fingerprint(path: Path) -> dict:
@@ -114,7 +322,7 @@ def _load_jsonl_by_path(path: Path) -> dict[str, dict]:
         return {}
     out: dict[str, dict] = {}
     try:
-        for line in path.read_text(encoding="utf-8").splitlines():
+        for line in path.read_text(encoding="utf-8").split("\n"):
             if not line.strip():
                 continue
             row = json.loads(line)
@@ -134,6 +342,37 @@ def _ignore_name(name: str, patterns: Iterable[str]) -> bool:
     if name == "000_JIKJI_AGENT_MAP.md" or name.startswith("Jikji_Report_"):
         return True
     return any(fnmatch.fnmatch(name, pat) for pat in patterns)
+
+
+def _is_archive_path(path: Path) -> bool:
+    from .parsers import archive as archive_parser
+
+    return archive_parser.is_archive(path)
+
+
+def _body_keyword_text(text: str) -> str:
+    """Drop generated parser/cache headings before choosing sparse keywords."""
+    lines = []
+    for line in (text or "").splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped.startswith("#"):
+            continue
+        lines.append(stripped)
+    return "\n".join(lines)
+
+
+def _parser_required(path: Path, ext: str) -> bool:
+    """Return True when Jikji should create a reusable text cache.
+
+    Some archive formats have compound suffixes (``.tar.gz``) that
+    ``Path.suffix`` sees as ``.gz``.  Delegate that detection to the archive
+    parser so member-name listings are cached just like PDF/Office text.
+    """
+    if ext in DOCUMENT_CACHE_EXTENSIONS:
+        return True
+    return _is_archive_path(path)
 
 
 def _read_cached_doc_text(path: Path) -> str | None:
@@ -158,7 +397,11 @@ def _read_cached_doc_text(path: Path) -> str | None:
 
 def _scan_files_and_dirs(root: Path, config: Config) -> tuple[list[Path], list[Path]]:
     root = Path(root).expanduser().resolve()
-    ignore = [] if getattr(config, "include_hidden", False) else list(config.ignore_patterns)
+    ignore = list(getattr(config, "ignore_patterns", []) or [])
+    if not getattr(config, "include_hidden", False):
+        ignore.append(".*")
+    if not getattr(config, "include_sensitive", False):
+        ignore.extend(getattr(config, "safety_ignore_patterns", []) or [])
     dirs: list[Path] = []
     files: list[Path] = []
     limit = int(getattr(config, "max_files", 5000) or 5000)
@@ -207,6 +450,410 @@ def _tokens_from_text(text: str, *, limit: int = 16) -> list[str]:
     return tokens
 
 
+def _semantic_hints(rel_path: str, name: str, ext: str, keywords: list[str], summary: str = "") -> list[str]:
+    """Return deterministic search hints for natural-language file descriptions.
+
+    These hints are deliberately local and transparent: they are derived from
+    structural strings (path/name/extension/keywords) only, not from a remote
+    LLM and not from baked-in benchmark-specific aliases.
+    """
+    hints: list[str] = []
+
+    def add(*terms: str) -> None:
+        for term in terms:
+            if term and term not in hints:
+                hints.append(term)
+
+    path_parts = [p for p in Path(rel_path).parts if p not in {".", ""}]
+    split_structural = re.sub(r"[/_.()\\[\\]{}&+-]+", " ", " ".join([rel_path, name]))
+    add(*_tokens_from_text(" ".join(path_parts), limit=24))
+    add(*_tokens_from_text(split_structural, limit=32))
+    add(*keywords[:16])
+    if ext:
+        add(ext.lstrip("."))
+    return hints[:48]
+
+
+def _read_map_text(root: Path, row: dict, *, max_chars: int = 96_000) -> str:
+    """Read local text available to Jikji and trim it for map feature extraction."""
+    cache = str(row.get("text_cache_path") or "")
+    parts: list[str] = []
+    if cache:
+        path = root / cache
+        try:
+            if path.is_file():
+                parts.append(path.read_text(encoding="utf-8", errors="ignore")[:max_chars])
+            elif path.is_dir():
+                total = 0
+                for chunk in sorted(path.glob("chunk_*.txt")):
+                    text = chunk.read_text(encoding="utf-8", errors="ignore")
+                    parts.append(text)
+                    total += len(text)
+                    if total >= max_chars:
+                        break
+        except OSError:
+            pass
+    elif str(row.get("ext") or "").lower() in TEXT_LIKE_EXTENSIONS:
+        try:
+            parts.append((root / str(row.get("path") or "")).read_text(encoding="utf-8", errors="ignore")[:max_chars])
+        except OSError:
+            pass
+    text = _body_keyword_text("\n".join(parts))
+    if not text.strip():
+        text = str(row.get("summary") or "")
+    return text[:max_chars]
+
+
+def _clean_map_terms(text: str, *, rel_path: str = "", limit: int = 80) -> list[str]:
+    """Extract deterministic, low-noise map terms without embedding/LLM calls."""
+    out: list[str] = []
+    seen: set[str] = set()
+    rel_norm = rel_path.casefold()
+    for raw in _tokens_from_text(text, limit=limit * 8):
+        token = raw.strip("._-:;,()[]{}")
+        norm = token.casefold()
+        if not token or norm in seen or norm in _MAP_NOISE_TERMS:
+            continue
+        if _MAP_NOISE_RE.search(token):
+            continue
+        if norm in rel_norm and re.search(r"[가-힣]", token):
+            # Avoid path/backup labels dominating semantic map cards. Keep
+            # English path acronyms because they are often genuine product IDs.
+            continue
+        if len(token) < 2 or len(token) > 28:
+            continue
+        if re.fullmatch(r"[0-9_.:/()\\-]+", token):
+            continue
+        if re.fullmatch(r"[a-f0-9]{10,}", norm):
+            continue
+        digit_ratio = sum(ch.isdigit() for ch in token) / max(1, len(token))
+        if digit_ratio > 0.35:
+            continue
+        has_ko = bool(re.search(r"[가-힣]", token))
+        has_alpha = bool(re.search(r"[A-Za-z]", token))
+        if not has_ko and (not has_alpha or len(token) < 4):
+            continue
+        seen.add(norm)
+        out.append(token)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _phrase_signatures(terms: list[str], *, limit: int = 24) -> list[str]:
+    phrases: list[str] = []
+    seen: set[str] = set()
+    for n in (2, 3):
+        for idx in range(0, max(0, len(terms) - n + 1)):
+            phrase = " ".join(terms[idx:idx + n])
+            norm = phrase.casefold()
+            if norm in seen:
+                continue
+            seen.add(norm)
+            phrases.append(phrase)
+            if len(phrases) >= limit:
+                return phrases
+    return phrases
+
+
+def _intent_tags(text: str) -> list[str]:
+    compact = re.sub(r"\s+", "", text or "").casefold()
+    tags: list[str] = []
+    for tag, needles in INTENT_TAXONOMY.items():
+        if any(re.sub(r"\s+", "", needle).casefold() in compact for needle in needles):
+            tags.append(tag)
+    return tags
+
+
+def _evidence_previews(text: str, terms: list[str], *, limit: int = 5) -> list[str]:
+    previews: list[str] = []
+    seen: set[str] = set()
+    useful_terms = [t for t in terms[:20] if len(t) >= 2]
+    for raw in re.split(r"[\n\r。.!?]\s*", text or ""):
+        line = re.sub(r"\s+", " ", raw).strip()
+        if len(line) < 20:
+            continue
+        if _MAP_NOISE_RE.search(line):
+            continue
+        hit_count = sum(1 for term in useful_terms if term in line)
+        if hit_count == 0:
+            continue
+        preview = line[:260]
+        if preview in seen:
+            continue
+        seen.add(preview)
+        previews.append(preview)
+        if len(previews) >= limit:
+            break
+    if not previews:
+        fallback = re.sub(r"\s+", " ", (text or "").strip())[:260]
+        if fallback:
+            previews.append(fallback)
+    return previews
+
+
+def _normalised_duplicate_stem(path: str) -> str:
+    stem = Path(Path(path).name).stem.casefold().strip()
+    while True:
+        cleaned = _COPY_SUFFIX_RE.sub("", stem).strip()
+        if cleaned == stem:
+            return cleaned
+        stem = cleaned
+
+
+def _compact_filename_lookup_text(text: str) -> str:
+    return re.sub(r"[^0-9a-z가-힣]+", "", (text or "").casefold())
+
+
+def _filename_lookup_keys(path_or_name: str) -> list[str]:
+    raw = (path_or_name or "").strip()
+    name = Path(raw).name or raw
+    stem = Path(name).stem or name
+    duplicate_stem = _normalised_duplicate_stem(name)
+    keys = {
+        _compact_filename_lookup_text(raw),
+        _compact_filename_lookup_text(name),
+        _compact_filename_lookup_text(stem),
+        _compact_filename_lookup_text(duplicate_stem),
+    }
+    return sorted(key for key in keys if key)
+
+
+def _backup_like_score(path: str) -> int:
+    return len(re.findall(r"백업|backup|copy|사본|다운로드|download|\(\d+\)", path, flags=re.IGNORECASE))
+
+
+def _representative_path(paths: list[str]) -> str:
+    return sorted(paths, key=lambda p: (_backup_like_score(p), len(Path(p).parts), len(p), p))[0]
+
+
+def _build_duplicate_groups(file_rows: list[dict]) -> tuple[list[dict], dict[str, str]]:
+    groups: list[dict] = []
+    path_to_group: dict[str, str] = {}
+    by_hash: dict[str, list[dict]] = defaultdict(list)
+    by_near: dict[tuple[str, str, int], list[dict]] = defaultdict(list)
+    for row in file_rows:
+        path = str(row.get("path") or "")
+        sha = str(row.get("sha256") or "")
+        if sha:
+            by_hash[sha].append(row)
+        size_bucket = int(row.get("size") or 0) // 4096
+        by_near[(_normalised_duplicate_stem(path), str(row.get("ext") or ""), size_bucket)].append(row)
+
+    for sha, rows in sorted(by_hash.items()):
+        if len(rows) < 2:
+            continue
+        members = sorted(str(row.get("path") or "") for row in rows if row.get("path"))
+        group_id = f"sha256_{sha}"
+        groups.append({
+            "group_id": group_id,
+            "type": "exact_hash",
+            "representative": _representative_path(members),
+            "members": members,
+            "member_count": len(members),
+        })
+        for member in members:
+            path_to_group[member] = group_id
+
+    for key, rows in sorted(by_near.items()):
+        members = sorted(str(row.get("path") or "") for row in rows if row.get("path"))
+        if len(members) < 2 or all(member in path_to_group for member in members):
+            continue
+        digest = hashlib.sha1("|".join(str(x) for x in key).encode("utf-8", "ignore")).hexdigest()[:16]
+        group_id = f"near_{digest}"
+        groups.append({
+            "group_id": group_id,
+            "type": "near_name_size",
+            "representative": _representative_path(members),
+            "members": members,
+            "member_count": len(members),
+            "key": {"stem": key[0], "ext": key[1], "size_bucket_4k": key[2]},
+        })
+        for member in members:
+            path_to_group.setdefault(member, group_id)
+
+    for row in file_rows:
+        path = str(row.get("path") or "")
+        sha = str(row.get("sha256") or "")
+        if path and path not in path_to_group and sha:
+            path_to_group[path] = f"sha256_{sha}"
+    return groups, path_to_group
+
+
+def _build_folder_profiles(folder_rows: list[dict], file_rows: list[dict]) -> list[dict]:
+    child_docs: dict[str, list[dict]] = defaultdict(list)
+    for row in file_rows:
+        parent = str(Path(str(row.get("path") or "")).parent)
+        if parent == "":
+            parent = "."
+        child_docs[parent].append(row)
+
+    profiles = []
+    for row in folder_rows:
+        path = str(row.get("path") or ".")
+        docs = child_docs.get(path, [])
+        text = " ".join([
+            path,
+            " ".join(str(x) for x in row.get("keywords") or []),
+            " ".join(str(doc.get("name") or "") for doc in docs[:80]),
+        ])
+        roles = _intent_tags(text)
+        backup_score = _backup_like_score(path)
+        profiles.append({
+            "path": path,
+            "folder_id": row.get("folder_id"),
+            "roles": roles,
+            "backup_like_score": backup_score,
+            "file_count_direct": row.get("file_count_direct", 0),
+            "top_extensions_direct": row.get("top_extensions_direct", {}),
+            "autorag_priority": "low" if backup_score >= 2 else ("high" if roles else "normal"),
+            "summary": row.get("summary", ""),
+        })
+    return profiles
+
+
+def _build_map_artifacts(root: Path, file_rows: list[dict], folder_rows: list[dict], doc_rows: list[dict]) -> dict:
+    duplicate_groups, path_to_group = _build_duplicate_groups(file_rows)
+    doc_paths = {str(row.get("path") or "") for row in doc_rows}
+    map_inputs: list[tuple[dict, str, list[str]]] = []
+    df: Counter[str] = Counter()
+    for row in file_rows:
+        rel_path = str(row.get("path") or "")
+        text = _read_map_text(root, row)
+        combined = "\n".join([
+            str(row.get("name") or ""),
+            str(row.get("summary") or ""),
+            " ".join(str(x) for x in row.get("keywords") or []),
+            text,
+        ])
+        terms = _clean_map_terms(combined, rel_path=rel_path, limit=96)
+        df.update({term.casefold() for term in terms})
+        map_inputs.append((row, text, terms))
+
+    total = max(1, len(map_inputs))
+    file_cards: list[dict] = []
+    chunk_rows: list[dict] = []
+    for row, text, terms in map_inputs:
+        rel_path = str(row.get("path") or "")
+        ext = str(row.get("ext") or "").lower()
+
+        def term_key(term: str) -> tuple[float, int, str]:
+            rarity = total / max(1, df.get(term.casefold(), 1))
+            return (-rarity, -len(term), term)
+
+        content_terms = terms[:48]
+        rare_terms = sorted(terms, key=term_key)[:32]
+        content_phrases = _phrase_signatures(content_terms[:32], limit=16)
+        rare_phrases = _phrase_signatures(rare_terms, limit=16)
+        phrase_signatures = (content_phrases + [p for p in rare_phrases if p not in content_phrases])[:28]
+        tag_text = " ".join([
+            rel_path,
+            str(row.get("name") or ""),
+            str(row.get("summary") or ""),
+            " ".join(rare_terms),
+            text[:4000],
+        ])
+        intent_tags = _intent_tags(tag_text)
+        format_hints = list(_FORMAT_HINTS_BY_EXT.get(ext, (ext.lstrip("."),))) if ext else []
+        evidence = _evidence_previews(text, content_terms + rare_terms, limit=5)
+        filename_keys = _filename_lookup_keys(rel_path)
+        for key in _filename_lookup_keys(str(row.get("name") or "")):
+            if key not in filename_keys:
+                filename_keys.append(key)
+        file_cards.append({
+            "schema_version": 1,
+            "path": rel_path,
+            "name": row.get("name", ""),
+            "ext": ext,
+            "mime": row.get("mime", ""),
+            "size": row.get("size", 0),
+            "mtime": row.get("mtime", ""),
+            "sha256": row.get("sha256", ""),
+            "parse_status": row.get("parse_status", ""),
+            "text_cache_path": row.get("text_cache_path", ""),
+            "doc_meta_path": row.get("doc_meta_path", ""),
+            "duplicate_group_id": path_to_group.get(rel_path, ""),
+            "is_document": rel_path in doc_paths,
+            "folder_roles": _intent_tags(str(Path(rel_path).parent)),
+            "intent_tags": intent_tags,
+            "content_terms": content_terms,
+            "rare_terms": rare_terms,
+            "phrase_signatures": phrase_signatures,
+            "format_hints": format_hints,
+            "path_terms": row.get("path_terms", []),
+            "name_terms": row.get("name_terms", []),
+            "folder_terms": row.get("folder_terms", []),
+            "filename_lookup_keys": filename_keys,
+            "evidence_previews": evidence,
+            "summary": row.get("summary", ""),
+            "map_quality": {
+                "has_body_text": bool(text.strip()),
+                "content_term_count": len(content_terms),
+                "rare_term_count": len(rare_terms),
+                "intent_tag_count": len(intent_tags),
+                "preview_count": len(evidence),
+            },
+        })
+
+        if text.strip():
+            chunk_size = 6000
+            max_chunks = 24
+            for n, start in enumerate(range(0, min(len(text), chunk_size * max_chunks), chunk_size), 1):
+                chunk = text[start:start + chunk_size]
+                chunk_terms = _clean_map_terms(chunk, rel_path=rel_path, limit=32)
+                if not chunk_terms and len(chunk.strip()) < 80:
+                    continue
+                chunk_content = chunk_terms[:24]
+                chunk_rare = sorted(chunk_terms, key=term_key)[:16]
+                chunk_rows.append({
+                    "schema_version": 1,
+                    "path": rel_path,
+                    "chunk_id": f"{row.get('sha256') or hashlib.sha1(rel_path.encode()).hexdigest()[:16]}:{n:04d}",
+                    "text_cache_path": row.get("text_cache_path", ""),
+                    "char_start": start,
+                    "char_end": start + len(chunk),
+                    "token_estimate": max(1, len(chunk) // 4),
+                    "heading_hint": "",
+                    "page_hint": None,
+                    "sheet_hint": None,
+                    "slide_hint": None,
+                    "content_terms": chunk_content,
+                    "rare_terms": chunk_rare,
+                    "phrase_signatures": _phrase_signatures(chunk_content, limit=8),
+                    "intent_tags": _intent_tags(chunk),
+                    "preview": _evidence_previews(chunk, chunk_rare, limit=1)[0] if chunk.strip() else "",
+                })
+
+    folder_profiles = _build_folder_profiles(folder_rows, file_rows)
+    ext_counts = Counter(str(row.get("ext") or "[noext]").lower() for row in file_rows)
+    parse_counts = Counter(str(row.get("parse_status") or "unknown") for row in file_rows)
+    corpus_profile = {
+        "schema_version": 1,
+        "root": str(root),
+        "files": len(file_rows),
+        "folders": len(folder_rows),
+        "documents": len(doc_rows),
+        "file_cards": len(file_cards),
+        "chunks": len(chunk_rows),
+        "duplicate_groups": len(duplicate_groups),
+        "top_extensions": dict(ext_counts.most_common(30)),
+        "parse_status_counts": dict(parse_counts.most_common()),
+        "autorag_readiness": {
+            "has_file_cards": bool(file_cards),
+            "has_chunk_map": bool(chunk_rows),
+            "has_duplicate_map": bool(duplicate_groups),
+            "document_card_coverage": round(sum(1 for c in file_cards if c.get("is_document")) / max(1, len(doc_rows)), 4),
+        },
+    }
+    return {
+        "file_cards": sorted(file_cards, key=lambda row: str(row.get("path") or "")),
+        "chunk_map": sorted(chunk_rows, key=lambda row: (str(row.get("path") or ""), str(row.get("chunk_id") or ""))),
+        "duplicate_map": sorted(duplicate_groups, key=lambda row: str(row.get("group_id") or "")),
+        "folder_profile": sorted(folder_profiles, key=lambda row: str(row.get("path") or "")),
+        "corpus_profile": corpus_profile,
+    }
+
+
 @dataclass
 class AgentIndexResult:
     files: int = 0
@@ -220,6 +867,23 @@ class AgentIndexResult:
 
 
 def build_agent_index(
+    target_root: Path,
+    config: Config,
+    *,
+    progress: ProgressCB | None = None,
+    cancel_check=None,
+) -> AgentIndexResult:
+    """Create/update `.jikji` metadata artifacts with a same-root lock."""
+    root = Path(target_root).expanduser().resolve()
+    if not root.is_dir():
+        raise NotADirectoryError(root)
+    index_dir = root / AGENT_DIR_NAME
+    index_dir.mkdir(parents=True, exist_ok=True)
+    with _index_lock(index_dir):
+        return _build_agent_index_unlocked(root, config, progress=progress, cancel_check=cancel_check)
+
+
+def _build_agent_index_unlocked(
     target_root: Path,
     config: Config,
     *,
@@ -240,7 +904,7 @@ def build_agent_index(
     doc_meta_dir = index_dir / "doc_meta"
     folder_cards_dir = index_dir / "folder_cards"
     file_cards_dir = index_dir / "file_cards"
-    for d in (doc_text_dir, doc_meta_dir, folder_cards_dir, file_cards_dir):
+    for d in (doc_text_dir, doc_meta_dir):
         d.mkdir(parents=True, exist_ok=True)
 
     if progress:
@@ -278,6 +942,7 @@ def build_agent_index(
     text_max = int(getattr(config, "agent_doc_text_max_chars", _DEFAULT_TEXT_MAX_CHARS) or _DEFAULT_TEXT_MAX_CHARS)
     chunk_chars = int(getattr(config, "agent_doc_text_chunk_chars", _DEFAULT_CHUNK_CHARS) or _DEFAULT_CHUNK_CHARS)
     parse_timeout = float(getattr(config, "parse_timeout_s", 5.0) or 5.0)
+    max_hash_bytes = int(getattr(config, "max_hash_bytes", 512 * 1024 * 1024) or 0)
 
     for idx, path in enumerate(files, 1):
         check()
@@ -288,7 +953,12 @@ def build_agent_index(
             entry: FileEntry = collect(path)
             fp = _fingerprint(path)
         except OSError as exc:
-            parse_errors.append({"path": rel_path, "error": str(exc), "stage": "metadata"})
+            parse_errors.append({
+                "path": rel_path,
+                "code": "access_denied",
+                "error": str(exc),
+                "stage": "metadata",
+            })
             continue
 
         prev = previous.get(rel_path) or {}
@@ -298,7 +968,7 @@ def build_agent_index(
             and prev.get("status", "present") == "present"
         )
         ext = entry.ext.lower()
-        parser_required = ext in DOCUMENT_CACHE_EXTENSIONS
+        parser_required = _parser_required(path, ext)
         text_cache_path = prev.get("text_cache_path", "") if unchanged else ""
         doc_meta_path = prev.get("doc_meta_path", "") if unchanged else ""
         content_hash = prev.get("sha256", "") if unchanged else ""
@@ -310,6 +980,18 @@ def build_agent_index(
             parsed_text_sample = ""
             if unchanged and text_cache_path and (root / text_cache_path).exists():
                 result.docs_reused += 1
+            elif not _hash_allowed(path, max_hash_bytes):
+                parse_status = "hash_oversize"
+                result.docs_failed += 1
+                parse_errors.append({
+                    "path": rel_path,
+                    "code": "hash_oversize",
+                    "error": f"file exceeds max_hash_bytes={max_hash_bytes}",
+                    "stage": "hash",
+                })
+                content_hash = ""
+                text_cache_path = ""
+                doc_meta_path = ""
             else:
                 try:
                     content_hash = _sha256(path)
@@ -343,18 +1025,25 @@ def build_agent_index(
                                 text_cache_path = f"{AGENT_DIR_NAME}/doc_text/sha256_{content_hash}"
                             else:
                                 _atomic_write_text(text_path, header + parsed_text)
-                            parse_status = "success"
+                            parse_status = "archive_listing" if _is_archive_path(path) else "success"
                             result.docs_parsed += 1
                         else:
                             parse_status = "empty"
                             result.docs_failed += 1
                     if parsed_text_sample:
-                        keywords = _tokens_from_text(f"{entry.name}\n{parsed_text_sample[:4000]}")
+                        keyword_text = _body_keyword_text(parsed_text_sample)[:4000]
+                        keywords = _tokens_from_text(f"{entry.name}\n{keyword_text}")
                         summary = parsed_text_sample.strip().replace("\n", " ")[:240]
                 except Exception as exc:  # parser/hash failure should not abort indexing
-                    parse_status = "failed"
-                    result.docs_failed += 1
-                    parse_errors.append({"path": rel_path, "error": str(exc), "stage": "parse"})
+                    if parse_status != "hash_oversize":
+                        parse_status = "failed"
+                        result.docs_failed += 1
+                        parse_errors.append({
+                            "path": rel_path,
+                            "code": "parser_crashed",
+                            "error": str(exc),
+                            "stage": "parse",
+                        })
                     if not content_hash:
                         content_hash = ""
         elif ext in TEXT_LIKE_EXTENSIONS:
@@ -367,7 +1056,15 @@ def build_agent_index(
         if not content_hash and not unchanged:
             # Hash every new/changed file so moves can be correlated later.
             try:
-                content_hash = _sha256(path)
+                if _hash_allowed(path, max_hash_bytes):
+                    content_hash = _sha256(path)
+                else:
+                    parse_errors.append({
+                        "path": rel_path,
+                        "code": "hash_oversize",
+                        "error": f"file exceeds max_hash_bytes={max_hash_bytes}",
+                        "stage": "hash",
+                    })
             except OSError:
                 content_hash = ""
 
@@ -388,6 +1085,10 @@ def build_agent_index(
             "text_cache_path": text_cache_path,
             "doc_meta_path": doc_meta_path,
             "keywords": keywords,
+            "path_terms": _tokens_from_text(rel_path, limit=24),
+            "name_terms": _tokens_from_text(entry.name, limit=16),
+            "folder_terms": _tokens_from_text(str(Path(rel_path).parent), limit=16),
+            "semantic_hints": _semantic_hints(rel_path, entry.name, ext, keywords, summary),
             "summary": summary,
             "indexed_at": _now_iso(),
         }
@@ -396,18 +1097,17 @@ def build_agent_index(
             doc_row = row | {"file_id": f"sha256:{content_hash}" if content_hash else ""}
             doc_rows.append(doc_row)
             if doc_meta_path:
-                _write_json(root / doc_meta_path, doc_row)
-                _atomic_write_text(
-                    file_cards_dir / f"sha256_{content_hash}.md",
-                    _file_card_markdown(doc_row),
-                )
+                _write_json(root / doc_meta_path, _doc_meta_envelope(doc_row))
 
     # Keep deleted rows visible for agents/history, but current indexes list present first.
     file_rows_sorted = sorted(file_rows, key=lambda r: r["path"])
     folder_rows = _build_folder_rows(root, dirs, folder_file_counts, folder_size_counts, folder_ext_counts, folder_children)
     doc_rows_sorted = sorted(doc_rows, key=lambda r: r["path"])
     current_doc_hashes = {row["sha256"] for row in doc_rows_sorted if row.get("sha256")}
-    _prune_stale_doc_artifacts(doc_text_dir, doc_meta_dir, file_cards_dir, current_doc_hashes)
+    _prune_stale_doc_artifacts(doc_text_dir, doc_meta_dir, current_doc_hashes)
+    _remove_path_quietly(folder_cards_dir)
+    _remove_path_quietly(file_cards_dir)
+    map_artifacts = _build_map_artifacts(root, file_rows_sorted, folder_rows, doc_rows_sorted)
 
     if progress:
         progress("jikji: 인덱스/탐색 지도 작성", 0.82)
@@ -415,14 +1115,24 @@ def build_agent_index(
     _write_jsonl(index_dir / "folder_index.jsonl", folder_rows)
     _write_jsonl(index_dir / "document_index.jsonl", doc_rows_sorted)
     _write_jsonl(index_dir / "parse_errors.jsonl", parse_errors)
-    for row in folder_rows:
-        fid = row["folder_id"]
-        _atomic_write_text(folder_cards_dir / f"{fid}.md", _folder_card_markdown(row))
+    _write_jsonl(index_dir / "file_cards.jsonl", map_artifacts["file_cards"])
+    _write_jsonl(index_dir / "chunk_map.jsonl", map_artifacts["chunk_map"])
+    search_index_path = build_instant_search_index(
+        index_dir,
+        map_artifacts["file_cards"],
+        map_artifacts["chunk_map"],
+    )
+    _write_jsonl(index_dir / "duplicate_map.jsonl", map_artifacts["duplicate_map"])
+    _write_jsonl(index_dir / "folder_profile.jsonl", map_artifacts["folder_profile"])
+    _write_json(index_dir / "corpus_profile.json", map_artifacts["corpus_profile"])
+    _write_json(index_dir / "intent_taxonomy.json", {k: list(v) for k, v in INTENT_TAXONOMY.items()})
 
     search_terms = _build_search_terms(folder_rows, file_rows_sorted, doc_rows_sorted)
-    _write_json(index_dir / "search_terms.json", search_terms)
+    _remove_path_quietly(index_dir / "search_terms.json")
+    _remove_path_quietly(index_dir / "search_terms.jsonl")
     manifest = {
         "schema_version": 1,
+        "search_index_schema_version": INSTANT_SEARCH_SCHEMA_VERSION,
         "generated_at": _now_iso(),
         "root": str(root),
         "files": len(file_rows_sorted),
@@ -431,11 +1141,46 @@ def build_agent_index(
         "docs_parsed": result.docs_parsed,
         "docs_reused": result.docs_reused,
         "docs_failed": result.docs_failed,
+        "parse_errors": len(parse_errors),
+        "file_cards": len(map_artifacts["file_cards"]),
+        "chunks": len(map_artifacts["chunk_map"]),
+        "duplicate_groups": len(map_artifacts["duplicate_map"]),
+        "search_index": f"{AGENT_DIR_NAME}/{INSTANT_SEARCH_INDEX}",
+        "search_index_bytes": search_index_path.stat().st_size if search_index_path.exists() else 0,
         "deleted_since_last_index": len(deleted_rows),
-        "mode": "metadata_only",
+        "mode": "agent_search",
         "non_destructive": True,
+        "cache_key_policy": CACHE_KEY_POLICY,
+        "owned_paths": OWNED_GENERATED_PATHS,
+        "retired_cleanup_paths": RETIRED_GENERATED_PATHS,
+        "parser_required_extensions": sorted(DOCUMENT_CACHE_EXTENSIONS),
+        "native_text_extensions": sorted(TEXT_LIKE_EXTENSIONS),
     }
     _write_json(index_dir / "manifest.json", manifest)
+    _write_json(index_dir / "autorag_manifest.json", {
+        "schema_version": 1,
+        "generated_at": manifest["generated_at"],
+        "root": str(root),
+        "artifacts": {
+            "file_cards": f"{AGENT_DIR_NAME}/file_cards.jsonl",
+            "chunk_map": f"{AGENT_DIR_NAME}/chunk_map.jsonl",
+            "instant_search_index": f"{AGENT_DIR_NAME}/{INSTANT_SEARCH_INDEX}",
+            "duplicate_map": f"{AGENT_DIR_NAME}/duplicate_map.jsonl",
+            "folder_profile": f"{AGENT_DIR_NAME}/folder_profile.jsonl",
+            "corpus_profile": f"{AGENT_DIR_NAME}/corpus_profile.json",
+            "document_index": f"{AGENT_DIR_NAME}/document_index.jsonl",
+            "doc_text_dir": f"{AGENT_DIR_NAME}/doc_text",
+        },
+        "capabilities": {
+            "has_doc_text": bool(doc_rows_sorted),
+            "has_file_cards": bool(map_artifacts["file_cards"]),
+            "has_chunk_map": bool(map_artifacts["chunk_map"]),
+            "has_duplicate_map": bool(map_artifacts["duplicate_map"]),
+            "has_intent_tags": True,
+            "embedding_required": False,
+            "rag_required": False,
+        },
+    })
     _atomic_write_text(index_dir / "agent_routes.md", _agent_routes_markdown(manifest))
     _atomic_write_text(index_dir / "agent_skill_context.md", _agent_skill_context_markdown(manifest))
     _atomic_write_text(index_dir / "human_guide.md", _human_guide_markdown(manifest))
@@ -456,7 +1201,6 @@ def build_agent_index(
 def _prune_stale_doc_artifacts(
     doc_text_dir: Path,
     doc_meta_dir: Path,
-    file_cards_dir: Path,
     live_hashes: set[str],
 ) -> None:
     """Remove generated document caches no longer referenced by current docs."""
@@ -469,10 +1213,29 @@ def _prune_stale_doc_artifacts(
         stem = child.stem
         if stem not in live_names:
             _remove_path_quietly(child)
-    for child in file_cards_dir.glob("sha256_*.md"):
-        stem = child.stem
-        if stem not in live_names:
-            _remove_path_quietly(child)
+
+
+def _doc_meta_envelope(row: dict) -> dict:
+    file_id = row.get("file_id") or (f"sha256:{row.get('sha256')}" if row.get("sha256") else "")
+    return {
+        "schema_version": 1,
+        "file_id": file_id,
+        "path": row.get("path", ""),
+        "title": "",
+        "author": "",
+        "subject": "",
+        "created": row.get("created", ""),
+        "modified": row.get("modified", ""),
+        "page_count": None,
+        "source": "jikji",
+        "exif": {},
+        "office": {},
+        "parser": {
+            "parse_status": row.get("parse_status", ""),
+            "text_cache_path": row.get("text_cache_path", ""),
+            "summary": row.get("summary", ""),
+        },
+    }
 
 
 def _folder_id(path_rel: str) -> str:
@@ -517,7 +1280,6 @@ def _build_search_terms(folder_rows, file_rows, doc_rows) -> dict:
                     bucket[key] = bucket[key][:40]
     return {k: terms[k] for k in sorted(terms)}
 
-
 def _agent_map_markdown(root, manifest, folders, docs, terms) -> str:
     top_folders = [r for r in folders if r.get("depth") == 1][:40]
     top_docs = docs[:40]
@@ -532,6 +1294,10 @@ def _agent_map_markdown(root, manifest, folders, docs, terms) -> str:
         "- 전체 파일 메타: `.jikji/file_index.jsonl`",
         "- 파싱 문서 본문 캐시: `.jikji/doc_text/`",
         "- 문서 인덱스: `.jikji/document_index.jsonl`",
+        "- 파일별 탐색 카드: `.jikji/file_cards.jsonl`",
+        "- 문서 chunk 탐색 지도: `.jikji/chunk_map.jsonl`",
+        "- 중복/사본 그룹: `.jikji/duplicate_map.jsonl`",
+        "- AutoRAG 연동 계약: `.jikji/autorag_manifest.json`",
         "- CLI 검색 예: `rg \"검색어\" .jikji/doc_text .jikji/*.jsonl`",
         "",
         "## 요약",
@@ -540,6 +1306,14 @@ def _agent_map_markdown(root, manifest, folders, docs, terms) -> str:
         f"- 폴더: {manifest['folders']}개",
         f"- 파서 필요 문서: {manifest['documents']}개",
         f"- 문서 캐시 신규/재사용/실패: {manifest['docs_parsed']} / {manifest['docs_reused']} / {manifest['docs_failed']}",
+        f"- 파서/메타 경고: {manifest.get('parse_errors', 0)}개",
+        "",
+        "## 에이전트 검색 규칙",
+        "- PDF/Office/HWP/RTF 등 파서 필요 문서 본문: `.jikji/doc_text/`에서 `rg`",
+        "- 자연어 단서 후보 추리: `.jikji/file_cards.jsonl`과 `.jikji/chunk_map.jsonl` 우선 확인",
+        "- 중복/백업 사본 판단: `.jikji/duplicate_map.jsonl` 확인",
+        "- txt/md/csv/json/log 등 텍스트형 파일: 원본 폴더에서 `.jikji`를 제외하고 `rg`",
+        "- 최종 파일 접근은 JSONL의 `path` 필드가 가리키는 원본 경로 사용",
         "",
         "## 최상위 폴더",
     ]
@@ -559,6 +1333,11 @@ def _visible_agent_map(agent_map: Path) -> str:
         f"- `{agent_map.as_posix()}`\n"
         "- `.jikji/file_index.jsonl`\n"
         "- `.jikji/folder_index.jsonl`\n"
+        "- `.jikji/document_index.jsonl`\n"
+        "- `.jikji/file_cards.jsonl`\n"
+        "- `.jikji/chunk_map.jsonl`\n"
+        "- `.jikji/duplicate_map.jsonl`\n"
+        "- `.jikji/autorag_manifest.json`\n"
         "- `.jikji/doc_text/`\n"
     )
 
@@ -567,11 +1346,16 @@ def _agent_routes_markdown(manifest) -> str:
     return (
         "# Jikji Agent Routes\n\n"
         "1. 먼저 `.jikji/agent_map.md`를 읽는다.\n"
-        "2. 폴더 후보는 `.jikji/folder_index.jsonl`에서 찾는다.\n"
-        "3. 파일 후보는 `.jikji/file_index.jsonl`에서 찾는다.\n"
-        "4. PDF/Office/HWP 문서 본문은 `.jikji/doc_text/`에서 `rg`로 검색한다.\n"
-        "5. 최종 접근은 `path` 필드의 원본 파일 경로를 사용한다.\n\n"
+        "2. 자연어/내용 단서 후보는 `.jikji/file_cards.jsonl`와 `.jikji/chunk_map.jsonl`에서 먼저 찾는다.\n"
+        "3. 폴더 후보는 `.jikji/folder_index.jsonl` 또는 `.jikji/folder_profile.jsonl`에서 찾는다.\n"
+        "4. 파일 후보는 `.jikji/file_index.jsonl`에서 찾는다.\n"
+        "5. 중복/백업 사본은 `.jikji/duplicate_map.jsonl`에서 확인한다.\n"
+        "6. PDF/Office/HWP 문서 본문은 `.jikji/doc_text/`에서 `rg`로 검색한다.\n"
+        "7. txt/md/csv/json/log 같은 텍스트형 파일은 원본 폴더에서 `.jikji`를 제외하고 검색한다.\n"
+        "8. 최종 접근은 `path` 필드의 원본 파일 경로를 사용한다.\n"
+        "9. 검색 작업 중 원본 파일을 이동/이름변경/삭제하지 않는다.\n\n"
         f"생성 시각: {manifest['generated_at']}\n"
+        f"캐시 정책: {manifest.get('cache_key_policy', CACHE_KEY_POLICY)}\n"
     )
 
 
@@ -580,11 +1364,16 @@ def _agent_skill_context_markdown(manifest) -> str:
         "# Jikji Skill Context\n\n"
         "Jikji는 검색기가 아니라 로컬 에이전트가 CLI에서 파일 시스템을 잘 찾도록 준비하는 도구입니다.\n"
         "이 인덱스는 비파괴적으로 생성되었으며 원본 폴더/파일명은 변경하지 않았습니다.\n\n"
+        "검색 규칙: 자연어 후보는 `.jikji/file_cards.jsonl`/`.jikji/chunk_map.jsonl`, 파서 필요 문서는 `.jikji/doc_text/`, 텍스트형 파일은 원본 경로를 검색하세요.\n\n"
         "## Read first\n"
         "- `.jikji/agent_map.md`\n"
         "- `.jikji/agent_routes.md`\n"
         "- `.jikji/file_index.jsonl`\n"
         "- `.jikji/document_index.jsonl`\n"
+        "- `.jikji/file_cards.jsonl`\n"
+        "- `.jikji/chunk_map.jsonl`\n"
+        "- `.jikji/duplicate_map.jsonl`\n"
+        "- `.jikji/autorag_manifest.json`\n"
     )
 
 
@@ -592,32 +1381,8 @@ def _human_guide_markdown(manifest) -> str:
     return (
         "# Jikji Human Guide\n\n"
         "기존 폴더와 파일은 이동/변경하지 않았습니다. `.jikji/` 아래에 탐색용 지도와 인덱스만 생성했습니다.\n\n"
+        "주의: `.jikji/doc_text/`에는 원본 문서에서 추출된 민감한 텍스트가 포함될 수 있습니다. Git 커밋 전에 검토하세요.\n\n"
         f"- 파일: {manifest['files']}개\n"
         f"- 폴더: {manifest['folders']}개\n"
         f"- 문서 텍스트 캐시: {manifest['documents']}개 대상\n"
-    )
-
-
-def _folder_card_markdown(row: dict) -> str:
-    return (
-        f"# {row.get('path')}\n\n"
-        f"- 폴더 ID: `{row.get('folder_id')}`\n"
-        f"- 직접 파일 수: {row.get('file_count_direct')}\n"
-        f"- 직접 하위 폴더 수: {row.get('subfolder_count_direct')}\n"
-        f"- 키워드: {', '.join(row.get('keywords') or []) or '—'}\n\n"
-        "## 하위 폴더\n"
-        + "\n".join(f"- {x}" for x in (row.get("child_folders") or []))
-        + "\n"
-    )
-
-
-def _file_card_markdown(row: dict) -> str:
-    return (
-        f"# {row.get('name')}\n\n"
-        f"- 경로: `{row.get('path')}`\n"
-        f"- SHA256: `{row.get('sha256')}`\n"
-        f"- 파싱 상태: {row.get('parse_status')}\n"
-        f"- 텍스트 캐시: `{row.get('text_cache_path') or ''}`\n"
-        f"- 키워드: {', '.join(row.get('keywords') or []) or '—'}\n\n"
-        f"## 요약\n{row.get('summary') or '—'}\n"
     )

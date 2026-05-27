@@ -15,6 +15,13 @@ Jikji is a separate project from Folder1004.
 - Never reorganize user folders in this repo unless a future feature explicitly adds a separate, warned physical mode.
 - `.jikji/` and `000_JIKJI_AGENT_MAP.md` are generated artifacts and may be regenerated.
 
+
+## Generated artifact ownership
+
+Jikji may regenerate only its documented artifacts: `.jikji/manifest.json`, `.jikji/*.jsonl`, `.jikji/search_index.sqlite`, `.jikji/agent_map.md`, `.jikji/agent_routes.md`, `.jikji/agent_skill_context.md`, `.jikji/human_guide.md`, `.jikji/doc_text/`, `.jikji/doc_meta/`, `.jikji/eval/`, `.jikji/.lock`, and root `000_JIKJI_AGENT_MAP.md`. Retired generated artifacts listed in `manifest.json` under `retired_cleanup_paths` may be removed during prepare. Do not delete arbitrary user-created files under `.jikji/`.
+
+Local-agent standard docs live in `docs/local-agent-search-standard.md`, `docs/schema.md`, and `docs/agent-usage.md`.
+
 ## Current commands
 
 ```bash

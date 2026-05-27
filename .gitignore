@@ -6,4 +6,7 @@ __pycache__/
 *.egg-info/
 .jikji/
 000_JIKJI_AGENT_MAP.md
+.benchmarks/
+.omc/
+.omx/
 .DS_Store

@@ -70,6 +70,12 @@ _MAX_PARSE_BYTES = int(
 
 SUPPORTED_EXTENSIONS: set[str] = {
     ".pdf",
+    ".epub",
+    ".eml",
+    ".ics",
+    ".sqlite",
+    ".sqlite3",
+    ".db",
     ".docx",
     ".pptx",
     ".ppsx",
@@ -98,6 +104,23 @@ SUPPORTED_EXTENSIONS: set[str] = {
     ".ini",
     ".cfg",
     ".toml",
+    # Images/audio — OCR/transcription is optional and local-only.
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".tif",
+    ".tiff",
+    ".webp",
+    ".bmp",
+    ".gif",
+    ".mp3",
+    ".wav",
+    ".m4a",
+    ".flac",
+    ".ogg",
+    ".aac",
+    ".opus",
+    ".wma",
     # Archives — listed for member-name extraction (no decompression).
     ".zip",
     ".jar",
@@ -106,6 +129,8 @@ SUPPORTED_EXTENSIONS: set[str] = {
     ".tgz",
     ".tbz",
     ".txz",
+    ".7z",
+    ".rar",
 }
 
 
@@ -167,7 +192,7 @@ def extract_excerpt(path: Path, max_chars: int = 1800, timeout: float = 5.0) -> 
     Returns '' if the file is unsupported, unreadable, or parsing fails.
     """
     from . import hwp as hwp_parser
-    from . import office
+    from . import media, office, structured
     from . import pdf as pdf_parser
     from . import text as text_parser
 
@@ -182,6 +207,18 @@ def extract_excerpt(path: Path, max_chars: int = 1800, timeout: float = 5.0) -> 
         return ""
     if ext == ".pdf":
         return _safe(pdf_parser.parse, path, max_chars, timeout)
+    if ext == ".epub":
+        return _safe(structured.parse_epub, path, max_chars, timeout)
+    if ext == ".eml":
+        return _safe(structured.parse_eml, path, max_chars, timeout)
+    if ext == ".ics":
+        return _safe(structured.parse_ics, path, max_chars, timeout)
+    if ext in {".sqlite", ".sqlite3", ".db"}:
+        return _safe(structured.parse_sqlite, path, max_chars, timeout)
+    if ext in {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".webp", ".bmp", ".gif"}:
+        return _safe(media.parse_image, path, max_chars, timeout)
+    if ext in {".mp3", ".wav", ".m4a", ".flac", ".ogg", ".aac", ".opus", ".wma"}:
+        return _safe(media.parse_audio, path, max_chars, timeout)
     if ext == ".docx":
         return _safe(office.parse_docx, path, max_chars, timeout)
     if ext in {".pptx", ".ppsx"}:

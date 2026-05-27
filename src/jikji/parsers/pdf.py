@@ -18,9 +18,93 @@ findable in the search index by its embedded title.
 from __future__ import annotations
 
 import logging
+import os
+import shutil
+import subprocess
+import tempfile
 from pathlib import Path
 
 log = logging.getLogger(__name__)
+
+
+def _env_float(name: str, default: float) -> float:
+    raw = os.environ.get(name)
+    if not raw:
+        return default
+    try:
+        return max(0.1, float(raw))
+    except ValueError:
+        return default
+
+
+def _run_text_tool(cmd: list[str], *, timeout: float) -> str:
+    try:
+        proc = subprocess.run(  # noqa: S603 - command path is resolved by shutil.which/caller.
+            cmd,
+            check=False,
+            capture_output=True,
+            text=True,
+            errors="ignore",
+            timeout=timeout,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        log.debug("pdf helper failed %s: %s", cmd[:2], exc)
+        return ""
+    if proc.returncode != 0:
+        log.debug("pdf helper non-zero %s: %s", cmd[:2], proc.stderr[:200])
+        return ""
+    return proc.stdout.strip()
+
+
+def _pdftotext_fallback(path: Path, max_chars: int) -> str:
+    exe = shutil.which("pdftotext")
+    if not exe:
+        return ""
+    text = _run_text_tool(
+        [exe, "-layout", "-enc", "UTF-8", "-f", "1", "-l", "5", str(path.resolve()), "-"],
+        timeout=_env_float("JIKJI_PDFTOTEXT_TIMEOUT", 10.0),
+    )
+    return text[:max_chars]
+
+
+def _pdf_ocr_fallback(path: Path, max_chars: int) -> str:
+    """OCR the first few pages if local Poppler+tesseract are installed."""
+    pdftoppm = shutil.which("pdftoppm")
+    tesseract = shutil.which("tesseract")
+    if not pdftoppm or not tesseract:
+        return ""
+    pages = int(os.environ.get("JIKJI_PDF_OCR_PAGES", "2") or "2")
+    pages = max(1, min(5, pages))
+    timeout = _env_float("JIKJI_PDF_OCR_TIMEOUT", 30.0)
+    lang = os.environ.get("JIKJI_TESSERACT_LANG", "").strip()
+    with tempfile.TemporaryDirectory(prefix="jikji-pdf-ocr-") as tmp:
+        prefix = str(Path(tmp) / "page")
+        try:
+            proc = subprocess.run(  # noqa: S603 - executable resolved by shutil.which.
+                [pdftoppm, "-r", "160", "-f", "1", "-l", str(pages), "-png", str(path.resolve()), prefix],
+                check=False,
+                capture_output=True,
+                text=True,
+                errors="ignore",
+                timeout=timeout,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            log.debug("pdftoppm failed %s: %s", path, exc)
+            return ""
+        if proc.returncode != 0:
+            log.debug("pdftoppm non-zero %s: %s", path, proc.stderr[:200])
+            return ""
+        parts: list[str] = []
+        for image in sorted(Path(tmp).glob("page-*.png"))[:pages]:
+            cmd = [tesseract, str(image.resolve()), "stdout", "--psm", os.environ.get("JIKJI_TESSERACT_PSM", "6")]
+            if lang:
+                cmd.extend(["-l", lang])
+            text = _run_text_tool(cmd, timeout=timeout)
+            if text:
+                parts.append(text)
+            if len("\n".join(parts)) >= max_chars:
+                break
+    return "\n".join(parts).strip()[:max_chars]
 
 
 def _safe_metadata_text(reader) -> str:
@@ -59,6 +143,9 @@ def parse(path: Path, max_chars: int) -> str:
         reader = PdfReader(str(path), strict=False)
     except Exception as exc:
         log.warning("pdf open failed %s: %s", path, exc)
+        fallback = _pdftotext_fallback(path, max_chars)
+        if fallback:
+            return fallback[:max_chars]
         return ""
 
     # Many "encrypted" PDFs use an empty owner password — pypdf still
@@ -113,6 +200,18 @@ def parse(path: Path, max_chars: int) -> str:
     joined = "\n".join(chunks).strip()
     if joined:
         return joined[:max_chars]
+
+    # pypdf sometimes misses text in malformed PDFs that Poppler can read.
+    fallback = _pdftotext_fallback(path, max_chars)
+    if fallback:
+        log.info("pdf body empty, using pdftotext fallback: %s", path)
+        return fallback[:max_chars]
+
+    # If the PDF is scanned and local OCR tooling exists, OCR the first pages.
+    ocr = _pdf_ocr_fallback(path, max_chars)
+    if ocr:
+        log.info("pdf body empty, using OCR fallback: %s", path)
+        return ocr[:max_chars]
 
     # Page-text extraction yielded nothing — try metadata as a last
     # resort so the file shows up in the search index by its title.
