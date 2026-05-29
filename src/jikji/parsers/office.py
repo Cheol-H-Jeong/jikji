@@ -167,10 +167,10 @@ def parse_xlsx(path: Path, max_chars: int) -> str:
     chunks: list[str] = []
     total = 0
     try:
-        for name in wb.sheetnames[:4]:
+        for name in wb.sheetnames[:6]:
             chunks.append(f"# Sheet: {name}")
             ws = wb[name]
-            for row in ws.iter_rows(max_row=15, values_only=True):
+            for row in ws.iter_rows(max_row=50, values_only=True):
                 cells = [str(c) for c in row if c is not None]
                 if not cells:
                     continue

@@ -25,6 +25,7 @@ from .hermes_bench import install_hermes_skill, run_hermes_benchmark
 from .hippocamp import fetch_subset, import_eval_set, run_benchmark, run_suite
 from .holdout_eval import generate_holdout_eval_set
 from .improvement_loop import run_improvement_loop
+from .publicdata_bench import build_publicdata_benchmark, run_publicdata_suite
 from .search_index import instant_index_path
 from .version import __version__
 
@@ -875,6 +876,80 @@ def cmd_edith_suite(args) -> int:
     return 0
 
 
+def cmd_publicdata_build(args) -> int:
+    result = build_publicdata_benchmark(
+        Path(args.dest),
+        target_docs=args.target_docs,
+        max_id=args.max_id,
+        max_cases=args.cases,
+        seed=args.seed,
+    )
+    payload = {
+        "dest": str(result.dest),
+        "train_root": str(result.train_root),
+        "valid_root": str(result.valid_root),
+        "test_root": str(result.test_root),
+        "train_eval_set": str(result.train_eval_set_path),
+        "valid_eval_set": str(result.valid_eval_set_path),
+        "eval_set": str(result.eval_set_path),
+        "manifest": str(result.manifest_path),
+        "docs_downloaded": result.docs_downloaded,
+        "train_docs": result.train_docs,
+        "valid_docs": result.valid_docs,
+        "test_docs": result.test_docs,
+        "eval_cases": result.eval_cases,
+    }
+    if args.json:
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        print("Public-data agent benchmark built")
+        print(f"- docs={result.docs_downloaded} train/valid/test={result.train_docs}/{result.valid_docs}/{result.test_docs}")
+        print(f"- test_eval={result.eval_set_path}")
+    return 0
+
+
+def cmd_publicdata_suite(args) -> int:
+    result = run_publicdata_suite(
+        Path(args.dest),
+        target_docs=args.target_docs,
+        max_id=args.max_id,
+        max_cases=args.cases,
+        seed=args.seed,
+        top_k=args.top_k,
+    )
+    payload = {
+        "report": str(result.report_path),
+        "build": {
+            "dest": str(result.build.dest),
+            "train_root": str(result.build.train_root),
+            "valid_root": str(result.build.valid_root),
+            "test_root": str(result.build.test_root),
+            "train_eval_set": str(result.build.train_eval_set_path),
+            "valid_eval_set": str(result.build.valid_eval_set_path),
+            "eval_set": str(result.build.eval_set_path),
+            "manifest": str(result.build.manifest_path),
+            "docs_downloaded": result.build.docs_downloaded,
+            "train_docs": result.build.train_docs,
+            "valid_docs": result.build.valid_docs,
+            "test_docs": result.build.test_docs,
+            "eval_cases": result.build.eval_cases,
+        },
+        "prepare_seconds": result.prepare_seconds,
+        "deterministic_report": str(result.deterministic_report),
+        "deterministic_metrics": result.deterministic_metrics,
+    }
+    if args.json:
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        print(f"Public-data suite complete: {result.report_path}")
+        for mode, metrics in result.deterministic_metrics.items():
+            print(
+                f"- {mode}: cases={metrics.get('cases')} hit@5={metrics.get('hit_at_5')} "
+                f"hit@10={metrics.get('hit_at_10')} mrr={metrics.get('mrr')} seconds={metrics.get('seconds')}"
+            )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="jikji", description="Prepare local files as agent-readable knowledge maps.")
     parser.add_argument("--version", action="version", version=f"jikji {__version__}")
@@ -1130,6 +1205,31 @@ def main(argv: list[str] | None = None) -> int:
     p_edith_suite.add_argument("--no-prepare", action="store_true")
     p_edith_suite.add_argument("--json", action="store_true")
     p_edith_suite.set_defaults(func=cmd_edith_suite)
+
+    p_publicdata_build = sub.add_parser(
+        "publicdata-build",
+        help="build a messy Korean public-data local-agent benchmark corpus",
+    )
+    p_publicdata_build.add_argument("dest")
+    p_publicdata_build.add_argument("--target-docs", type=int, default=90)
+    p_publicdata_build.add_argument("--max-id", type=int, default=700)
+    p_publicdata_build.add_argument("--cases", type=int, default=40)
+    p_publicdata_build.add_argument("--seed", type=int, default=20260529)
+    p_publicdata_build.add_argument("--json", action="store_true")
+    p_publicdata_build.set_defaults(func=cmd_publicdata_build)
+
+    p_publicdata_suite = sub.add_parser(
+        "publicdata-suite",
+        help="build and run deterministic public-data benchmark diagnostics",
+    )
+    p_publicdata_suite.add_argument("dest")
+    p_publicdata_suite.add_argument("--target-docs", type=int, default=90)
+    p_publicdata_suite.add_argument("--max-id", type=int, default=700)
+    p_publicdata_suite.add_argument("--cases", type=int, default=40)
+    p_publicdata_suite.add_argument("--seed", type=int, default=20260529)
+    p_publicdata_suite.add_argument("--top-k", type=int, default=10)
+    p_publicdata_suite.add_argument("--json", action="store_true")
+    p_publicdata_suite.set_defaults(func=cmd_publicdata_suite)
 
     args = parser.parse_args(argv)
     if args.cmd is None:

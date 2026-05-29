@@ -77,6 +77,16 @@ jikji edith-summary .benchmarks/edith_public --json
 jikji edith-suite .benchmarks/edith_public_run \
   --cases 3 --max-docs 42 --top-k 10 \
   --max-download-bytes 2000000000 --json
+
+# Korean public-data messy-folder benchmark for local agents
+jikji publicdata-build .benchmarks/publicdata_agent_bench/run_20260529 \
+  --target-docs 90 --max-id 700 --cases 40 --json
+jikji publicdata-suite .benchmarks/publicdata_agent_bench/run_20260529 \
+  --target-docs 90 --max-id 700 --cases 40 --top-k 10 --json
+jikji hermes-bench .benchmarks/publicdata_agent_bench/run_20260529/corpus/test \
+  --eval-set .benchmarks/publicdata_agent_bench/run_20260529/eval/publicdata_test_eval.jsonl \
+  --modes raw,jikji --cases 18 --candidate-top-k 10 \
+  --skills jikji --yolo --json
 ```
 
 In `hermes-bench`, `jikji` is a brief-first mode: the actual `jikji brief`
@@ -91,7 +101,7 @@ lookup without changing original files or folders.
 
 ## Public benchmark snapshot
 
-Measured on 2026-05-27 on this project workstation. These results use public or
+Measured through 2026-05-29 on this project workstation. These results use public or
 publishable benchmark data only. Private local-folder results are treated as
 development diagnostics and are not used as headline evidence.
 
@@ -100,6 +110,24 @@ No embeddings, vector DB, or cloud parsing are used by Jikji indexing/search.
 ### Actual local-agent comparison — primary evidence
 
 Headline benchmark claims should compare **raw local agent** vs **the same agent with Jikji attached**. The deterministic raw-vs-jikji tables below are only regression diagnostics for the map/search layer, not the main product claim.
+
+Hermes Agent was run on a Korean public-data messy-folder corpus built from 90
+public XLSX downloads. The builder attempted the requested Public Data
+Portal/KOGL-style workflow but records Seoul Data Hub public XLSX downloads as
+the accessible fallback source in `manifest.json`; do not overclaim this run as
+verified KOGL Type 1. The corpus is intentionally spreadsheet-heavy.
+
+```text
+Dataset                     Agent mode       Cases  Hit@1   Hit@3   Hit@5   Hit@10  Seconds  Avg sec/case
+--------------------------  ---------------  -----  ------  ------  ------  ------  -------  ------------
+Korean public XLSX messy    raw Hermes          18  0.7778  0.8333  0.8333  0.8333  784.028        43.557
+Korean public XLSX messy    Hermes + Jikji      18  0.9444  1.0000  1.0000  1.0000  522.894        29.050
+```
+
+Result: Jikji improved Hermes by +0.1666 absolute Hit@5/Hit@10 and about 1.50x
+lower elapsed agent time. Evidence lives under
+`.benchmarks/publicdata_agent_bench/run_20260529/` when regenerated locally.
+Timing and actual-agent results are workstation-, model-, and run-dependent.
 
 Claude Code was run as the local agent on a public HippoCamp subset. `raw` means
 Claude Code searched the original files/folders and was instructed not to use
@@ -151,6 +179,15 @@ candidate baseline over the same public local files; `jikji` uses
 
 BEIR public suite materialized each corpus document as a local Markdown file:
 SciFact, NFCorpus, and ArguAna, 200 qrel-backed queries each.
+
+Korean public-data messy-folder deterministic diagnostic:
+
+```text
+Mode                      Cases  Hit@1   Hit@3   Hit@5   Hit@10  MRR     Seconds
+------------------------  -----  ------  ------  ------  ------  ------  -------
+raw lexical diagnostic       18  0.7222  0.8889  0.8889  0.9444  0.8111    0.123
+Jikji index diagnostic       18  0.9444  1.0000  1.0000  1.0000  0.9722    0.423
+```
 
 | Dataset | Mode | Cases | Hit@1 | Hit@3 | Hit@5 | Hit@10 | MRR | Seconds |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -215,6 +252,8 @@ Validation commands for this snapshot:
 ```
 
 Result: `ruff` passed, `pytest` passed with 38 tests, and `compileall` passed.
+Current result after the public-data benchmark additions: `ruff` passed,
+`pytest` passed with 39 tests, and `compileall` passed.
 
 ## Content extraction coverage
 
@@ -261,6 +300,7 @@ python3 -m venv .venv
 - Agent usage: `docs/agent-usage.md`
 - HippoCamp benchmark adapter: `docs/hippocamp-benchmark.md`
 - Public benchmark catalog: `docs/public-benchmark-catalog.md`
+- Korean public-data agent benchmark: `docs/publicdata-agent-benchmark.md`
 - Generic skill template: `skills/jikji/SKILL.md`
 
 Jikji is separate from Folder1004:

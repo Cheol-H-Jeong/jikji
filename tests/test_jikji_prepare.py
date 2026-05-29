@@ -858,3 +858,39 @@ def test_edith_stream_extraction_respects_byte_budget(tmp_path, monkeypatch):
     assert extracted.byte_limit == len(archive_blob) + 1024
     assert extracted.bytes_read <= extracted.byte_limit
     assert (tmp_path / "ok" / "Entity" / "doc.pdf").read_bytes() == payload
+
+
+def test_publicdata_case_generation_uses_messy_paths_and_content_clues(tmp_path):
+    from jikji.publicdata_bench import _case_templates, _messy_relpath, _rare_terms
+
+    docs = [
+        {
+            "title": "서울시 공원 이용 현황",
+            "description": "공원별 방문객과 시설 정보를 제공하는 데이터",
+            "bench_path": "test/받은자료/기관별/새 폴더/001_서울시_공원_이용_현황_원본.xlsx",
+            "xlsx_text": ["공원명", "방문객수", "희귀단서공원A"],
+            "source_url": "https://example.test/a",
+        },
+        {
+            "title": "서울시 도서관 대출 통계",
+            "description": "도서관별 대출 권수와 운영 정보를 제공하는 데이터",
+            "bench_path": "test/공공데이터/임시보관/확인필요/002_서울시_도서관_대출_통계_검토용.xlsx",
+            "xlsx_text": ["도서관명", "대출권수", "희귀단서도서관B"],
+            "source_url": "https://example.test/b",
+        },
+    ]
+
+    rel = _messy_relpath({"title": "서울시 테스트 데이터"}, "test", 1, __import__("random").Random(7))
+    assert rel.startswith("test/")
+    assert rel.endswith(".xlsx")
+    assert "서울시_테스트_데이터" in rel
+
+    rare = _rare_terms(docs)
+    assert "희귀단서공원A" in rare[docs[0]["bench_path"]]
+
+    cases = _case_templates(docs, max_cases=2)
+    assert len(cases) == 2
+    assert cases[0]["expected_paths"] == [docs[0]["bench_path"]]
+    assert cases[0]["scenario"] == "filename_vague"
+    assert cases[1]["scenario"] == "content_lexical"
+    assert "희귀단서도서관B" in cases[1]["query"]
