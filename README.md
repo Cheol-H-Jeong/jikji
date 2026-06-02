@@ -94,8 +94,8 @@ jikji hardbench-suite .benchmarks/hard_mixed_kogl_20260603_v3 \
   --target-docs 180 --max-data-idx 180 --cases 240 --top-k 10 --json
 jikji hermes-bench .benchmarks/hard_mixed_kogl_20260603_v3/corpus/test \
   --eval-set .benchmarks/hard_mixed_kogl_20260603_v3/eval/hardbench_test_eval.jsonl \
-  --modes raw,jikji --cases 8 --candidate-top-k 10 \
-  --skills jikji --yolo --json
+  --modes raw,jikji-fast --cases 8 --candidate-top-k 10 \
+  --fast-max-turns 1 --skills jikji --yolo --json
 
 # Workspace-Bench-Lite file-discovery adaptation
 jikji workspacebench-suite .benchmarks/workspacebench_lite_jikji/run_20260602 \
@@ -106,7 +106,10 @@ jikji hermes-bench .benchmarks/workspacebench_lite_jikji/run_20260602/corpus \
   --skills jikji --yolo --json
 ```
 
-In `hermes-bench`, `jikji` is a brief-first mode: the actual `jikji brief`
+In `hermes-bench`, `raw` means the raw Hermes agent searches original files and
+must ignore Jikji. `jikji-fast` is the intended speed comparison mode: Hermes
+receives a tiny map-first candidate handoff from prebuilt Jikji search and is
+told not to browse the filesystem. `jikji` is a heavier brief-first mode: the actual `jikji brief`
 payload is provided up front so Hermes can choose from ranked paths and evidence
 instead of spending turns manually browsing `.jikji` indexes. Use `jikji-passive`
 only for legacy map-reading diagnostics.
@@ -197,17 +200,18 @@ the final test set stayed held out.
 ```text
 Mode   Cases  Hit@1   Hit@3   Hit@5   Hit@10  MRR     Sec    Sec/case
 -----  -----  ------  ------  ------  ------  ------  -----  --------
-raw       72  0.2222  0.4722  0.5694  0.6528  0.3656  0.689    0.0096
-Jikji     72  0.7083  0.8750  0.8889  0.9028  0.7939  2.540    0.0353
+raw       72  0.2222  0.4722  0.5694  0.6528  0.3656  0.782    0.0109
+Jikji     72  0.8750  0.9861  1.0000  1.0000  0.9317  3.555    0.0494
 ```
 
 Actual Hermes sanity sample on 8 held-out test cases:
 
 ```text
-Agent mode       Cases  Hit@1   Hit@3   Hit@5   Hit@10  Seconds  Avg sec/case
----------------  -----  ------  ------  ------  ------  -------  ------------
-raw Hermes           8  0.8750  0.8750  0.8750  0.8750  570.060        71.257
-Hermes + Jikji       8  1.0000  1.0000  1.0000  1.0000  330.405        41.301
+Agent mode              Cases  Hit@1   Hit@3   Hit@5   Hit@10  Seconds  Avg sec/case
+----------------------  -----  ------  ------  ------  ------  -------  ------------
+raw Hermes                  8  0.8750  0.8750  0.8750  0.8750  570.060        71.257
+Hermes + Jikji brief        8  1.0000  1.0000  1.0000  1.0000  330.405        41.301
+Hermes + Jikji fast         8  0.8750  0.8750  1.0000  1.0000  155.444        19.430
 ```
 
 Workspace-Bench-Lite is relevant to Jikji because it stresses workspace

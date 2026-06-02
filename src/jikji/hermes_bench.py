@@ -42,6 +42,11 @@ def _now_stamp() -> str:
     return datetime.now(tz=UTC).strftime("%Y%m%dT%H%M%SZ")
 
 
+def _clean_prompt_text(value: Any) -> str:
+    """Return subprocess-safe prompt text from parser/index evidence."""
+    return str(value).replace("\x00", " ").replace("\r", " ")
+
+
 def _is_relative_to(path: Path, base: Path) -> bool:
     try:
         path.resolve().relative_to(base.resolve())
@@ -100,6 +105,40 @@ def _candidate_lines(root: Path, query: str, *, top_k: int) -> list[str]:
     return lines
 
 
+def _fast_candidate_lines(root: Path, query: str, *, top_k: int) -> list[str]:
+    if top_k <= 0:
+        return [
+            "JIKJI MAP-FIRST FAST PATH:",
+            "No pre-ranked candidates were requested; return an empty JSON path list.",
+        ]
+    candidates = search(root, query, top_k=top_k)
+    selection_rule = (
+        "More than 10 candidates are listed: select the 10 candidate paths whose path/evidence best matches the QUESTION; "
+        "never use any path outside this list."
+        if len(candidates) > 10
+        else "10 or fewer candidates are listed: copy every candidate path into the JSON paths array exactly in the same order."
+    )
+    lines = [
+        "JIKJI MAP-FIRST FAST PATH:",
+        "Jikji already did the expensive local discovery pass before Hermes was called.",
+        "Do not browse, list, grep, cat, or inspect any filesystem path.",
+        selection_rule,
+        "Do not invent, summarize, or replace candidates; this is a bounded map handoff.",
+        "Candidates:",
+    ]
+    for idx, item in enumerate(candidates, 1):
+        reasons = ",".join(str(x) for x in (item.get("reasons") or [])[:5])
+        evidence = "; ".join(
+            _clean_prompt_text(x).replace("\n", " ")[:140]
+            for x in list(item.get("evidence") or [])[:1]
+        )
+        line = f"{idx}. {item.get('path')} | score={item.get('score')} | reasons={reasons}"
+        if evidence:
+            line += f" | evidence={evidence}"
+        lines.append(line)
+    return lines
+
+
 def _brief_lines(root: Path, query: str, *, top_k: int) -> list[str]:
     candidates = search(root, query, top_k=top_k)
     payload = build_agent_brief_payload(
@@ -124,6 +163,15 @@ def _brief_lines(root: Path, query: str, *, top_k: int) -> list[str]:
 
 def _mode_family(mode: str) -> str:
     normalized = mode.strip().lower().replace("_", "-")
+    if normalized in {
+        "jikji-fast",
+        "fast",
+        "map-first",
+        "jikji-map-first",
+        "jikji-pass-through",
+        "pass-through",
+    }:
+        return "jikji-fast"
     if normalized in {"jikji", "jikji-brief", "brief", "map", "jikji-map"}:
         return "jikji-brief"
     if normalized in {"jikji-tool", "tool", "tool-first"}:
@@ -145,6 +193,17 @@ def _prompt(root: Path, mode: str, case: dict, *, candidate_top_k: int = 0, retr
     ]
     if mode_family == "raw":
         base.append("RAW MODE: Do not read or use .jikji or 000_JIKJI_AGENT_MAP.md. Search only original user files/folders.")
+    elif mode_family == "jikji-fast":
+        base = [
+            "You are benchmarking local file discovery. Do not modify, move, rename, or delete files.",
+            "Jikji-equipped Hermes mode: answer from the prebuilt map/search handoff, not by exploring.",
+            f"ROOT: {root}",
+            f"QUESTION: {case.get('query')}",
+            "Return JSON only: {\"paths\":[\"relative/path\"],\"reason\":\"short\"}",
+            "Use relative paths exactly as shown in the candidate list.",
+            "If candidates are present, return at most 10 listed candidate paths.",
+        ]
+        base.extend(_fast_candidate_lines(root, str(case.get("query") or ""), top_k=candidate_top_k))
     elif mode_family == "jikji-tool":
         base.extend([
             "JIKJI TOOL-FIRST MODE: Treat Jikji as a fast local search tool, not as a pile of files to manually read.",
@@ -177,7 +236,7 @@ def _prompt(root: Path, mode: str, case: dict, *, candidate_top_k: int = 0, retr
             "RETRY: Your previous attempt returned no parseable file paths.",
             "Do not explain. Output JSON only with at least one relative file path if any candidate is relevant.",
         ])
-    return "\n".join(base)
+    return _clean_prompt_text("\n".join(base))
 
 
 def _extract_json(text: str) -> dict[str, Any]:
@@ -298,6 +357,7 @@ def run_hermes_benchmark(
     hermes_bin: str = "hermes",
     timeout_s: int = 240,
     max_turns: int = 20,
+    fast_max_turns: int = 1,
     skills: str = "",
     candidate_top_k: int = 10,
     retries: int = 1,
@@ -325,6 +385,7 @@ def run_hermes_benchmark(
         "hermes_bin": hermes_bin,
         "mode_protocols": {
             "raw": "Hermes searches original files/folders and must ignore Jikji artifacts.",
+            "jikji-fast": "Map-first Jikji handoff; Hermes receives only ranked paths/evidence and is told not to browse.",
             "jikji": "Alias for jikji-brief: query-specific Jikji route brief and candidates are provided to avoid raw browsing.",
             "jikji-brief": "Agent-map brief handoff; Hermes receives candidate paths, evidence, and fallback route order.",
             "jikji-tool": "Tool-first Jikji handoff; candidate list replaces exploratory filesystem work.",
@@ -356,7 +417,8 @@ def run_hermes_benchmark(
                     candidate_top_k=candidate_top_k if mode_family.startswith("jikji") else 0,
                     retry=attempt > 0,
                 )
-                cmd = [hermes_bin, "chat", "-Q", "--max-turns", str(max_turns)]
+                attempt_max_turns = fast_max_turns if mode_family == "jikji-fast" else max_turns
+                cmd = [hermes_bin, "chat", "-Q", "--max-turns", str(attempt_max_turns)]
                 if yolo:
                     cmd.extend(["--yolo", "--accept-hooks"])
                 if skills:
@@ -433,8 +495,9 @@ def run_hermes_benchmark(
                 "timeout": timeout,
                 "mutated_paths": mutated_paths,
                 "attempts": attempts,
-                "mode_family": mode_family,
-                "candidate_top_k": candidate_top_k if mode_family.startswith("jikji") else 0,
+                    "mode_family": mode_family,
+                    "candidate_top_k": candidate_top_k if mode_family.startswith("jikji") else 0,
+                    "max_turns": attempt_max_turns,
                 "seconds": round(elapsed, 3),
                 "output_path": str(evidence_path),
                 "stdout_tail": (stdout or raw_output)[-1200:],

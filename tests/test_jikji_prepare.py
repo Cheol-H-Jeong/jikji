@@ -102,7 +102,7 @@ def test_doctor_json_reports_ok(tmp_path, capsys):
     report = json.loads(out)
     assert report["ok"] is True
     assert report["errors"] == []
-    assert report["manifest"]["search_index_schema_version"] == 1
+    assert report["manifest"]["search_index_schema_version"] == 2
 
 
 def test_clean_removes_only_jikji_artifacts(tmp_path, capsys):
@@ -531,6 +531,52 @@ def test_hermes_jikji_prompt_is_agent_brief_first(tmp_path):
     assert '"schema_version": 1' in prompt
     assert "Route order" in prompt
     assert "preserve relative paths exactly" in prompt
+
+
+def test_hermes_jikji_fast_prompt_is_map_first_no_browse(tmp_path):
+    from jikji.hermes_bench import _mode_family, _prompt
+
+    prompt = _prompt(tmp_path, "map-first", {"query": "find notes", "id": "case"}, candidate_top_k=5)
+
+    assert _mode_family("map-first") == "jikji-fast"
+    assert _mode_family("jikji-pass-through") == "jikji-fast"
+    assert "JIKJI MAP-FIRST FAST PATH" in prompt
+    assert "Do not browse, list, grep, cat, or inspect any filesystem path." in prompt
+    assert "copy every candidate path into the JSON paths array exactly in the same order" in prompt
+    assert "Actual brief payload follows" not in prompt
+    assert "Do not invent, summarize, or replace candidates" in prompt
+
+
+def test_instant_search_index_includes_cached_document_text(tmp_path):
+    import sqlite3
+
+    from jikji.search_index import INSTANT_SEARCH_SCHEMA_VERSION, build_instant_search_index
+
+    index_dir = tmp_path / ".jikji"
+    cache = index_dir / "doc_text" / "sha256_demo.txt"
+    cache.parent.mkdir(parents=True)
+    cache.write_text("문서 본문 고유단서테스트 2026-06-03", encoding="utf-8")
+    card = {
+        "path": "docs/demo.pdf",
+        "name": "demo.pdf",
+        "ext": ".pdf",
+        "sha256": "demo",
+        "text_cache_path": ".jikji/doc_text/sha256_demo.txt",
+        "evidence_previews": [],
+    }
+
+    db = build_instant_search_index(index_dir, [card], [])
+
+    con = sqlite3.connect(db)
+    try:
+        schema = con.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()[0]
+        assert int(schema) == INSTANT_SEARCH_SCHEMA_VERSION == 2
+        source = con.execute("SELECT row_json FROM docs").fetchone()[0]
+        assert "고유단서테스트" in source
+        terms = {row[0] for row in con.execute("SELECT term FROM terms")}
+        assert "고유단서테스트" in terms
+    finally:
+        con.close()
 
 
 def test_bench_run_rejects_annotation_leak(tmp_path, capsys):

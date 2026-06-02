@@ -673,6 +673,7 @@ def cmd_hermes_bench(args) -> int:
         hermes_bin=args.hermes_bin,
         timeout_s=args.timeout,
         max_turns=args.max_turns,
+        fast_max_turns=args.fast_max_turns,
         skills=args.skills,
         candidate_top_k=args.candidate_top_k,
         retries=args.retries,
@@ -1272,6 +1273,12 @@ def main(argv: list[str] | None = None) -> int:
     p_hb.add_argument("--hermes-bin", default="hermes")
     p_hb.add_argument("--timeout", type=int, default=240)
     p_hb.add_argument("--max-turns", type=int, default=20)
+    p_hb.add_argument(
+        "--fast-max-turns",
+        type=int,
+        default=1,
+        help="Hermes max turns for jikji-fast/map-first modes; raw and brief modes still use --max-turns",
+    )
     p_hb.add_argument("--skills", default="")
     p_hb.add_argument("--candidate-top-k", type=int, default=10, help="inject top Jikji search candidates into Jikji tool-mode prompts")
     p_hb.add_argument("--retries", type=int, default=1, help="retry a case when Hermes returns no parseable paths")

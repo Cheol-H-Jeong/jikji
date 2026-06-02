@@ -15,7 +15,8 @@ from pathlib import Path
 from typing import Any
 
 INSTANT_SEARCH_INDEX = "search_index.sqlite"
-INSTANT_SEARCH_SCHEMA_VERSION = 1
+INSTANT_SEARCH_SCHEMA_VERSION = 2
+_DOC_TEXT_INDEX_CHARS = 64_000
 
 _TOKEN_RE = re.compile(r"[0-9A-Za-z가-힣ぁ-ゟ゠-ヿ一-鿿][0-9A-Za-z가-힣ぁ-ゟ゠-ヿ一-鿿_.+-]*")
 _CJK_RE = re.compile(r"[가-힣ぁ-ゟ゠-ヿ一-鿿]")
@@ -135,8 +136,31 @@ def _term_variants(term: str) -> set[str]:
     return variants
 
 
-def row_from_card(card: dict[str, Any], chunks: list[dict[str, Any]]) -> dict[str, Any]:
+def _read_cached_doc_text(root: Path, cache_path: str, *, limit: int = _DOC_TEXT_INDEX_CHARS) -> str:
+    if not cache_path:
+        return ""
+    path = root / cache_path
+    try:
+        if path.is_file():
+            return path.read_text(encoding="utf-8", errors="ignore")[:limit]
+        if path.is_dir():
+            parts: list[str] = []
+            total = 0
+            for chunk in sorted(path.glob("chunk_*.txt")):
+                text = chunk.read_text(encoding="utf-8", errors="ignore")
+                parts.append(text)
+                total += len(text)
+                if total >= limit:
+                    break
+            return "\n".join(parts)[:limit]
+    except OSError:
+        return ""
+    return ""
+
+
+def row_from_card(card: dict[str, Any], chunks: list[dict[str, Any]], *, root: Path | None = None) -> dict[str, Any]:
     path = str(card.get("path") or "")
+    doc_text = _read_cached_doc_text(root, str(card.get("text_cache_path") or "")) if root is not None else ""
     chunk_text = "\n".join(
         " ".join(
             [
@@ -155,6 +179,7 @@ def row_from_card(card: dict[str, Any], chunks: list[dict[str, Any]]) -> dict[st
     intent_tags = [str(x) for x in (card.get("intent_tags") or [])]
     format_hints = [str(x) for x in (card.get("format_hints") or [])]
     evidence_previews = [str(x) for x in (card.get("evidence_previews") or [])]
+    source_text = "\n".join([*(str(x) for x in evidence_previews), doc_text]).strip()
     return {
         "path": path,
         "name": card.get("name", ""),
@@ -172,7 +197,7 @@ def row_from_card(card: dict[str, Any], chunks: list[dict[str, Any]]) -> dict[st
             + list(card.get("folder_terms") or [])
         ),
         "summary": card.get("summary", ""),
-        "_source_text": "\n".join(str(x) for x in evidence_previews),
+        "_source_text": source_text,
         "_map_card": card,
         "_map_chunks": chunks,
         "_map_text": chunk_text,
@@ -190,6 +215,7 @@ def row_from_card(card: dict[str, Any], chunks: list[dict[str, Any]]) -> dict[st
                 " ".join(intent_tags),
                 " ".join(format_hints),
                 " ".join(evidence_previews),
+                doc_text,
                 str(card.get("summary") or ""),
                 chunk_text,
             ]
@@ -207,6 +233,7 @@ def terms_for_row(row: dict[str, Any]) -> set[str]:
             " ".join(str(x) for x in (row.get("semantic_hints") or [])),
             str(row.get("summary") or "")[:1000],
             str(row.get("_source_text") or "")[:2000],
+            str(row.get("_source_text") or "")[2000:24000],
             str(row.get("_map_text") or "")[:3000],
             " ".join(str(x) for x in (card.get("rare_terms") or [])),
             " ".join(str(x) for x in (card.get("content_terms") or [])),
@@ -249,7 +276,7 @@ def build_instant_search_index(
     filename_rows: list[tuple[str, int]] = []
     df: Counter[str] = Counter()
     for doc_id, card in enumerate(file_cards, 1):
-        row = row_from_card(card, chunks_by_path.get(str(card.get("path") or ""), []))
+        row = row_from_card(card, chunks_by_path.get(str(card.get("path") or ""), []), root=index_dir.parent)
         rows.append(row)
         terms = terms_for_row(row)
         df.update(terms)

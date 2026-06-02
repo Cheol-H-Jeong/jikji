@@ -1087,6 +1087,24 @@ def _compact_lookup_text(text: str) -> str:
     """
     return re.sub(r"[^0-9a-z가-힣ぁ-ゟ゠-ヿ一-鿿]+", "", (text or "").casefold())
 
+
+def _compact_query_terms(query: str) -> list[str]:
+    """Return exact compact clues such as no-space Korean phrases or dates."""
+    out: list[str] = []
+    seen: set[str] = set()
+    raw_terms = [*_tokens_from_text(query, limit=64), *_quoted_query_terms(query)]
+    for raw in raw_terms:
+        compact = _compact_lookup_text(raw)
+        if compact in seen or compact in _STOPWORDS:
+            continue
+        has_cjk = bool(re.search(r"[가-힣ぁ-ゟ゠-ヿ一-鿿]", compact))
+        digits = sum(1 for ch in compact if ch.isdigit())
+        if (has_cjk and len(compact) >= 6) or digits >= 4:
+            seen.add(compact)
+            out.append(compact)
+    return out[:16]
+
+
 def _query_filename_anchors(query: str) -> list[str]:
     """Extract likely remembered filename/title anchors from a query."""
     anchors: list[str] = []
@@ -1199,6 +1217,27 @@ def _score_map(query: str, row: dict, *, idf: dict[str, float] | None = None) ->
     rare_text = str(row.get("_map_rare_text") or " ".join(rare_terms)).casefold()
     phrase_text = str(row.get("_map_phrase_text") or " ".join(phrases)).casefold()
     evidence_text = str(row.get("_map_evidence_text") or " ".join(evidence_previews + [str(card.get("summary") or "")])).casefold()
+    compact_map_text = _compact_lookup_text(
+        " ".join([content_text, rare_text, phrase_text, evidence_text, map_text, str(row.get("_source_text") or "")])
+    )
+    compact_path_text = _compact_lookup_text(" ".join([path_text, name_text, path_lookup_text]))
+    compact_hits = 0
+    for term in _compact_query_terms(query):
+        if term in compact_map_text:
+            score += 950 if re.search(r"[가-힣ぁ-ゟ゠-ヿ一-鿿]", term) else 520
+            compact_hits += 1
+            reasons.append("compact-exact-term")
+            if term not in matched_terms:
+                matched_terms.append(term)
+        elif term in compact_path_text:
+            score += 420
+            compact_hits += 1
+            reasons.append("compact-path-term")
+            if term not in matched_terms:
+                matched_terms.append(term)
+    if compact_hits >= 2:
+        score += 420 + 120 * compact_hits
+        reasons.append("multi-compact-term")
     original_hits = 0
     quoted_hits = 0
     for token in tokens:
