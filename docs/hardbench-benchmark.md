@@ -188,13 +188,34 @@ multi_body_disambiguation     55  0.8000  0.9273
 weak_folder_memory            56  0.3036  0.5000
 ```
 
-Actual Hermes 4-case sample:
+Actual 4-case sample. `Hermes + Jikji direct` is the skill/tool handoff path:
+the agent receives Jikji's prebuilt ranked map/search candidates and does not
+spend an additional exploratory Hermes chat turn browsing the corpus.
 
 ```text
-Agent mode           Cases  Hit@1   Hit@3   Hit@5   Hit@10  Seconds  Avg sec/case
--------------------  -----  ------  ------  ------  ------  -------  ------------
-raw Hermes               4  0.5000  0.7500  0.7500  0.7500  366.282        91.571
-Hermes + Jikji fast      4  0.2500  0.7500  0.7500  1.0000  157.014        39.254
+Agent mode              Cases  Hit@1   Hit@3   Hit@5   Hit@10  Seconds  Avg sec/case
+----------------------  -----  ------  ------  ------  ------  -------  ------------
+raw Hermes                  4  0.5000  0.7500  0.7500  0.7500  366.282        91.571
+Hermes + Jikji fast         4  0.2500  0.7500  0.7500  1.0000  157.014        39.254
+Hermes + Jikji direct       4  0.2500  0.7500  0.7500  1.0000    3.202         0.800
+```
+
+Hard-subset 4-case sample:
+
+```text
+Agent mode              Cases  Hit@1   Hit@3   Hit@5   Hit@10  Seconds  Avg sec/case
+----------------------  -----  ------  ------  ------  ------  -------  ------------
+raw Hermes                  4  0.2500  0.5000  0.7500  0.7500  428.408       107.102
+Hermes + Jikji fast         4  0.2500  0.7500  0.7500  1.0000  101.228        25.307
+Hermes + Jikji direct       4  0.2500  0.7500  0.7500  1.0000    3.173         0.793
+```
+
+Full 240-case direct handoff result:
+
+```text
+Mode          Cases  Hit@1   Hit@3   Hit@5   Hit@10  Seconds  Avg sec/case
+------------  -----  ------  ------  ------  ------  -------  ------------
+Jikji direct    240  0.3167  0.5125  0.6125  0.8125  194.350         0.810
 ```
 
 This larger local benchmark is intentionally harder than the 180-document KOGL

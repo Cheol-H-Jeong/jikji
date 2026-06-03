@@ -164,6 +164,14 @@ def _brief_lines(root: Path, query: str, *, top_k: int) -> list[str]:
 def _mode_family(mode: str) -> str:
     normalized = mode.strip().lower().replace("_", "-")
     if normalized in {
+        "jikji-direct",
+        "direct",
+        "skill-direct",
+        "tool-direct",
+        "jikji-skill-direct",
+    }:
+        return "jikji-direct"
+    if normalized in {
         "jikji-fast",
         "fast",
         "map-first",
@@ -389,6 +397,10 @@ def run_hermes_benchmark(
             "jikji": "Alias for jikji-brief: query-specific Jikji route brief and candidates are provided to avoid raw browsing.",
             "jikji-brief": "Agent-map brief handoff; Hermes receives candidate paths, evidence, and fallback route order.",
             "jikji-tool": "Tool-first Jikji handoff; candidate list replaces exploratory filesystem work.",
+            "jikji-direct": (
+                "Skill-direct Jikji handoff; the agent invokes Jikji search and accepts "
+                "the ranked map candidates without an exploratory Hermes chat turn."
+            ),
             "jikji-passive": "Legacy/passive map-reading mode; Hermes may inspect Jikji artifacts.",
         },
         "modes": {},
@@ -401,7 +413,11 @@ def run_hermes_benchmark(
         started = time.perf_counter()
         for idx, case in enumerate(cases, 1):
             case_started = time.perf_counter()
-            before = _inventory(root)
+            # Direct mode is an in-process Jikji search call: it never invokes
+            # the agent shell and cannot mutate the benchmark corpus. Avoid a
+            # full per-case filesystem inventory here because that would hide
+            # the actual "Everything-style prebuilt map" latency benefit.
+            before = {} if mode_family == "jikji-direct" else _inventory(root)
             timeout = False
             returncode = 0
             attempts: list[dict[str, Any]] = []
@@ -409,55 +425,90 @@ def run_hermes_benchmark(
             stderr = ""
             predicted: list[str] = []
             max_attempts = max(1, 1 + int(retries or 0))
-            for attempt in range(max_attempts):
-                prompt = _prompt(
-                    root,
-                    mode,
-                    case,
-                    candidate_top_k=candidate_top_k if mode_family.startswith("jikji") else 0,
-                    retry=attempt > 0,
-                )
-                attempt_max_turns = fast_max_turns if mode_family == "jikji-fast" else max_turns
-                cmd = [hermes_bin, "chat", "-Q", "--max-turns", str(attempt_max_turns)]
-                if yolo:
-                    cmd.extend(["--yolo", "--accept-hooks"])
-                if skills:
-                    cmd.extend(["--skills", skills])
-                cmd.extend(["-q", prompt])
+            attempt_max_turns = 0
+            candidates: list[dict[str, Any]] = []
+            if mode_family == "jikji-direct":
                 attempt_started = time.perf_counter()
-                attempt_timeout = False
                 try:
-                    proc = subprocess.run(cmd, cwd=str(root), text=True, capture_output=True, timeout=timeout_s, check=False)
-                    attempt_stdout = proc.stdout or ""
-                    attempt_stderr = proc.stderr or ""
-                    attempt_returncode = proc.returncode
-                except subprocess.TimeoutExpired as exc:
-                    attempt_timeout = True
-                    attempt_stdout = (exc.stdout or "") if isinstance(exc.stdout, str) else ""
-                    attempt_stderr = (exc.stderr or "") if isinstance(exc.stderr, str) else ""
-                    attempt_returncode = -1
-                except (FileNotFoundError, OSError) as exc:
+                    candidates = search(root, str(case.get("query") or ""), top_k=candidate_top_k)
+                    predicted = [str(item.get("path") or "") for item in candidates if str(item.get("path") or "")]
+                    attempt_stdout = json.dumps(
+                        {
+                            "paths": predicted,
+                            "reason": "Jikji skill-direct mode returned prebuilt map/search candidates without a Hermes exploratory chat turn.",
+                            "candidates": candidates,
+                        },
+                        ensure_ascii=False,
+                        indent=2,
+                    )
+                    attempt_stderr = ""
+                    attempt_returncode = 0
+                except Exception as exc:  # pragma: no cover - defensive benchmark reporting
                     attempt_stdout = ""
                     attempt_stderr = str(exc)
                     attempt_returncode = -1
-                parsed = _extract_json(attempt_stdout or attempt_stderr)
-                predicted = _normalise_paths(parsed)
                 stdout = attempt_stdout
                 stderr = attempt_stderr
                 returncode = attempt_returncode
-                timeout = timeout or attempt_timeout
                 attempts.append({
-                    "attempt": attempt + 1,
+                    "attempt": 1,
                     "returncode": attempt_returncode,
-                    "timeout": attempt_timeout,
+                    "timeout": False,
                     "seconds": round(time.perf_counter() - attempt_started, 3),
                     "predicted_paths": predicted,
                     "stdout_tail": attempt_stdout[-800:],
+                    "tool": "jikji search",
                 })
-                if predicted or attempt_returncode == -1:
-                    break
-            after = _inventory(root)
-            mutated_paths = _inventory_delta(before, after)
+            else:
+                for attempt in range(max_attempts):
+                    prompt = _prompt(
+                        root,
+                        mode,
+                        case,
+                        candidate_top_k=candidate_top_k if mode_family.startswith("jikji") else 0,
+                        retry=attempt > 0,
+                    )
+                    attempt_max_turns = fast_max_turns if mode_family == "jikji-fast" else max_turns
+                    cmd = [hermes_bin, "chat", "-Q", "--max-turns", str(attempt_max_turns)]
+                    if yolo:
+                        cmd.extend(["--yolo", "--accept-hooks"])
+                    if skills:
+                        cmd.extend(["--skills", skills])
+                    cmd.extend(["-q", prompt])
+                    attempt_started = time.perf_counter()
+                    attempt_timeout = False
+                    try:
+                        proc = subprocess.run(cmd, cwd=str(root), text=True, capture_output=True, timeout=timeout_s, check=False)
+                        attempt_stdout = proc.stdout or ""
+                        attempt_stderr = proc.stderr or ""
+                        attempt_returncode = proc.returncode
+                    except subprocess.TimeoutExpired as exc:
+                        attempt_timeout = True
+                        attempt_stdout = (exc.stdout or "") if isinstance(exc.stdout, str) else ""
+                        attempt_stderr = (exc.stderr or "") if isinstance(exc.stderr, str) else ""
+                        attempt_returncode = -1
+                    except (FileNotFoundError, OSError) as exc:
+                        attempt_stdout = ""
+                        attempt_stderr = str(exc)
+                        attempt_returncode = -1
+                    parsed = _extract_json(attempt_stdout or attempt_stderr)
+                    predicted = _normalise_paths(parsed)
+                    stdout = attempt_stdout
+                    stderr = attempt_stderr
+                    returncode = attempt_returncode
+                    timeout = timeout or attempt_timeout
+                    attempts.append({
+                        "attempt": attempt + 1,
+                        "returncode": attempt_returncode,
+                        "timeout": attempt_timeout,
+                        "seconds": round(time.perf_counter() - attempt_started, 3),
+                        "predicted_paths": predicted,
+                        "stdout_tail": attempt_stdout[-800:],
+                    })
+                    if predicted or attempt_returncode == -1:
+                        break
+            after = {} if mode_family == "jikji-direct" else _inventory(root)
+            mutated_paths = [] if mode_family == "jikji-direct" else _inventory_delta(before, after)
             elapsed = time.perf_counter() - case_started
             raw_output = "\n\n".join(
                 [
@@ -495,9 +546,10 @@ def run_hermes_benchmark(
                 "timeout": timeout,
                 "mutated_paths": mutated_paths,
                 "attempts": attempts,
-                    "mode_family": mode_family,
-                    "candidate_top_k": candidate_top_k if mode_family.startswith("jikji") else 0,
-                    "max_turns": attempt_max_turns,
+                "mode_family": mode_family,
+                "candidate_top_k": candidate_top_k if mode_family.startswith("jikji") else 0,
+                "max_turns": attempt_max_turns,
+                "agent_chat_turns": 0 if mode_family == "jikji-direct" else attempt_max_turns,
                 "seconds": round(elapsed, 3),
                 "output_path": str(evidence_path),
                 "stdout_tail": (stdout or raw_output)[-1200:],

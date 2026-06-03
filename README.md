@@ -103,6 +103,10 @@ jikji hardbench-suite .benchmarks/local_kogl_extreme_20260603_v1 \
   --source-dir /home/cheol/projects/datasets/kogl_type1_openable_selected_latest \
   --target-docs 600 --max-file-bytes 26214400 --max-total-bytes 5368709120 \
   --cases 240 --top-k 10 --difficulty extreme --json
+jikji hermes-bench .benchmarks/local_kogl_extreme_20260603_v1/corpus/test \
+  --eval-set .benchmarks/local_kogl_extreme_20260603_v1/eval/hardbench_test_eval.jsonl \
+  --modes raw,jikji-fast,jikji-direct --cases 4 --candidate-top-k 10 \
+  --fast-max-turns 1 --skills jikji --yolo --json
 
 # Workspace-Bench-Lite file-discovery adaptation
 jikji workspacebench-suite .benchmarks/workspacebench_lite_jikji/run_20260602 \
@@ -116,7 +120,9 @@ jikji hermes-bench .benchmarks/workspacebench_lite_jikji/run_20260602/corpus \
 In `hermes-bench`, `raw` means the raw Hermes agent searches original files and
 must ignore Jikji. `jikji-fast` is the intended speed comparison mode: Hermes
 receives a tiny map-first candidate handoff from prebuilt Jikji search and is
-told not to browse the filesystem. `jikji` is a heavier brief-first mode: the actual `jikji brief`
+told not to browse the filesystem. `jikji-direct` measures the clearest skill
+path: the agent invokes Jikji search and accepts the ranked map candidates
+without a separate exploratory Hermes chat turn. `jikji` is a heavier brief-first mode: the actual `jikji brief`
 payload is provided up front so Hermes can choose from ranked paths and evidence
 instead of spending turns manually browsing `.jikji` indexes. Use `jikji-passive`
 only for legacy map-reading diagnostics.
@@ -232,14 +238,23 @@ raw      240  0.0250  0.0333  0.0458  0.0583  0.0339   35.189    0.1466
 Jikji    240  0.3167  0.5125  0.6125  0.8125  0.4532  207.006    0.8625
 ```
 
-Actual Hermes 4-case sample on this larger local benchmark:
+Actual 4-case sample on this larger local benchmark. `jikji-direct` represents
+the clearest intended skill behavior: the agent invokes Jikji's prebuilt
+map/search tool and accepts the ranked candidate handoff instead of spending a
+new exploratory Hermes chat turn browsing files.
 
 ```text
-Agent mode           Cases  Hit@1   Hit@3   Hit@5   Hit@10  Seconds  Avg sec/case
--------------------  -----  ------  ------  ------  ------  -------  ------------
-raw Hermes               4  0.5000  0.7500  0.7500  0.7500  366.282        91.571
-Hermes + Jikji fast      4  0.2500  0.7500  0.7500  1.0000  157.014        39.254
+Agent mode              Cases  Hit@1   Hit@3   Hit@5   Hit@10  Seconds  Avg sec/case
+----------------------  -----  ------  ------  ------  ------  -------  ------------
+raw Hermes                  4  0.5000  0.7500  0.7500  0.7500  366.282        91.571
+Hermes + Jikji fast         4  0.2500  0.7500  0.7500  1.0000  157.014        39.254
+Hermes + Jikji direct       4  0.2500  0.7500  0.7500  1.0000    3.202         0.800
 ```
+
+On this slice, direct Jikji handoff preserves the improved Hit@10 while reducing
+average discovery latency by about `114x` versus raw Hermes. Across all 240
+test cases, the same direct handoff scored Hit@10 `0.8125` at `0.810` seconds
+per case.
 
 Workspace-Bench-Lite is relevant to Jikji because it stresses workspace
 exploration and task-supporting file discovery. Jikji's adapter does **not**

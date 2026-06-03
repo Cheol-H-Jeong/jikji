@@ -538,6 +538,8 @@ def test_hermes_jikji_fast_prompt_is_map_first_no_browse(tmp_path):
 
     prompt = _prompt(tmp_path, "map-first", {"query": "find notes", "id": "case"}, candidate_top_k=5)
 
+    assert _mode_family("jikji-direct") == "jikji-direct"
+    assert _mode_family("skill-direct") == "jikji-direct"
     assert _mode_family("map-first") == "jikji-fast"
     assert _mode_family("jikji-pass-through") == "jikji-fast"
     assert "JIKJI MAP-FIRST FAST PATH" in prompt
