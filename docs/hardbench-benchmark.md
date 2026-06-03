@@ -11,16 +11,17 @@ corpus roots.
 ## What it builds
 
 ```bash
-jikji hardbench-suite .benchmarks/hard_mixed_kogl_20260603_v3 \
-  --target-docs 180 --max-data-idx 180 --cases 240 --top-k 10 --json
+jikji hardbench-suite .benchmarks/hard_mixed_kogl_extreme_20260603_v2 \
+  --target-docs 180 --max-data-idx 180 --cases 240 --top-k 10 \
+  --difficulty extreme --json
 ```
 
-The 2026-06-03 v3 run downloaded 180 public documents:
+The 2026-06-03 extreme v2 run downloaded 179 public documents:
 
 ```text
 Ext    Files
 -----  -----
-.pdf     150
+.pdf     149
 .hwp      27
 .hwpx      1
 .pptx      1
@@ -32,24 +33,27 @@ Split and eval size:
 ```text
 Split  Docs  Cases
 -----  ----  -----
-train   108    216
-valid    36     72
-test     36     72
+train    81    162
+valid    27     54
+test     72    144
 ```
 
 Eval scenarios:
 
 ```text
-Scenario                  Meaning
-------------------------  ---------------------------------------------
-body_rare_phrase          Find by parsed HWP/PDF/etc. body phrase
-format_doc_type_semantic  Find by format + natural document type + clues
-messy_folder_context      Find by remembered deep folder/path context
-multi_clue_hard           Find by format plus multiple body/name clues
+Scenario                   Meaning
+-------------------------  ------------------------------------------------
+body_phrase_no_filename    Find by parsed body phrase with no filename clue
+decoy_note_resistant       Ignore matching txt memo/link decoys and find original
+multi_body_disambiguation  Pick the one document matching several body clues
+weak_folder_memory         Use weak top/year folder memory plus body clue
 ```
 
 The builder filters obvious parser-noise tokens such as garbled HWP syllable
-runs or very long no-space English strings before generating queries.
+runs or very long no-space English strings before generating queries. In
+`--difficulty extreme`, materialized filenames are generic, test roots are
+larger, and every original document receives memo/link decoys that contain
+matching clues but are invalid answers.
 
 ## Train/valid-driven improvements
 
@@ -70,61 +74,59 @@ Implemented from train/valid only:
 7. Compact exact-term scoring for no-space Korean phrases and date-like clues,
    improving multi-clue document retrieval without embeddings or RAG.
 
-## Final deterministic test result
+## Final deterministic extreme test result
 
 ```text
-Mode   Cases  Hit@1   Hit@3   Hit@5   Hit@10  MRR     Sec    Sec/case
------  -----  ------  ------  ------  ------  ------  -----  --------
-raw       72  0.2222  0.4722  0.5694  0.6528  0.3656  0.782    0.0109
-Jikji     72  0.8750  0.9861  1.0000  1.0000  0.9317  3.555    0.0494
+Mode   Cases  Hit@1   Hit@3   Hit@5   Hit@10  MRR     Sec     Sec/case
+-----  -----  ------  ------  ------  ------  ------  ------  --------
+raw      144  0.0486  0.0833  0.1042  0.1597  0.0707   6.295    0.0437
+Jikji    144  0.6736  0.8472  0.9167  0.9583  0.7826  29.487    0.2048
 ```
 
 Jikji is slower than the simple raw lexical diagnostic, but both are far below
 1 second per case. Under the user's threshold, the important result is recall:
-Jikji improved final test Hit@5 by +0.4306 absolute and reached Hit@5 1.0000.
+Jikji improved final test Hit@5 by +0.8125 absolute on the much harder corpus.
 
 Per-scenario Jikji test result:
 
 ```text
-Scenario                  Cases  Hit@5   Hit@10  MRR
-------------------------  -----  ------  ------  ------
-body_rare_phrase             23  1.0000  1.0000  0.9565
-format_doc_type_semantic     16  1.0000  1.0000  0.8906
-messy_folder_context         15  1.0000  1.0000  0.9667
-multi_clue_hard              18  1.0000  1.0000  0.9074
+Scenario                   Cases  Hit@5   Hit@10  MRR
+-------------------------  -----  ------  ------  ------
+body_phrase_no_filename       40  1.0000  1.0000  0.8633
+decoy_note_resistant          37  0.9459  0.9730  0.8566
+multi_body_disambiguation     34  0.9706  0.9706  0.8775
+weak_folder_memory            33  0.7273  0.8788  0.5039
 ```
 
-Remaining weakness: Hit@1 is not perfect when many public documents share
-near-identical policy vocabulary, but every held-out test query now places the
-target in the top 5 map/search candidates.
+Remaining weakness: weak folder-memory cases are now intentionally difficult
+because the query gives only a coarse top/year memory and generic filenames.
 
-## Actual Hermes sample
+## Actual Hermes extreme sample
 
-A small 8-case actual-agent sample was run because full actual-agent loops take
+A small 4-case actual-agent sample was run because full actual-agent loops take
 minutes per handful of cases.
 
 ```text
-Agent mode              Cases  Hit@1   Hit@3   Hit@5   Hit@10  Seconds  Avg sec/case
-----------------------  -----  ------  ------  ------  ------  -------  ------------
-raw Hermes                  8  0.8750  0.8750  0.8750  0.8750  570.060        71.257
-Hermes + Jikji brief        8  1.0000  1.0000  1.0000  1.0000  330.405        41.301
-Hermes + Jikji fast         8  0.8750  0.8750  1.0000  1.0000  155.444        19.430
+Agent mode           Cases  Hit@1   Hit@3   Hit@5   Hit@10  Seconds  Avg sec/case
+-------------------  -----  ------  ------  ------  ------  -------  ------------
+raw Hermes               4  0.5000  0.5000  0.5000  0.5000  415.444       103.861
+Hermes + Jikji fast      4  1.0000  1.0000  1.0000  1.0000   63.156        15.789
 ```
 
 Interpretation: `jikji-fast` is the closer product-mode comparison for
 agent-equipped search. Hermes is still invoked, but it receives a tiny ranked
 map/search handoff and is told not to browse/list/grep the filesystem. On this
-sample it preserved Hit@5/Hit@10 1.0000 and reduced elapsed time by about 3.67x
+sample it reached Hit@5/Hit@10 1.0000 and reduced elapsed time by about 6.58x
 versus raw Hermes. Actual-agent timings are model/workstation/run dependent; use
-the full 72-case deterministic test as the main regression signal and bounded
+the full 144-case deterministic test as the main regression signal and bounded
 actual-agent runs as product sanity checks.
 
 For speed-focused actual-agent testing, use map-first mode:
 
 ```bash
-jikji hermes-bench .benchmarks/hard_mixed_kogl_20260603_v3/corpus/test \
-  --eval-set .benchmarks/hard_mixed_kogl_20260603_v3/eval/hardbench_test_eval.jsonl \
-  --modes raw,jikji-fast --cases 8 --candidate-top-k 10 \
+jikji hermes-bench .benchmarks/hard_mixed_kogl_extreme_20260603_v2/corpus/test \
+  --eval-set .benchmarks/hard_mixed_kogl_extreme_20260603_v2/eval/hardbench_test_eval.jsonl \
+  --modes raw,jikji-fast --cases 4 --candidate-top-k 10 \
   --fast-max-turns 1 --skills jikji --yolo --json
 ```
 

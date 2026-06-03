@@ -90,11 +90,12 @@ jikji hermes-bench .benchmarks/publicdata_agent_bench/run_20260529/corpus/test \
 
 
 # Hard mixed public-document benchmark: PDF/HWP/HWPX in messy folders
-jikji hardbench-suite .benchmarks/hard_mixed_kogl_20260603_v3 \
-  --target-docs 180 --max-data-idx 180 --cases 240 --top-k 10 --json
-jikji hermes-bench .benchmarks/hard_mixed_kogl_20260603_v3/corpus/test \
-  --eval-set .benchmarks/hard_mixed_kogl_20260603_v3/eval/hardbench_test_eval.jsonl \
-  --modes raw,jikji-fast --cases 8 --candidate-top-k 10 \
+jikji hardbench-suite .benchmarks/hard_mixed_kogl_extreme_20260603_v2 \
+  --target-docs 180 --max-data-idx 180 --cases 240 --top-k 10 \
+  --difficulty extreme --json
+jikji hermes-bench .benchmarks/hard_mixed_kogl_extreme_20260603_v2/corpus/test \
+  --eval-set .benchmarks/hard_mixed_kogl_extreme_20260603_v2/eval/hardbench_test_eval.jsonl \
+  --modes raw,jikji-fast --cases 4 --candidate-top-k 10 \
   --fast-max-turns 1 --skills jikji --yolo --json
 
 # Workspace-Bench-Lite file-discovery adaptation
@@ -191,27 +192,26 @@ closer to Jikji's target than Markdown-only corpora: real PDF files,
 searchable/scanned/mixed formats, multiple languages, and multi-file answers.
 
 
-Hard mixed public-document benchmark: 180 KOGL public attachments were downloaded
-and split into train/valid/test. The corpus includes 150 PDF, 27 HWP, 1 HWPX, 1
-PPTX, and 1 XLSX file, then places them into deep messy folders with clutter
-notes. Train/valid failures drove folder/path scoring and decoy-note handling;
-the final test set stayed held out.
+Hard mixed public-document benchmark in `--difficulty extreme` mode: 179 KOGL
+public attachments were downloaded and split into train/valid/test. Extreme mode
+makes raw-agent search meaningfully harder by using generic filenames, larger
+test roots, weak natural-language clues, and decoy memo/link files that contain
+matching clues but are not valid answers. The final test set stayed held out.
 
 ```text
-Mode   Cases  Hit@1   Hit@3   Hit@5   Hit@10  MRR     Sec    Sec/case
------  -----  ------  ------  ------  ------  ------  -----  --------
-raw       72  0.2222  0.4722  0.5694  0.6528  0.3656  0.782    0.0109
-Jikji     72  0.8750  0.9861  1.0000  1.0000  0.9317  3.555    0.0494
+Mode   Cases  Hit@1   Hit@3   Hit@5   Hit@10  MRR     Sec     Sec/case
+-----  -----  ------  ------  ------  ------  ------  ------  --------
+raw      144  0.0486  0.0833  0.1042  0.1597  0.0707   6.295    0.0437
+Jikji    144  0.6736  0.8472  0.9167  0.9583  0.7826  29.487    0.2048
 ```
 
-Actual Hermes sanity sample on 8 held-out test cases:
+Actual Hermes sample on 4 held-out extreme test cases:
 
 ```text
-Agent mode              Cases  Hit@1   Hit@3   Hit@5   Hit@10  Seconds  Avg sec/case
-----------------------  -----  ------  ------  ------  ------  -------  ------------
-raw Hermes                  8  0.8750  0.8750  0.8750  0.8750  570.060        71.257
-Hermes + Jikji brief        8  1.0000  1.0000  1.0000  1.0000  330.405        41.301
-Hermes + Jikji fast         8  0.8750  0.8750  1.0000  1.0000  155.444        19.430
+Agent mode           Cases  Hit@1   Hit@3   Hit@5   Hit@10  Seconds  Avg sec/case
+-------------------  -----  ------  ------  ------  ------  -------  ------------
+raw Hermes               4  0.5000  0.5000  0.5000  0.5000  415.444       103.861
+Hermes + Jikji fast      4  1.0000  1.0000  1.0000  1.0000   63.156        15.789
 ```
 
 Workspace-Bench-Lite is relevant to Jikji because it stresses workspace

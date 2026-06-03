@@ -31,6 +31,7 @@ KOGL_FILE = f"{KOGL_BASE}/edu/eduDataFileDown.do"
 DEFAULT_HARDBENCH_SEED = 20260603
 DEFAULT_ALLOWED_EXTENSIONS = (".pdf", ".hwp", ".hwpx", ".pptx", ".xlsx")
 HARDBENCH_LEAK_NAMES = ("eval", "metadata", "manifest.json", "source_downloads")
+HARDBENCH_DIFFICULTIES = ("hard", "extreme")
 
 _KOREAN_STOP = {
     "공공",
@@ -295,12 +296,19 @@ def _doc_type_label(doc_type: str) -> str:
     }.get(doc_type, "참고자료")
 
 
-def _split_docs(docs: list[dict[str, Any]], *, seed: int) -> dict[str, list[dict[str, Any]]]:
+def _split_docs(docs: list[dict[str, Any]], *, seed: int, difficulty: str = "hard") -> dict[str, list[dict[str, Any]]]:
     shuffled = list(docs)
     random.Random(seed).shuffle(shuffled)
     n = len(shuffled)
-    train_end = max(1, int(n * 0.6))
-    valid_end = max(train_end + 1, int(n * 0.8))
+    if difficulty == "extreme":
+        # A tiny held-out root lets raw agents brute-force every candidate.
+        # Keep enough train/valid for strategy work, but make the test corpus
+        # materially larger so actual local-agent browsing becomes expensive.
+        train_end = max(1, int(n * 0.45))
+        valid_end = max(train_end + 1, int(n * 0.60))
+    else:
+        train_end = max(1, int(n * 0.6))
+        valid_end = max(train_end + 1, int(n * 0.8))
     return {
         "train": shuffled[:train_end],
         "valid": shuffled[train_end:valid_end],
@@ -308,7 +316,7 @@ def _split_docs(docs: list[dict[str, Any]], *, seed: int) -> dict[str, list[dict
     }
 
 
-def _messy_relpath(doc: dict[str, Any], split: str, idx: int, rng: random.Random) -> str:
+def _messy_relpath(doc: dict[str, Any], split: str, idx: int, rng: random.Random, *, difficulty: str = "hard") -> str:
     type_bucket = {
         "form": "서식_계약_동의서",
         "manual": "지침_매뉴얼_해설",
@@ -318,14 +326,27 @@ def _messy_relpath(doc: dict[str, Any], split: str, idx: int, rng: random.Random
         "report": "보고서_조사_연구",
         "brochure": "홍보_브로슈어",
     }.get(str(doc.get("doc_type")), "참고자료")
+    if difficulty == "extreme":
+        type_bucket = rng.choice([
+            type_bucket,
+            "검토자료",
+            "첨부자료",
+            "업무참고",
+            "정리대상",
+            "원본확인필요",
+        ])
     top = rng.choice(["공유드라이브", "내문서_백업", "팀자료실", "인수인계", "외부기관_수신"])
     year = rng.choice(["2019", "2020", "2021", "2022", "2023", "2024", "2025", "연도미상"])
     state = rng.choice(["정리전", "검토중", "임시보관", "나중에_정리", "원본_섞임"])
     ext_name = str(doc.get("ext") or ".bin").lstrip(".").upper()
-    title = _slug(str(doc.get("filename") or f"doc-{idx}"), max_len=78)
-    prefix = rng.choice(["", "복사본_", "최종_", "받은자료_", f"{idx:03d}_"])
-    if rng.random() < 0.35:
-        title = re.sub(r"공공저작물|공공누리|저작권", "공공자료", title)
+    if difficulty == "extreme":
+        title = f"{rng.choice(['붙임', '참고', '검토본', '회의자료', '원본', '최종본'])}_{idx:03d}_{rng.randrange(1000, 9999)}{doc.get('ext') or ''}"
+        prefix = rng.choice(["", "복사본_", "받은자료_", "임시_", "확인필요_"])
+    else:
+        title = _slug(str(doc.get("filename") or f"doc-{idx}"), max_len=78)
+        prefix = rng.choice(["", "복사본_", "최종_", "받은자료_", f"{idx:03d}_"])
+        if rng.random() < 0.35:
+            title = re.sub(r"공공저작물|공공누리|저작권", "공공자료", title)
     return "/".join([
         top,
         split,
@@ -338,13 +359,20 @@ def _messy_relpath(doc: dict[str, Any], split: str, idx: int, rng: random.Random
     ])
 
 
-def _materialize_split(dest: Path, split: str, docs: list[dict[str, Any]], *, seed: int) -> list[dict[str, Any]]:
+def _materialize_split(
+    dest: Path,
+    split: str,
+    docs: list[dict[str, Any]],
+    *,
+    seed: int,
+    difficulty: str = "hard",
+) -> list[dict[str, Any]]:
     rng = random.Random(seed + len(split) * 17)
     root = dest / "corpus" / split
     root.mkdir(parents=True, exist_ok=True)
     materialized: list[dict[str, Any]] = []
     for idx, doc in enumerate(docs, 1):
-        rel = _messy_relpath(doc, split, idx, rng)
+        rel = _messy_relpath(doc, split, idx, rng, difficulty=difficulty)
         target = root / rel
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(Path(str(doc["source_file"])), target)
@@ -353,7 +381,36 @@ def _materialize_split(dest: Path, split: str, docs: list[dict[str, Any]], *, se
         row["bench_path"] = rel
         row["materialized_path"] = str(target)
         materialized.append(row)
-        if idx % 3 == 0:
+        if difficulty == "extreme":
+            phrase = _content_phrase(str(doc.get("text_excerpt") or ""))
+            rare = _tokens(
+                " ".join([
+                    str(doc.get("filename") or ""),
+                    str(doc.get("page_title") or ""),
+                    str(doc.get("text_excerpt") or ""),
+                ]),
+                min_len=3,
+            )[:4]
+            note = target.parent / f"{target.stem}_검토메모.txt"
+            note.write_text(
+                "\n".join([
+                    "임시 검색 메모: 이 txt는 원문 파일이 아니며 실제 문서 위치는 아직 확인되지 않음.",
+                    f"기억나는 본문 단서: {phrase or '본문 일부 확인 필요'}",
+                    f"후보 키워드: {', '.join(rare) or '공공자료'}",
+                    "주의: 이 메모/링크/후보목록 파일을 정답으로 고르면 안 됨.",
+                ]) + "\n",
+                encoding="utf-8",
+            )
+            decoy = target.parent / f"{target.stem}_후보목록_링크만.txt"
+            decoy.write_text(
+                "\n".join([
+                    "링크만 모아둔 파일. 원본 문서가 아님.",
+                    f"비슷한 단서: {phrase or ', '.join(rare) or '공공자료'}",
+                    "실제 원본 위치는 확인 필요. 이 파일 자체는 정답이 아님.",
+                ]) + "\n",
+                encoding="utf-8",
+            )
+        elif idx % 3 == 0:
             note = target.parent / f"{target.stem}_검토메모.txt"
             note.write_text(
                 f"임시 메모: {doc.get('page_title')} / {doc.get('filename')} 관련 자료 후보가 같은 폴더에 있음.\n",
@@ -397,7 +454,13 @@ def _content_phrase(text: str) -> str:
     return ""
 
 
-def _case_templates(rows: list[dict[str, Any]], *, max_cases: int, seed: int) -> list[dict[str, Any]]:
+def _case_templates(
+    rows: list[dict[str, Any]],
+    *,
+    max_cases: int,
+    seed: int,
+    difficulty: str = "hard",
+) -> list[dict[str, Any]]:
     rng = random.Random(seed + 104729)
     rare_by_path = _rare_terms(rows)
     cases: list[dict[str, Any]] = []
@@ -413,25 +476,59 @@ def _case_templates(rows: list[dict[str, Any]], *, max_cases: int, seed: int) ->
         doc_type_label = _doc_type_label(doc_type)
         rare = rare_by_path.get(path) or _tokens(filename + " " + title, min_len=3)
         phrase = _content_phrase(str(doc.get("text_excerpt") or ""))
+        if difficulty == "extreme":
+            body_terms = _tokens(str(doc.get("text_excerpt") or ""), min_len=3)
+            if body_terms:
+                rare = body_terms
         folder_parts = Path(path).parts[:5]
-        scenario_rows = [
-            (
-                "body_rare_phrase",
-                f"본문 어딘가에 '{phrase or (rare[0] if rare else title[:20])}'라는 단서가 나오는 {ext_label} 파일을 찾아줘",
-            ),
-            (
-                "format_doc_type_semantic",
-                f"파일명은 정확히 모르는데 {doc_type_label} 성격의 {ext_label} 공공자료를 찾아줘. 단서는 {', '.join(rare[:3]) or title[:30]} 정도야",
-            ),
-            (
-                "messy_folder_context",
-                f"{'/'.join(folder_parts)} 아래 정리전 자료 중 {title[:34]} 비슷한 문서를 찾아줘",
-            ),
-            (
-                "multi_clue_hard",
-                f"{ext_label} 형식이고 {rare[0] if rare else title[:14]} / {rare[1] if len(rare) > 1 else doc_type} 단서가 같이 보이는 원본 파일",
-            ),
-        ]
+        if difficulty == "extreme":
+            split_name = str(doc.get("split") or "")
+            top_hint = folder_parts[0] if folder_parts else "어딘가"
+            year_hint = next((part for part in folder_parts if re.fullmatch(r"20\d{2}|연도미상", part)), "")
+            folder_hint = " / ".join(part for part in (top_hint, year_hint) if part) or "/".join(
+                part for part in folder_parts if part != split_name
+            )
+            clue_a = rare[0] if rare else (phrase[:16] if phrase else doc_type_label)
+            clue_b = rare[1] if len(rare) > 1 else (rare[0] if rare else ext_label)
+            clue_c = rare[2] if len(rare) > 2 else (phrase[-18:] if phrase else "원본")
+            phrase_hint = phrase or " ".join(rare[:3]) or title[:30]
+            scenario_rows = [
+                (
+                    "body_phrase_no_filename",
+                    f"파일명은 거의 기억 안 나. 본문에 '{phrase_hint}' 비슷한 문장이 들어간 실제 {ext_label} 원본 문서를 찾아줘. txt 메모나 링크 파일은 제외해줘.",
+                ),
+                (
+                    "decoy_note_resistant",
+                    f"검색하면 메모 파일도 같이 걸릴 수 있는데, {clue_a} / {clue_b} 단서가 함께 있는 {doc_type_label} 원본 {ext_label}만 찾아줘.",
+                ),
+                (
+                    "weak_folder_memory",
+                    f"{folder_hint} 쪽에서 본 것 같은 정리 안 된 첨부자료였고 파일명은 generic했어. {clue_a} 내용이 보이는 원본 문서 후보를 찾아줘. 메모/링크 파일은 빼줘.",
+                ),
+                (
+                    "multi_body_disambiguation",
+                    f"비슷한 공공자료가 여러 개야. {clue_a}, {clue_b}, {clue_c} 단서가 동시에 맞는 실제 {ext_label} 파일을 우선순위로 찾아줘. txt 후보목록은 제외해줘.",
+                ),
+            ]
+        else:
+            scenario_rows = [
+                (
+                    "body_rare_phrase",
+                    f"본문 어딘가에 '{phrase or (rare[0] if rare else title[:20])}'라는 단서가 나오는 {ext_label} 파일을 찾아줘",
+                ),
+                (
+                    "format_doc_type_semantic",
+                    f"파일명은 정확히 모르는데 {doc_type_label} 성격의 {ext_label} 공공자료를 찾아줘. 단서는 {', '.join(rare[:3]) or title[:30]} 정도야",
+                ),
+                (
+                    "messy_folder_context",
+                    f"{'/'.join(folder_parts)} 아래 정리전 자료 중 {title[:34]} 비슷한 문서를 찾아줘",
+                ),
+                (
+                    "multi_clue_hard",
+                    f"{ext_label} 형식이고 {rare[0] if rare else title[:14]} / {rare[1] if len(rare) > 1 else doc_type} 단서가 같이 보이는 원본 파일",
+                ),
+            ]
         rng.shuffle(scenario_rows)
         per_doc = 2 if len(cases) + 2 <= max_cases else 1
         for scenario, query in scenario_rows[:per_doc]:
@@ -460,8 +557,11 @@ def build_hard_benchmark(
     max_cases_per_split: int = 240,
     seed: int = DEFAULT_HARDBENCH_SEED,
     max_file_bytes: int = 80 * 1024 * 1024,
+    difficulty: str = "hard",
 ) -> HardBenchBuildResult:
     dest = Path(dest).expanduser().resolve()
+    if difficulty not in HARDBENCH_DIFFICULTIES:
+        raise ValueError(f"unsupported hardbench difficulty: {difficulty}")
     dest.mkdir(parents=True, exist_ok=True)
     source_dir = dest / "source_downloads"
     source_dir.mkdir(parents=True, exist_ok=True)
@@ -485,14 +585,19 @@ def build_hard_benchmark(
         docs.append(enriched)
     if len(docs) < 40:
         raise RuntimeError(f"Too few hardbench documents downloaded: {len(docs)}")
-    splits = _split_docs(docs, seed=seed)
+    splits = _split_docs(docs, seed=seed, difficulty=difficulty)
     materialized: dict[str, list[dict[str, Any]]] = {}
     eval_sets: dict[str, Path] = {}
     eval_counts: dict[str, int] = {}
     for split, split_docs in splits.items():
-        materialized[split] = _materialize_split(dest, split, split_docs, seed=seed)
+        materialized[split] = _materialize_split(dest, split, split_docs, seed=seed, difficulty=difficulty)
         _write_jsonl(dest / "metadata" / f"{split}_docs.jsonl", materialized[split])
-        cases = _case_templates(materialized[split], max_cases=max_cases_per_split, seed=seed + len(split))
+        cases = _case_templates(
+            materialized[split],
+            max_cases=max_cases_per_split,
+            seed=seed + len(split),
+            difficulty=difficulty,
+        )
         eval_path = dest / "eval" / f"hardbench_{split}_eval.jsonl"
         _write_jsonl(eval_path, cases)
         eval_sets[split] = eval_path
@@ -502,6 +607,7 @@ def build_hard_benchmark(
         "source_family": "KOGL public resource attachments",
         "source_url": "https://www.kogl.or.kr/edu/eduDataList.do",
         "seed": seed,
+        "difficulty": difficulty,
         "target_docs": target_docs,
         "docs_downloaded": len(docs),
         "extension_counts": dict(Counter(str(doc.get("ext") or "") for doc in docs)),
@@ -543,6 +649,7 @@ def run_hard_benchmark_suite(
     seed: int = DEFAULT_HARDBENCH_SEED,
     top_k: int = 10,
     max_file_bytes: int = 80 * 1024 * 1024,
+    difficulty: str = "hard",
 ) -> HardBenchSuiteResult:
     build = build_hard_benchmark(
         dest,
@@ -551,6 +658,7 @@ def run_hard_benchmark_suite(
         max_cases_per_split=max_cases_per_split,
         seed=seed,
         max_file_bytes=max_file_bytes,
+        difficulty=difficulty,
     )
     cfg = Config(include_hidden=False)
     cfg.max_files = 1_000_000

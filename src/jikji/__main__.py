@@ -1031,6 +1031,7 @@ def cmd_hardbench_build(args) -> int:
         max_cases_per_split=args.cases,
         seed=args.seed,
         max_file_bytes=args.max_file_bytes,
+        difficulty=args.difficulty,
     )
     payload = {
         "dest": str(result.dest),
@@ -1046,6 +1047,7 @@ def cmd_hardbench_build(args) -> int:
         "valid_docs": result.valid_docs,
         "test_docs": result.test_docs,
         "eval_cases": result.eval_cases,
+        "difficulty": args.difficulty,
     }
     if args.json:
         print(json.dumps(payload, ensure_ascii=False, indent=2))
@@ -1065,6 +1067,7 @@ def cmd_hardbench_suite(args) -> int:
         seed=args.seed,
         top_k=args.top_k,
         max_file_bytes=args.max_file_bytes,
+        difficulty=args.difficulty,
     )
     payload = {
         "report": str(result.report_path),
@@ -1082,6 +1085,7 @@ def cmd_hardbench_suite(args) -> int:
             "valid_docs": result.build.valid_docs,
             "test_docs": result.build.test_docs,
             "eval_cases": result.build.eval_cases,
+            "difficulty": args.difficulty,
         },
         "prepare_seconds": result.prepare_seconds,
         "reports": {split: str(path) for split, path in result.reports.items()},
@@ -1422,6 +1426,7 @@ def main(argv: list[str] | None = None) -> int:
     p_hardbench_build.add_argument("--cases", type=int, default=240)
     p_hardbench_build.add_argument("--seed", type=int, default=20260603)
     p_hardbench_build.add_argument("--max-file-bytes", type=int, default=80 * 1024 * 1024)
+    p_hardbench_build.add_argument("--difficulty", choices=("hard", "extreme"), default="hard")
     p_hardbench_build.add_argument("--json", action="store_true")
     p_hardbench_build.set_defaults(func=cmd_hardbench_build)
 
@@ -1436,6 +1441,7 @@ def main(argv: list[str] | None = None) -> int:
     p_hardbench_suite.add_argument("--seed", type=int, default=20260603)
     p_hardbench_suite.add_argument("--top-k", type=int, default=10)
     p_hardbench_suite.add_argument("--max-file-bytes", type=int, default=80 * 1024 * 1024)
+    p_hardbench_suite.add_argument("--difficulty", choices=("hard", "extreme"), default="hard")
     p_hardbench_suite.add_argument("--json", action="store_true")
     p_hardbench_suite.set_defaults(func=cmd_hardbench_suite)
 

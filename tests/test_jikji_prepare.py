@@ -1034,3 +1034,37 @@ def test_hardbench_doc_type_label_is_natural_korean():
     assert _doc_type_label("training") == "교육·워크숍 발표자료"
     assert _doc_type_label("manual") == "지침·매뉴얼·해설서"
     assert _doc_type_label("unknown") == "참고자료"
+
+
+def test_hardbench_extreme_masks_filename_and_builds_decoy_queries():
+    import random
+
+    from jikji.hardbench import _case_templates, _messy_relpath
+
+    doc = {
+        "filename": "정확한_원래_파일명_상담사례집.pdf",
+        "page_title": "원래 제목 상담사례집",
+        "ext": ".pdf",
+        "doc_type": "casebook",
+        "text_excerpt": "본문 고유 문장입니다. 교육부2019년도우수 담당자 사례 발표 내용이 포함됩니다.",
+    }
+    rel = _messy_relpath(doc, "test", 1, random.Random(7), difficulty="extreme")
+
+    assert "정확한_원래_파일명" not in rel
+    assert rel.endswith(".pdf")
+    assert any(generic in rel for generic in ("붙임_", "참고_", "검토본_", "회의자료_", "원본_", "최종본_"))
+
+    row = dict(doc)
+    row["bench_path"] = rel
+    cases = _case_templates([row], max_cases=4, seed=11, difficulty="extreme")
+    queries = "\n".join(case["query"] for case in cases)
+
+    assert cases
+    assert any(needle in queries for needle in ("txt 메모나 링크 파일은 제외", "메모 파일도 같이 걸릴 수", "메모/링크", "후보목록"))
+    assert "정확한_원래_파일명" not in queries
+    assert {case["scenario"] for case in cases}.issubset({
+        "body_phrase_no_filename",
+        "decoy_note_resistant",
+        "weak_folder_memory",
+        "multi_body_disambiguation",
+    })
