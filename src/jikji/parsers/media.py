@@ -20,6 +20,7 @@ log = logging.getLogger(__name__)
 
 _IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".webp", ".bmp", ".gif"}
 _AUDIO_EXTS = {".mp3", ".wav", ".m4a", ".flac", ".ogg", ".aac", ".opus", ".wma"}
+_VIDEO_EXTS = {".mp4", ".mov", ".mkv", ".avi", ".webm", ".m4v", ".wmv", ".flv", ".mpg", ".mpeg"}
 _EXIF_DATETIME_TAGS = ("DateTimeOriginal", "DateTimeDigitized", "DateTime")
 
 
@@ -343,6 +344,14 @@ def parse_audio(path: Path, max_chars: int) -> str:
     transcript = _transcribe_audio(path, max_chars)
     if transcript:
         parts.append("# Transcript\n" + transcript)
+    if len(parts) == 1:
+        return ""
+    return "\n".join(parts)[:max_chars]
+
+
+def parse_video(path: Path, max_chars: int) -> str:
+    parts: list[str] = [f"# Video: {path.name}"]
+    parts.extend(_ffprobe_metadata(path))
     if len(parts) == 1:
         return ""
     return "\n".join(parts)[:max_chars]
