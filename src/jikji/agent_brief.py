@@ -71,6 +71,13 @@ def _candidate_folder_profiles(root: Path, candidates: list[dict[str, Any]], *, 
     return rows
 
 
+def _truncate_evidence(value: Any, limit: int) -> str:
+    text = " ".join(str(value).split())
+    if limit > 0 and len(text) > limit:
+        text = text[: max(0, limit - 1)].rstrip() + "…"
+    return text
+
+
 def _shell_join(parts: list[str]) -> str:
     return " ".join(shlex.quote(str(part)) for part in parts)
 
@@ -84,6 +91,8 @@ def build_agent_brief_payload(
     foreground_prepared: bool,
     background_refresh_started: bool,
     candidates: list[dict[str, Any]],
+    evidence_max_items: int = 3,
+    evidence_max_chars: int = 0,
 ) -> dict[str, Any]:
     root = Path(root).expanduser().resolve()
     manifest = _read_json_obj(root / AGENT_DIR_NAME / "manifest.json")
@@ -95,7 +104,11 @@ def build_agent_brief_payload(
         card = cards.get(path, {})
         cache = str(card.get("text_cache_path") or "")
         original = root / path
-        evidence = list(item.get("evidence") or [])[:3]
+        raw_evidence = list(item.get("evidence") or [])[: max(0, evidence_max_items)]
+        if evidence_max_chars > 0:
+            evidence = [_truncate_evidence(x, evidence_max_chars) for x in raw_evidence]
+        else:
+            evidence = raw_evidence
         enriched.append({
             "rank": rank,
             "path": path,

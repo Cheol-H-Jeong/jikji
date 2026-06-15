@@ -1687,7 +1687,7 @@ def main(argv: list[str] | None = None) -> int:
         help="Hermes max turns for jikji-fast/map-first modes; raw and brief modes still use --max-turns",
     )
     p_hb.add_argument("--skills", default="")
-    p_hb.add_argument("--candidate-top-k", type=int, default=10, help="inject top Jikji search candidates into Jikji tool-mode prompts")
+    p_hb.add_argument("--candidate-top-k", type=int, default=5, help="inject top Jikji search candidates into Jikji prompts (token-diet default: 5)")
     p_hb.add_argument("--retries", type=int, default=1, help="retry a case when Hermes returns no parseable paths")
     p_hb.add_argument("--yolo", action="store_true", help="pass Hermes --yolo --accept-hooks; benchmark will still detect mutations")
     p_hb.add_argument("--allow-leak", action="store_true", help="allow eval/annotation files inside root for diagnostics only")

@@ -49,6 +49,23 @@ def _clean_prompt_text(value: Any) -> str:
     return str(value).replace("\x00", " ").replace("\r", " ")
 
 
+# Prompt token-diet budget. Injecting Jikji candidates into the agent prompt is
+# only worth it when the handoff stays compact: a few high-signal candidates
+# plus a single, hard-truncated evidence snippet each. Wider/longer injection
+# inflated prompt tokens far beyond the per-turn savings.
+DEFAULT_CANDIDATE_TOP_K = 5
+EVIDENCE_SNIPPET_CHARS = 120
+EVIDENCE_MAX_ITEMS = 1
+
+
+def _evidence_snippet(value: Any, *, limit: int = EVIDENCE_SNIPPET_CHARS) -> str:
+    """Collapse and hard-truncate one evidence preview for prompt injection."""
+    text = " ".join(_clean_prompt_text(value).split())
+    if len(text) > limit:
+        text = text[: max(0, limit - 1)].rstrip() + "…"
+    return text
+
+
 def _is_relative_to(path: Path, base: Path) -> bool:
     try:
         path.resolve().relative_to(base.resolve())
@@ -100,10 +117,10 @@ def _candidate_lines(root: Path, query: str, *, top_k: int) -> list[str]:
         "Do not inspect .jikji JSONL/doc_text or browse the filesystem unless no candidate can answer the question.",
     ]
     for idx, item in enumerate(candidates, 1):
-        reasons = ",".join(str(x) for x in (item.get("reasons") or []))
+        reasons = ",".join(str(x) for x in (item.get("reasons") or [])[:4])
         lines.append(f"{idx}. {item.get('path')} | score={item.get('score')} | reasons={reasons}")
-        for preview in list(item.get("evidence") or [])[:2]:
-            lines.append(f"   evidence: {str(preview)[:240]}")
+        for preview in list(item.get("evidence") or [])[:EVIDENCE_MAX_ITEMS]:
+            lines.append(f"   evidence: {_evidence_snippet(preview)}")
     return lines
 
 
@@ -115,10 +132,10 @@ def _fast_candidate_lines(root: Path, query: str, *, top_k: int) -> list[str]:
         ]
     candidates = search(root, query, top_k=top_k)
     selection_rule = (
-        "More than 10 candidates are listed: select the 10 candidate paths whose path/evidence best matches the QUESTION; "
+        f"More than {top_k} candidates are listed: select the candidate paths whose path/evidence best matches the QUESTION; "
         "never use any path outside this list."
-        if len(candidates) > 10
-        else "10 or fewer candidates are listed: copy every candidate path into the JSON paths array exactly in the same order."
+        if len(candidates) > top_k
+        else "Copy every candidate path into the JSON paths array exactly in the same order."
     )
     lines = [
         "JIKJI MAP-FIRST FAST PATH:",
@@ -129,10 +146,10 @@ def _fast_candidate_lines(root: Path, query: str, *, top_k: int) -> list[str]:
         "Candidates:",
     ]
     for idx, item in enumerate(candidates, 1):
-        reasons = ",".join(str(x) for x in (item.get("reasons") or [])[:5])
+        reasons = ",".join(str(x) for x in (item.get("reasons") or [])[:4])
         evidence = "; ".join(
-            _clean_prompt_text(x).replace("\n", " ")[:140]
-            for x in list(item.get("evidence") or [])[:1]
+            _evidence_snippet(x)
+            for x in list(item.get("evidence") or [])[:EVIDENCE_MAX_ITEMS]
         )
         line = f"{idx}. {item.get('path')} | score={item.get('score')} | reasons={reasons}"
         if evidence:
@@ -151,6 +168,8 @@ def _brief_lines(root: Path, query: str, *, top_k: int) -> list[str]:
         foreground_prepared=False,
         background_refresh_started=False,
         candidates=candidates,
+        evidence_max_items=EVIDENCE_MAX_ITEMS,
+        evidence_max_chars=EVIDENCE_SNIPPET_CHARS,
     )
     lines = [
         "JIKJI AGENT BRIEF:",
@@ -486,7 +505,7 @@ def run_hermes_benchmark(
     max_turns: int = 20,
     fast_max_turns: int = 1,
     skills: str = "",
-    candidate_top_k: int = 10,
+    candidate_top_k: int = DEFAULT_CANDIDATE_TOP_K,
     retries: int = 1,
     allow_leak: bool = False,
     yolo: bool = False,

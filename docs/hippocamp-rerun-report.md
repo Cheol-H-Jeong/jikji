@@ -1,35 +1,35 @@
 # HippoCamp Benchmark Re-run Report
 
-This report captures the full benchmark re-run after the four improvements landed
-in this change set:
+This report captures the full benchmark re-run after the prompt **token-diet**
+pass landed on top of the earlier ranking/skill improvements:
 
-1. The visible root agent map is now a hidden dotfile (`.jikji_agent_map.md`).
-2. The agent skill (`SKILL.md`) and generated skill context force a Jikji
-   search-first protocol (no blind `grep`/`ls`/`find`).
-3. The Hermes agent benchmark now tracks and aggregates LLM call count and
-   input/output token usage per task.
-4. The ranking core was upgraded (extension stopwords, filename component-word
-   tokenization, rarity-sharpened BM25, and a distinctive-token headline boost).
+1. The visible root agent map is a hidden dotfile (`.jikji_agent_map.md`).
+2. The agent skill (`SKILL.md`) forces a Jikji search-first protocol.
+3. The Hermes agent benchmark tracks LLM call count and **separate input
+   (prompt) / output (completion) token usage** per task.
+4. The ranking core was upgraded (filename component tokenization, rarity-sharpened BM25).
+5. **Token diet (new):** the Jikji→agent handoff is now a compact map-first
+   pass — `candidate-top-k` lowered from 10 to **5**, a **single** evidence
+   snippet per candidate hard-truncated to **120 chars**, and a bounded 1-turn
+   map handoff instead of multi-turn browsing. This drops both the per-prompt
+   payload and the number of LLM calls.
 
-Profiles: **Adam, Bei, Victoria** (HippoCamp `*_Subset`, 49 deterministic cases).
+Profiles: **Adam, Bei, Victoria** (HippoCamp `*_Subset`, 49 deterministic cases;
+10 real-agent cases per profile).
 
 ## 1. Deterministic suite (lexical scorer, no LLM)
 
 Aggregate over 49 cases (`jikji` = Jikji-assisted scorer, `raw` = naive
 filesystem lexical search).
 
-| Metric  | raw (after) | jikji BEFORE | jikji AFTER |
-|---------|------|--------------|-------------|
-| Hit@1   | 0.5102 | 0.5714 | **0.6327** |
-| Hit@3   | 0.6530 | 0.6326 | **0.7551** |
-| Hit@5   | 0.6939 | 0.7551 | **0.8163** |
-| MRR     | 0.6004 | 0.6434 | **0.7058** |
+| Metric  | raw    | jikji  |
+|---------|--------|--------|
+| Hit@1   | 0.5102 | **0.6327** |
+| Hit@3   | 0.6530 | **0.7551** |
+| Hit@5   | 0.6939 | **0.8163** |
+| MRR     | 0.6004 | **0.7047** |
 
-The "jikji BEFORE" column is the previous committed `hippocamp_suite_report.json`
-aggregate; "AFTER" is the regenerated suite with the new ranking core. Every
-metric improved, and Jikji now beats raw on Hit@1/Hit@3/Hit@5/MRR.
-
-Per-profile (after, `jikji` mode, top_k=10):
+Per-profile (`jikji` mode, top_k=10):
 
 | Profile  | cases | Hit@1 | Hit@3 | Hit@5 | Hit@10 |
 |----------|-------|-------|-------|-------|--------|
@@ -37,35 +37,46 @@ Per-profile (after, `jikji` mode, top_k=10):
 | Bei      | 21    | 0.5238 | 0.6190 | 0.6190 | 0.7619 |
 | Victoria | 10    | 0.6000 | 0.8000 | 1.0000 | 1.0000 |
 
-Root cause that the ranking upgrade fixes: filenames like
-`Penguin_Model_Sheet.png` were indexed only as a joined token, so a query for
-"penguin" could never match them. Component-word tokenization plus a rarity
-headline boost now pull the correct document to Hit@1.
+## 2. Hermes real-agent benchmark (token-diet, 10 cases/profile)
 
-## 2. Hermes real-agent benchmark (with LLM call / token tracking)
+Model: `openai/gpt-4o-mini` via `openrouter`; **10 cases/profile** (30 total);
+`raw` max-turns 8; `jikji` = token-diet map-first 1-turn handoff
+(`--candidate-top-k 5`, single 120-char evidence snippet). `raw` = agent must
+browse the corpus; `jikji` = agent receives the compact Jikji candidate list
+first.
 
-Model: `openai/gpt-4o-mini` via `openrouter`; 3 cases/profile; `max-turns 8`;
-`--candidate-top-k 10`; `--skills jikji`. `raw` = agent must browse the corpus;
-`jikji` = agent receives Jikji ranked candidates first.
+Input/output tokens are reported separately (prompt = input, completion =
+output).
 
-| Profile  | mode  | Hit@3 | Hit@10 | llm_calls | prompt_tokens | completion_tokens | total_tokens |
-|----------|-------|-------|--------|-----------|---------------|-------------------|--------------|
-| Adam     | raw   | 0.000 | 0.000  | 22 | 29404  | 1031 | 30435  |
-| Adam     | jikji | 0.667 | 0.667  | 13 | 131623 | 1847 | 133470 |
-| Bei      | raw   | 0.667 | 0.667  | 16 | 26368  | 734  | 27102  |
-| Bei      | jikji | 0.667 | 1.000  | 9  | 87897  | 1807 | 89704  |
-| Victoria | raw   | 1.000 | 1.000  | 14 | 16795  | 996  | 17791  |
-| Victoria | jikji | 1.000 | 1.000  | 9  | 44689  | 2031 | 46720  |
+| Profile  | mode  | Hit@10 | llm_calls | input (prompt) | output (completion) | total tokens |
+|----------|-------|--------|-----------|----------------|---------------------|--------------|
+| Adam     | raw   | 0.400 | 64  | 119,829 | 3,737 | 123,566 |
+| Adam     | jikji | **0.900** | **10** | **21,018** | **889** | **21,907** |
+| Bei      | raw   | 0.300 | 51  | 62,367  | 1,996 | 64,363  |
+| Bei      | jikji | **0.800** | **10** | **26,396** | **565** | **26,961** |
+| Victoria | raw   | 0.500 | 35  | 60,199  | 2,186 | 62,385  |
+| Victoria | jikji | **1.000** | **10** | **18,204** | **895** | **19,099** |
+
+Aggregate (30 cases/mode):
+
+| mode  | Hit@10 | llm_calls | input (prompt) | output (completion) | total tokens |
+|-------|--------|-----------|----------------|---------------------|--------------|
+| raw   | 0.400 | 150 | 242,395 | 7,919 | 250,314 |
+| jikji | **0.900** | **30** | **65,618** | **2,349** | **67,967** |
 
 Observations:
 
-- **LLM calls drop in every profile** with Jikji (Adam 22→13, Bei 16→9,
-  Victoria 14→9): the agent stops crawling the filesystem turn after turn.
-- **Accuracy is equal or better** with Jikji (Adam 0.0→0.667, Bei Hit@10
-  0.667→1.0, Victoria already perfect).
-- `prompt_tokens` are higher in `jikji` mode because ranked candidates and
-  evidence are front-loaded into the prompt — that is the intended trade: pay
-  once for a prebuilt map instead of paying per exploratory turn.
+- **Token diet works.** With Jikji the agent answers in a single bounded turn,
+  so total tokens fall **250,314 → 67,967 (−72.8%, 3.7×)** and input tokens
+  fall **242,395 → 65,618 (−72.9%)** versus raw browsing. The previous
+  multi-turn brief handoff had been *more* expensive than raw; the map-first
+  diet reverses that.
+- **LLM calls drop 5×** (150 → 30, i.e. 1 call/case) — the dominant driver of
+  the token savings.
+- **Accuracy improves** in every profile (Hit@10 aggregate 0.400 → 0.900).
+- **Sample size restored.** With 10 cases/profile, raw lands at a realistic
+  ~0.40 aggregate (Adam 0.40, Bei 0.30, Victoria 0.50) instead of the earlier
+  3-case fluke where raw scored 0% on Adam.
 
 `llm_calls`, `prompt_tokens`, and `completion_tokens` are read per session from
 the Hermes session store (`state.db` + session transcript) keyed on the
@@ -75,14 +86,15 @@ and per mode into the JSON report.
 ## Reproduce
 
 ```bash
-# Deterministic suite (downloads HippoCamp subsets on first run)
+# Deterministic suite
 jikji hippocamp-suite .benchmarks/hippocamp-large --profiles Adam,Bei,Victoria
 
-# Real-agent benchmark with token tracking (per profile)
-jikji hermes-bench Adam_Subset \
-  --eval-set Adam_Subset_hippocamp_eval_set.jsonl \
-  --modes raw,jikji --cases 3 --max-turns 8 --candidate-top-k 10 \
-  --skills jikji --provider openrouter --model openai/gpt-4o-mini --json
+# Real-agent benchmark with token diet (per profile, 10 cases)
+jikji hermes-bench .benchmarks/hippocamp-large/Adam_Subset \
+  --eval-set .benchmarks/hippocamp-large/Adam_Subset_hippocamp_eval_set.jsonl \
+  --modes raw,jikji-fast --cases 10 --max-turns 8 --fast-max-turns 1 \
+  --candidate-top-k 5 --skills jikji \
+  --provider openrouter --model openai/gpt-4o-mini --json
 ```
 
 Machine-readable aggregate: [`hippocamp-rerun-report.json`](./hippocamp-rerun-report.json).

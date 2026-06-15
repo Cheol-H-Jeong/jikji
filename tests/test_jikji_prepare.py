@@ -559,7 +559,7 @@ def test_hermes_jikji_fast_prompt_is_map_first_no_browse(tmp_path):
     assert _mode_family("jikji-pass-through") == "jikji-fast"
     assert "JIKJI MAP-FIRST FAST PATH" in prompt
     assert "Do not browse, list, grep, cat, or inspect any filesystem path." in prompt
-    assert "copy every candidate path into the JSON paths array exactly in the same order" in prompt
+    assert "Copy every candidate path into the JSON paths array exactly in the same order" in prompt
     assert "Actual brief payload follows" not in prompt
     assert "Do not invent, summarize, or replace candidates" in prompt
 
