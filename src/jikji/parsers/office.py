@@ -269,18 +269,19 @@ def _scrape_printable_from_bytes(data: bytes) -> str:
     return best
 
 
-def parse_odt(path: Path, max_chars: int) -> str:
+def parse_odf(path: Path, max_chars: int) -> str:
+    """Extract text from any OpenDocument container (odt/ods/odp/...)."""
     try:
         with zipfile.ZipFile(path) as z:
             with z.open("content.xml") as f:
                 xml = f.read()
     except (zipfile.BadZipFile, KeyError) as exc:
-        log.warning("odt open failed %s: %s", path, exc)
+        log.warning("odf open failed %s: %s", path, exc)
         return ""
     try:
         root = ET.fromstring(xml)
     except ET.ParseError as exc:
-        log.warning("odt xml parse failed %s: %s", path, exc)
+        log.warning("odf xml parse failed %s: %s", path, exc)
         return ""
     texts: list[str] = []
     total = 0

@@ -11,3 +11,7 @@ __pycache__/
 .omc/
 .omx/
 .DS_Store
+
+# piper tts voices (downloaded locally for media benchmark)
+*.onnx
+*.onnx.json

@@ -87,6 +87,8 @@ SUPPORTED_EXTENSIONS: set[str] = {
     ".hwp",
     ".hwpx",
     ".odt",
+    ".ods",
+    ".odp",
     ".rtf",
     ".txt",
     ".md",
@@ -94,6 +96,8 @@ SUPPORTED_EXTENSIONS: set[str] = {
     ".csv",
     ".tsv",
     ".log",
+    ".srt",
+    ".vtt",
     ".html",
     ".htm",
     ".json",
@@ -238,8 +242,8 @@ def extract_excerpt(path: Path, max_chars: int = 1800, timeout: float = 5.0) -> 
         return _safe(office.parse_pptx, path, max_chars, timeout)
     if ext == ".xlsx":
         return _safe(office.parse_xlsx, path, max_chars, timeout)
-    if ext == ".odt":
-        return _safe(office.parse_odt, path, max_chars, timeout)
+    if ext in {".odt", ".ods", ".odp"}:
+        return _safe(office.parse_odf, path, max_chars, timeout)
     if ext in {".doc", ".ppt", ".pps", ".xls"}:
         # Legacy binary Office formats — best-effort text scrape via
         # OLE compound storage; better than nothing for indexing.
@@ -250,6 +254,8 @@ def extract_excerpt(path: Path, max_chars: int = 1800, timeout: float = 5.0) -> 
         return _safe(hwp_parser.parse_hwp, path, max_chars, timeout)
     if ext == ".rtf":
         return _safe(text_parser.parse_rtf, path, max_chars, timeout)
+    if ext in {".srt", ".vtt"}:
+        return _safe(text_parser.parse_subtitles, path, max_chars, timeout)
     if ext in {".txt", ".md", ".markdown", ".csv", ".tsv", ".log",
                ".json", ".jsonl", ".xml", ".yaml", ".yml",
                ".ini", ".cfg", ".toml"}:

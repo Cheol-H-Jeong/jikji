@@ -14,10 +14,62 @@ chunk retrieval tasks.
 | HippoCamp | Personal-computer style file search and agent QA | Full dataset is large; some tasks evaluate final QA more than retrieval |
 | EDiTh / Véracier Industries | Enterprise PDFs, scanned/searchable/mixed formats, multilingual, multi-file answers | Public archive is ~1.5GB and only a few answer-key questions are explicit file-list retrieval |
 | MIRACL-VISION materialized docs | Multilingual file-level retrieval regression; validates Contextual Anchor Weighting on pure-text IR | Materialized as Markdown; with full-body BM25 fused with folder/metadata priors Jikji now leads raw and char-ngram RAG (Hit@1 0.84 vs 0.59/0.80) |
+| Media OCR/ASR (image/audio/video) | Validates that Jikji indexes non-text media content (image OCR, speech transcription, on-screen video text) so agents can answer questions whose answers live only inside media | Synthetic bounded corpus; OCR via RapidOCR and transcription via faster-whisper are optional CPU backends, off by default |
 | BEIR materialized docs | Wide deterministic IR regression | Materialized as Markdown; not a parser stress test |
 | SDS KoPub VDR | Korean public PDF page-level retrieval | Corpus parquet is very large; needs page-to-file conversion |
 | UniDoc-Bench | Large PDF page/QA stress test | Multimodal/page-centric; needs file-level conversion |
 | docx-corpus | DOCX parser/indexing scale stress | No retrieval QA; needs synthetic/label-derived eval |
+
+## Media OCR/ASR run (image / audio / video)
+
+This benchmark isolates Jikji's media text-extraction layer. The corpus is a
+bounded synthetic set of 12 files whose answers live **only inside media
+content** — never in filenames or container metadata — so a raw filesystem
+agent cannot answer the questions, while a Jikji-prepared agent can:
+
+- 4 images (text rendered with Pillow) → OCR via RapidOCR (ONNXRuntime, CPU)
+- 4 audio clips (speech synthesized with piper-tts) → transcription via
+  faster-whisper (CTranslate2, CPU INT8)
+- 4 videos: on-screen-text reels (keyframe OCR) and speech reels (audio-track
+  transcription)
+
+Filenames are opaque (`asset_NN`, `clip_NN`, `reel_NN`). Indexing runs with the
+optional backends enabled:
+
+```bash
+# Build the corpus (Pillow + piper-tts + ffmpeg)
+python .benchmarks/media_bench/build_corpus.py
+
+# Index with media extraction enabled (optional CPU backends)
+JIKJI_ENABLE_TRANSCRIPTION=1 JIKJI_ENABLE_VIDEO_OCR=1 \
+  JIKJI_WHISPER_MODEL=base.en JIKJI_VIDEO_OCR_FRAMES=3 \
+  jikji prepare .benchmarks/media_bench/corpus --parse-timeout 600
+
+# Real-agent raw-vs-Jikji benchmark
+jikji hermes-bench .benchmarks/media_bench/corpus \
+  --eval-set .benchmarks/media_bench/media_eval_set.jsonl \
+  --modes raw,jikji-fast --cases 10 --max-turns 8 --fast-max-turns 1 \
+  --candidate-top-k 5 --skills jikji \
+  --provider openrouter --model google/gemini-2.5-flash \
+  --out .benchmarks/media_bench/hermes_media.json --json
+```
+
+Actual Hermes agent comparison (`google/gemini-2.5-flash`, 10 cases/mode):
+
+| Agent mode | Hit@1 | Hit@3 | MRR | llm_calls | input | output | total tokens |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| raw Hermes | 0.00 | 0.00 | 0.000 | 31 | 192,868 | 29,232 | 222,100 |
+| Hermes + Jikji | **1.00** | **1.00** | **1.000** | **10** | **91,217** | **7,181** | **98,398** |
+
+Per-scenario Hit@1 (raw → Jikji): image OCR 0/4 → **4/4**; audio ASR 0/3 →
+**3/3**; video on-screen OCR 0/1 → **1/1**; video speech ASR 0/2 → **2/2**.
+
+Interpretation: the raw agent has no local OCR/ASR, so every media-content query
+returns nothing (0/10). Jikji transcribes/OCRs the media into its text index
+during `prepare`, so its candidates surface the correct file first in every
+case, while also cutting LLM calls 3.1x and total tokens 2.26x. The OCR and
+transcription backends are optional and auto-detected; default installs stay
+metadata-only. See `docs/media-benchmark.md`.
 
 ## Hard mixed KOGL public-document run
 

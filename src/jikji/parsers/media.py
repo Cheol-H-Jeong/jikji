@@ -1,12 +1,24 @@
 """Optional local media parsers (OCR/transcription/metadata).
 
-No heavyweight dependency is required.  If local tools are installed, Jikji uses
-those tools with bounded output.  Images always expose lightweight visual
-metadata (format/dimensions and selected datetime EXIF when available), while
-OCR text is appended only when a local ``tesseract`` binary is installed.
+No heavyweight dependency is required.  If local tools or optional Python
+packages are installed, Jikji uses them with bounded output; otherwise it falls
+back to lightweight metadata.  Preferred CPU backends (auto-detected, optional):
+
+* Images: `RapidOCR <https://github.com/RapidAI/RapidOCR>`_ (ONNXRuntime, CPU,
+  offline) when importable, else the ``tesseract`` binary.
+* Audio/video speech: `faster-whisper
+  <https://github.com/SYSTRAN/faster-whisper>`_ (CTranslate2, CPU INT8) when
+  importable, else the ``whisper`` CLI.  Transcription stays opt-in via
+  ``JIKJI_ENABLE_TRANSCRIPTION`` because it is expensive.
+* Video frames: optional on-screen-text OCR via ffmpeg keyframes + RapidOCR,
+  gated by ``JIKJI_ENABLE_VIDEO_OCR``.
+
+Images always expose lightweight visual metadata (format/dimensions and
+selected datetime EXIF when available) regardless of OCR availability.
 """
 from __future__ import annotations
 
+import importlib.util
 import json
 import logging
 import os
@@ -14,6 +26,7 @@ import shutil
 import struct
 import subprocess
 import tempfile
+import threading
 from pathlib import Path
 
 log = logging.getLogger(__name__)
@@ -60,9 +73,87 @@ def _run(cmd: list[str], *, timeout: float) -> str:
     return proc.stdout.strip()
 
 
+# --- Optional CPU model backends (lazy, process-wide singletons) ------------
+#
+# RapidOCR (ONNXRuntime) and faster-whisper (CTranslate2) are heavy to import
+# and to construct, so we build each at most once per process behind a lock and
+# remember a hard failure so we never retry a broken backend per file.
+
+_RAPIDOCR_ENGINE = None
+_RAPIDOCR_LOCK = threading.Lock()
+_RAPIDOCR_FAILED = False
+
+_WHISPER_MODEL = None
+_WHISPER_LOCK = threading.Lock()
+_WHISPER_FAILED = False
+
+
+def _module_available(*names: str) -> bool:
+    for name in names:
+        try:
+            if importlib.util.find_spec(name) is not None:
+                return True
+        except (ImportError, ValueError):
+            continue
+    return False
+
+
+def _rapidocr_available() -> bool:
+    return _module_available("rapidocr", "rapidocr_onnxruntime")
+
+
 def image_ocr_available() -> bool:
-    """Return whether local image/PDF OCR can run via Tesseract."""
-    return shutil.which("tesseract") is not None
+    """Return whether local image/PDF OCR can run (RapidOCR or Tesseract)."""
+    return _rapidocr_available() or shutil.which("tesseract") is not None
+
+
+def _rapidocr_engine():
+    global _RAPIDOCR_ENGINE, _RAPIDOCR_FAILED
+    if _RAPIDOCR_ENGINE is not None or _RAPIDOCR_FAILED:
+        return _RAPIDOCR_ENGINE
+    with _RAPIDOCR_LOCK:
+        if _RAPIDOCR_ENGINE is not None or _RAPIDOCR_FAILED:
+            return _RAPIDOCR_ENGINE
+        try:
+            try:
+                from rapidocr import RapidOCR  # rapidocr>=2
+            except ImportError:
+                from rapidocr_onnxruntime import RapidOCR  # rapidocr-onnxruntime>=1
+            _RAPIDOCR_ENGINE = RapidOCR()
+        except Exception as exc:  # pragma: no cover - import/runtime specific
+            log.debug("rapidocr init failed: %s", exc)
+            _RAPIDOCR_FAILED = True
+            _RAPIDOCR_ENGINE = None
+    return _RAPIDOCR_ENGINE
+
+
+def _rapidocr_texts(result) -> list[str]:
+    """Pull recognized strings out of either RapidOCR result shape."""
+    # rapidocr>=2 returns an object exposing ``.txts``.
+    txts = getattr(result, "txts", None)
+    if txts:
+        return [str(t).strip() for t in txts if str(t).strip()]
+    # rapidocr-onnxruntime returns ``(detections, elapse)`` where each
+    # detection is ``[box, text, score]``; ``None`` when nothing is found.
+    payload = result[0] if isinstance(result, tuple) and result else result
+    out: list[str] = []
+    if isinstance(payload, list):
+        for item in payload:
+            if isinstance(item, (list, tuple)) and len(item) >= 2 and str(item[1]).strip():
+                out.append(str(item[1]).strip())
+    return out
+
+
+def _ocr_image_rapidocr(path: Path, max_chars: int) -> str:
+    engine = _rapidocr_engine()
+    if engine is None:
+        return ""
+    try:
+        result = engine(str(path.resolve()))
+    except Exception as exc:  # pragma: no cover - backend/runtime specific
+        log.debug("rapidocr run failed %s: %s", path, exc)
+        return ""
+    return "\n".join(_rapidocr_texts(result))[:max_chars]
 
 
 def _format_from_suffix(path: Path) -> str:
@@ -214,7 +305,7 @@ def _image_metadata(path: Path) -> list[str]:
     return parts
 
 
-def _ocr_image(path: Path, max_chars: int) -> str:
+def _ocr_image_tesseract(path: Path, max_chars: int) -> str:
     tesseract = shutil.which("tesseract")
     if not tesseract:
         return ""
@@ -224,6 +315,16 @@ def _ocr_image(path: Path, max_chars: int) -> str:
     if lang:
         cmd.extend(["-l", lang])
     return _run(cmd, timeout=timeout)[:max_chars]
+
+
+def _ocr_image(path: Path, max_chars: int) -> str:
+    # Prefer RapidOCR (CPU, offline, multilingual) when installed; otherwise
+    # fall back to a local Tesseract binary.
+    if _rapidocr_available():
+        text = _ocr_image_rapidocr(path, max_chars)
+        if text:
+            return text
+    return _ocr_image_tesseract(path, max_chars)
 
 
 def parse_image(path: Path, max_chars: int) -> str:
@@ -285,15 +386,61 @@ def _ffprobe_metadata(path: Path) -> list[str]:
     return parts
 
 
-def _transcribe_audio(path: Path, max_chars: int) -> str:
-    if not _env_flag("JIKJI_ENABLE_TRANSCRIPTION", default=False):
+def _faster_whisper_available() -> bool:
+    return _module_available("faster_whisper")
+
+
+def _faster_whisper_model():
+    global _WHISPER_MODEL, _WHISPER_FAILED
+    if _WHISPER_MODEL is not None or _WHISPER_FAILED:
+        return _WHISPER_MODEL
+    with _WHISPER_LOCK:
+        if _WHISPER_MODEL is not None or _WHISPER_FAILED:
+            return _WHISPER_MODEL
+        try:
+            from faster_whisper import WhisperModel
+
+            name = os.environ.get("JIKJI_WHISPER_MODEL", "tiny")
+            compute = os.environ.get("JIKJI_WHISPER_COMPUTE", "int8")
+            _WHISPER_MODEL = WhisperModel(name, device="cpu", compute_type=compute)
+        except Exception as exc:  # pragma: no cover - import/runtime specific
+            log.debug("faster-whisper init failed: %s", exc)
+            _WHISPER_FAILED = True
+            _WHISPER_MODEL = None
+    return _WHISPER_MODEL
+
+
+def _transcribe_faster_whisper(path: Path, max_chars: int) -> str:
+    model = _faster_whisper_model()
+    if model is None:
         return ""
-    max_mb = _env_float("JIKJI_TRANSCRIBE_MAX_MB", 25.0)
+    language = os.environ.get("JIKJI_WHISPER_LANGUAGE", "").strip() or None
     try:
-        if path.stat().st_size > max_mb * 1024 * 1024:
-            return ""
-    except OSError:
+        segments, _info = model.transcribe(
+            str(path.resolve()), language=language, vad_filter=True
+        )
+    except Exception as exc:  # pragma: no cover - backend/runtime specific
+        log.debug("faster-whisper run failed %s: %s", path, exc)
         return ""
+    parts: list[str] = []
+    total = 0
+    try:
+        for seg in segments:
+            text = (getattr(seg, "text", "") or "").strip()
+            if not text:
+                continue
+            parts.append(text)
+            total += len(text) + 1
+            if total >= max_chars:
+                break
+    except Exception as exc:  # pragma: no cover - lazy decode can raise
+        log.debug("faster-whisper decode failed %s: %s", path, exc)
+        if not parts:
+            return ""
+    return " ".join(parts)[:max_chars]
+
+
+def _transcribe_whisper_cli(path: Path, max_chars: int) -> str:
     whisper = shutil.which("whisper")
     if not whisper:
         return ""
@@ -338,6 +485,30 @@ def _transcribe_audio(path: Path, max_chars: int) -> str:
     return ""
 
 
+def _transcribe_media(path: Path, max_chars: int) -> str:
+    """Speech-to-text via faster-whisper (preferred) or the whisper CLI.
+
+    The caller is responsible for the ``JIKJI_ENABLE_TRANSCRIPTION`` gate.
+    """
+    if _faster_whisper_available():
+        text = _transcribe_faster_whisper(path, max_chars)
+        if text:
+            return text
+    return _transcribe_whisper_cli(path, max_chars)
+
+
+def _transcribe_audio(path: Path, max_chars: int) -> str:
+    if not _env_flag("JIKJI_ENABLE_TRANSCRIPTION", default=False):
+        return ""
+    max_mb = _env_float("JIKJI_TRANSCRIBE_MAX_MB", 25.0)
+    try:
+        if path.stat().st_size > max_mb * 1024 * 1024:
+            return ""
+    except OSError:
+        return ""
+    return _transcribe_media(path, max_chars)
+
+
 def parse_audio(path: Path, max_chars: int) -> str:
     parts: list[str] = [f"# Audio: {path.name}"]
     parts.extend(_ffprobe_metadata(path))
@@ -349,9 +520,100 @@ def parse_audio(path: Path, max_chars: int) -> str:
     return "\n".join(parts)[:max_chars]
 
 
+def _extract_audio_track(path: Path, tmp: str) -> Path | None:
+    """Decode a bounded mono 16 kHz WAV from the video for transcription."""
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        return None
+    out = Path(tmp) / "audio.wav"
+    max_seconds = int(_env_float("JIKJI_VIDEO_AUDIO_MAX_SECONDS", 900.0))
+    _run(
+        [
+            ffmpeg,
+            "-y",
+            "-i",
+            str(path.resolve()),
+            "-vn",
+            "-ac",
+            "1",
+            "-ar",
+            "16000",
+            "-t",
+            str(max_seconds),
+            "-f",
+            "wav",
+            str(out),
+        ],
+        timeout=_env_float("JIKJI_FFMPEG_TIMEOUT", 90.0),
+    )
+    try:
+        if out.exists() and out.stat().st_size > 0:
+            return out
+    except OSError:
+        pass
+    return None
+
+
+def _transcribe_video(path: Path, max_chars: int) -> str:
+    if not _env_flag("JIKJI_ENABLE_TRANSCRIPTION", default=False):
+        return ""
+    with tempfile.TemporaryDirectory(prefix="jikji-video-audio-") as tmp:
+        audio = _extract_audio_track(path, tmp)
+        if audio is None:
+            return ""
+        return _transcribe_media(audio, max_chars)
+
+
+def _video_keyframe_ocr(path: Path, max_chars: int) -> str:
+    if not _env_flag("JIKJI_ENABLE_VIDEO_OCR", default=False):
+        return ""
+    if not _rapidocr_available() and shutil.which("tesseract") is None:
+        return ""
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        return ""
+    frames = max(1, int(_env_float("JIKJI_VIDEO_OCR_FRAMES", 5.0)))
+    interval = max(1, int(_env_float("JIKJI_VIDEO_OCR_INTERVAL_SECONDS", 30.0)))
+    with tempfile.TemporaryDirectory(prefix="jikji-video-ocr-") as tmp:
+        pattern = str(Path(tmp) / "frame_%03d.png")
+        _run(
+            [
+                ffmpeg,
+                "-y",
+                "-i",
+                str(path.resolve()),
+                "-vf",
+                f"fps=1/{interval}",
+                "-frames:v",
+                str(frames),
+                pattern,
+            ],
+            timeout=_env_float("JIKJI_FFMPEG_TIMEOUT", 90.0),
+        )
+        seen: set[str] = set()
+        texts: list[str] = []
+        total = 0
+        for frame in sorted(Path(tmp).glob("frame_*.png")):
+            text = _ocr_image(frame, max_chars - total).strip()
+            if not text or text in seen:
+                continue
+            seen.add(text)
+            texts.append(text)
+            total += len(text) + 1
+            if total >= max_chars:
+                break
+    return "\n".join(texts)[:max_chars]
+
+
 def parse_video(path: Path, max_chars: int) -> str:
     parts: list[str] = [f"# Video: {path.name}"]
     parts.extend(_ffprobe_metadata(path))
+    transcript = _transcribe_video(path, max_chars)
+    if transcript:
+        parts.append("# Transcript\n" + transcript)
+    on_screen = _video_keyframe_ocr(path, max_chars)
+    if on_screen:
+        parts.append("# On-screen text\n" + on_screen)
     if len(parts) == 1:
         return ""
     return "\n".join(parts)[:max_chars]

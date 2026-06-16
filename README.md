@@ -56,11 +56,15 @@ python3 -m venv .venv
 .venv/bin/jikji brief ~/Documents "contract pdf from last spring" --top-k 10 --json
 ```
 
-Image files are indexed with lightweight local metadata (format, dimensions, and
-selected EXIF datetime when available). OCR text for images and scanned PDFs is
-optional and local-only; install `tesseract` and confirm with
-`jikji doctor ROOT --json` (`image_support.ocr_active`) when you want image text
-to contribute to search.
+Image, audio, and video files are always indexed with lightweight local
+metadata (format, dimensions, EXIF datetime, ffprobe stream/duration). Their
+**content** can also be indexed via optional CPU backends, auto-detected when
+installed: image and video-frame OCR via RapidOCR (or `tesseract`), and audio /
+video speech transcription via faster-whisper (or the `whisper` CLI). Install
+with `pip install "jikji[media]"`; enable transcription with
+`JIKJI_ENABLE_TRANSCRIPTION=1` and video keyframe OCR with
+`JIKJI_ENABLE_VIDEO_OCR=1`. Confirm OCR with `jikji doctor ROOT --json`
+(`image_support.ocr_active`).
 
 한국어 예시:
 
@@ -208,6 +212,7 @@ Recommended `.gitignore` for indexed roots:
 - [Local-agent search standard](docs/local-agent-search-standard.md)
 - [Promo page](https://nomadamas.github.io/jikji/) / [source](docs/jikji-value.html)
 - [Hardbench benchmark notes](docs/hardbench-benchmark.md)
+- [Media OCR/ASR benchmark notes](docs/media-benchmark.md)
 
 ## Development
 

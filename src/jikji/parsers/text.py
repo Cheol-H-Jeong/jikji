@@ -30,6 +30,36 @@ def parse_plain(path: Path, max_chars: int) -> str:
     return text[:max_chars]
 
 
+_SUBTITLE_TS = re.compile(
+    r"^\d{1,2}:\d{2}:\d{2}[.,]\d{1,3}\s*-->\s*\d{1,2}:\d{2}:\d{2}[.,]\d{1,3}.*$"
+)
+
+
+def parse_subtitles(path: Path, max_chars: int) -> str:
+    """Extract dialogue text from SRT/WebVTT, dropping cue indices and timing."""
+    raw = _read_text(path, max_chars * 6)
+    lines: list[str] = []
+    prev_blank = True
+    for line in raw.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            prev_blank = True
+            continue
+        if stripped == "WEBVTT" or stripped.startswith(("NOTE", "STYLE", "REGION")):
+            prev_blank = False
+            continue
+        if _SUBTITLE_TS.match(stripped):
+            prev_blank = False
+            continue
+        # A bare integer right after a blank line is an SRT cue index.
+        if prev_blank and stripped.isdigit():
+            prev_blank = False
+            continue
+        prev_blank = False
+        lines.append(stripped)
+    return "\n".join(lines)[:max_chars]
+
+
 _RTF_TOKEN = re.compile(r"\\[a-zA-Z]+-?\d* ?|\\'[0-9a-fA-F]{2}|[{}]")
 
 

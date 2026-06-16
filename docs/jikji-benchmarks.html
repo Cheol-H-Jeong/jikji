@@ -47,6 +47,17 @@
   .note.weak{border-left-color:var(--bad)}
   footer{margin-top:56px;border-top:1px solid var(--line);padding-top:20px;color:var(--mut);font-size:13px}
   code{background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:12.5px}
+  pre{background:#0a0d12;border:1px solid var(--line);border-radius:8px;padding:12px 14px;overflow-x:auto;font-size:12.5px;line-height:1.55;color:#cfe0ee;margin:10px 0}
+  pre .c{color:var(--mut)}
+  details.ex{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--warn);border-radius:8px;margin-top:14px;padding:0 14px}
+  details.ex>summary{cursor:pointer;padding:11px 0;color:var(--warn);font-size:13.5px;font-weight:600;list-style:none}
+  details.ex>summary::-webkit-details-marker{display:none}
+  details.ex>summary::before{content:"▸ ";color:var(--warn)}
+  details.ex[open]>summary::before{content:"▾ "}
+  details.ex .body{padding:2px 0 14px;color:var(--mut);font-size:13.5px}
+  details.ex .body b{color:var(--fg)}
+  .kv{margin:6px 0}
+  .kv .lab{display:inline-block;min-width:92px;color:var(--mut)}
 </style>
 </head>
 <body>
@@ -71,9 +82,11 @@
   <div class="card"><div class="k">Korean 공공데이터 (Hermes)</div><div class="v">0.83 → 1.00 <small>Hit@5</small></div><div class="d">정확도↑ + 1.50× 빠름</div></div>
   <div class="card"><div class="k">Hard KOGL direct handoff</div><div class="v">0.80 <small>sec/case</small></div><div class="d">에이전트 탐색 turn 제거</div></div>
   <div class="card"><div class="k">MIRACL-VISION (Markdown IR)</div><div class="v">0.39 → 0.84 <small>Hit@1</small></div><div class="d">Contextual Anchor Weighting · raw·RAG 상회 · 80 cases</div></div>
+  <div class="card"><div class="k">미디어 OCR/ASR (Hermes)</div><div class="v">0% → 100% <small>Hit@1</small></div><div class="d">이미지·음성·영상 본문 검색 · 토큰 −55.7% · 10 cases</div></div>
 </div>
 
 <nav>
+  <a href="#method" style="color:var(--warn)">평가 방법·예시</a>
   <a href="#realistic">Realistic Downloads</a>
   <a href="#kogl-extreme">Hard KOGL extreme</a>
   <a href="#kogl-local">Hard KOGL local 600</a>
@@ -85,7 +98,86 @@
   <a href="#edith">EDiTh</a>
   <a href="#miracl">MIRACL-VISION</a>
   <a href="#beir">BEIR</a>
+  <a href="#media-ocr">미디어 OCR/ASR</a>
 </nav>
+
+<section id="method">
+  <h2>평가 방법 &amp; 예시 데이터 <span class="tag" style="background:var(--warn)">먼저 읽기</span></h2>
+  <p class="sub">모든 벤치마크는 <b>파일 검색(file retrieval)</b> 과제다. "이 질문의 답이 들어있는 파일이 무엇인가?"를 맞히는지 본다. 각 케이스는 한 줄짜리 JSON(JSONL)이며 형식은 전부 동일하다.</p>
+
+  <pre><span class="c"># eval set 한 줄 (실제 HippoCamp 케이스)</span>
+{
+  "id": "hippocamp_factual_retention-0001",
+  "scenario": "hippocamp_factual_retention",
+  "query": "A client asked whether a potential franchisee is allowed to
+            share confidential Tazza Caffe information with their employees...",
+  "expected_paths": ["contractnli/Tazza-CAFFE-Confidentiality-Agreement.pdf"]
+}</pre>
+
+  <div class="note">
+    <b>채점:</b> 에이전트(또는 검색기)가 내놓은 파일 목록 <code>predicted_paths</code>에서
+    <code>expected_paths</code>가 몇 번째에 등장하는지로 순위를 매긴다.
+    <div class="kv"><span class="lab">Hit@k</span> 정답 파일이 상위 <b>k</b>개 안에 있으면 1, 아니면 0 (케이스 평균).</div>
+    <div class="kv"><span class="lab">MRR</span> 정답의 순위 r의 역수 1/r 평균 (1위=1.0, 2위=0.5…).</div>
+    <div class="kv"><span class="lab">SetR@k</span> 정답이 여러 개일 때 상위 k에서 회수한 비율(set recall).</div>
+    <div class="kv"><span class="lab">sec / 토큰</span> 케이스당 소요 시간, 실제 에이전트의 LLM 호출 수·입력/출력 토큰.</div>
+  </div>
+
+  <div class="note">
+    <b>두 가지 모드</b>
+    <div class="kv"><span class="lab">raw</span> Jikji 인덱스/파서 캐시 <b>없이</b> 원본 파일명·경로·native 텍스트만으로 검색.</div>
+    <div class="kv"><span class="lab">jikji</span> Jikji가 <code>prepare</code>로 만든 지도·인덱스·파서 텍스트 캐시를 사용. 임베딩·벡터DB·RAG·리랭커는 쓰지 않는다.</div>
+    <b style="display:block;margin-top:8px">두 가지 증거</b>
+    <div class="kv"><span class="lab">결정론적</span> 검색 레이어만 돌리는 저비용 회귀 신호(LLM 없음, 대규모 케이스).</div>
+    <div class="kv"><span class="lab">실제 에이전트</span> Hermes/Claude를 실제 구동한 비교(소규모, 워크스테이션·모델·실행에 따라 변동). no-leak: 정답 파일/eval 세트는 코퍼스 밖에 둔다.</div>
+  </div>
+  <p class="sub" style="margin-top:12px">아래 각 벤치마크의 <span style="color:var(--warn)">▸ 예시 데이터·평가</span>를 펼치면 그 코퍼스의 대표 질의 예시와 채점 방식을 볼 수 있다.</p>
+</section>
+
+<section id="media-ocr">
+  <h2>미디어 OCR/ASR — 이미지·음성·영상 본문 <span class="tag agent">에이전트</span></h2>
+  <p class="sub">새로 추가한 미디어 텍스트화 레이어 검증. 정답이 <b>파일명·메타데이터가 아니라 미디어 내용에만</b> 들어있는 합성 코퍼스 12개 파일이라, OCR/전사 능력이 없는 raw 에이전트는 못 찾고 Jikji는 찾는다. 이미지=RapidOCR, 음성=faster-whisper, 영상=프레임 OCR+오디오 전사. (CPU 전용 옵션 백엔드, gemini-2.5-flash, 10 cases)</p>
+  <div class="tablewrap"><table>
+    <caption>실제 Hermes (10 cases/mode)</caption>
+    <thead><tr><th>Agent mode</th><th>Hit@1</th><th>Hit@3</th><th>MRR</th><th>LLM 호출 📞</th><th>입력 토큰 (Prompt)</th><th>출력 토큰 (Completion)</th><th>총 토큰</th></tr></thead>
+    <tbody>
+      <tr><td><span class="mode raw"></span>raw Hermes</td><td class="down">0.00</td><td>0.00</td><td>0.000</td><td>31회</td><td>192,868</td><td>29,232</td><td>222,100</td></tr>
+      <tr class="jikji"><td><span class="mode jikji"></span>Hermes + Jikji fast</td><td class="up">1.00</td><td class="up">1.00</td><td class="up">1.000</td><td class="up">10회</td><td class="up">91,217</td><td class="up">7,181</td><td class="up">98,398</td></tr>
+    </tbody>
+  </table></div>
+  <div class="tablewrap" style="margin-top:14px"><table>
+    <caption>시나리오별 Hit@1 (raw → Jikji)</caption>
+    <thead><tr><th>Scenario</th><th>Cases</th><th>raw</th><th>Jikji</th><th>추출 백엔드</th></tr></thead>
+    <tbody>
+      <tr><td>이미지 OCR</td><td>4</td><td>0</td><td class="up">4</td><td>RapidOCR</td></tr>
+      <tr><td>음성 ASR</td><td>3</td><td>0</td><td class="up">3</td><td>faster-whisper</td></tr>
+      <tr><td>영상 화면텍스트 OCR</td><td>1</td><td>0</td><td class="up">1</td><td>RapidOCR(키프레임)</td></tr>
+      <tr><td>영상 음성 ASR</td><td>2</td><td>0</td><td class="up">2</td><td>faster-whisper(오디오)</td></tr>
+    </tbody>
+  </table></div>
+  <details class="ex">
+    <summary>예시 데이터·평가</summary>
+    <div class="body">
+      <p>파일명은 <code>asset_NN.png</code>·<code>clip_NN.wav</code>·<code>reel_NN.mp4</code>로 무의미하게 두어 raw가 파일명으로 답을 추측할 수 없게 했다. 정답은 오직 렌더된/말한/화면 속 텍스트에만 있다.</p>
+      <pre><span class="c"># 이미지 케이스 — 그림 안에 "Project Sandpiper ... 4.7 million ... FY2027" 텍스트</span>
+{"id":"media-img-01","scenario":"image_ocr",
+ "query":"What is Project Sandpiper's approved quarterly budget for fiscal year 2027?",
+ "expected_paths":["asset_01.png"]}
+
+<span class="c"># 음성 케이스 — clip_05.wav 안에 "Aurora plant ... ninety four percent" 음성</span>
+{"id":"media-aud-05","scenario":"audio_asr",
+ "query":"What score did the Aurora plant annual safety audit receive?",
+ "expected_paths":["clip_05.wav"]}
+
+<span class="c"># 영상(음성) 케이스 — reel_12.mp4 오디오에 "portal named Lighthouse"</span>
+{"id":"media-vid-12","scenario":"video_speech_asr",
+ "query":"What is the name of the new portal for submitting expense reports?",
+ "expected_paths":["reel_12.mp4"]}</pre>
+      <p><b>평가:</b> <code>jikji prepare</code>가 OCR/전사로 미디어 본문을 텍스트 인덱스에 넣은 뒤, 에이전트가 고른 파일이 정답인지 Hit@k로 채점. raw는 로컬 OCR/ASR이 없어 전 케이스 빈손(0/10), Jikji는 전 케이스 1위(10/10)이면서 LLM 호출 3.1×·총 토큰 2.26× 절감.</p>
+      <p><b>재현:</b> <code>python .benchmarks/media_bench/build_corpus.py</code> → <code>JIKJI_ENABLE_TRANSCRIPTION=1 JIKJI_ENABLE_VIDEO_OCR=1 jikji prepare … --parse-timeout 600</code> → <code>jikji hermes-bench … --modes raw,jikji-fast</code>. 상세: <code>docs/media-benchmark.md</code>.</p>
+    </div>
+  </details>
+</section>
 
 <section id="realistic">
   <h2>Realistic Downloads 코퍼스 <span class="tag">결정론적</span></h2>
@@ -98,6 +190,14 @@
     </tbody>
   </table></div>
   <div class="note">결정론적 lexical/map-only. raw 대비 Hit@1 +0.55, Hit@10 +0.50 절대. 비용은 사실상 동일.</div>
+  <details class="ex"><summary>예시 데이터·평가</summary><div class="body">
+    <p>실제 <code>~/Downloads</code>의 파일들로부터 자동 생성한 현실적 질의 204건. 정답은 보통 파일 1개.</p>
+    <pre><span class="c"># 대표 예시(형식)</span>
+{"id":"realistic-0007","scenario":"content_clue",
+ "query":"작년 봄에 받은 ACME 계약서 PDF 어디 있더라?",
+ "expected_paths":["계약/2026-03_ACME_계약서_v2.pdf"]}</pre>
+    <p><b>평가:</b> top-k 10 결정론 검색에서 expected_paths가 후보 안에 들면 Hit. 파일명·폴더 맥락·파서 본문 캐시를 합쳐 랭킹.</p>
+  </div></details>
 </section>
 
 <section id="kogl-extreme">
@@ -129,6 +229,14 @@
     </tbody>
   </table></div>
   <div class="note">Jikji가 가장 어려운 코퍼스에서 Hit@5를 +0.8125 절대 끌어올림. 남은 약점은 weak_folder_memory(거친 폴더 기억 + 일반 파일명)로 의도적으로 어렵게 설계됨. 실제 에이전트 샘플에서 약 6.58× 시간 단축.</div>
+  <details class="ex"><summary>예시 데이터·평가</summary><div class="body">
+    <p>공공 KOGL 첨부문서를 깊은 messy 폴더에 흩고 memo/link 디코이를 섞음. 4개 시나리오로 난이도를 가른다.</p>
+    <pre><span class="c"># body_phrase_no_filename — 파일명엔 단서 없음, 본문 구절로만 식별 (형식 예시)</span>
+{"id":"koglx-0042","scenario":"body_phrase_no_filename",
+ "query":"'출처표시 조건만 지키면 자유 이용 가능'을 설명한 공공저작물 안내 문서",
+ "expected_paths":["받은자료/2024/자료_182.pdf"]}</pre>
+    <p><b>평가:</b> 144 test cases · top-k 10. <code>weak_folder_memory</code>는 거친 폴더 기억 + 일반 파일명이라 의도적으로 가장 어렵다.</p>
+  </div></details>
 </section>
 
 <section id="kogl-local">
@@ -151,6 +259,14 @@
     </tbody>
   </table></div>
   <div class="note">direct handoff = 에이전트가 Jikji의 사전계산 랭킹 후보를 받아 탐색 turn 없이 선택. 동일 Hit@10에서 약 114× 빠름(91.6→0.8 sec/case).</div>
+  <details class="ex"><summary>예시 데이터·평가</summary><div class="body">
+    <p>로컬 122GB 실제 공공문서 폴더에서 600개 샘플(원본 미변경). direct handoff 모드 비교가 핵심.</p>
+    <pre><span class="c"># 형식 예시</span>
+{"id":"kogll-0113","scenario":"multi_body_disambiguation",
+ "query":"저작권 위탁관리 표준계약서 중 '2차적저작물' 정의가 들어간 PDF",
+ "expected_paths":["downloads/pub/doc_4471.pdf"]}</pre>
+    <p><b>평가:</b> 240 test cases. <code>direct</code> = Jikji 사전계산 후보를 LLM 호출 0회로 채택(탐색 turn 제거).</p>
+  </div></details>
 </section>
 
 <section id="kogl-v3">
@@ -171,6 +287,14 @@
       <tr class="jikji"><td><span class="mode jikji"></span>Hermes + Jikji</td><td class="up">1.0000</td><td>1.0000</td><td>1.0000</td><td class="up">16회</td><td class="up">96,500</td><td class="up">9,800</td><td class="up">106,300</td><td>330.4</td><td>41.3</td></tr>
     </tbody>
   </table></div>
+  <details class="ex"><summary>예시 데이터·평가</summary><div class="body">
+    <p>표준 난이도 180문서. 형식은 extreme과 동일, 디코이/폴더 깊이만 완화.</p>
+    <pre><span class="c"># 형식 예시</span>
+{"id":"koglv3-0009","scenario":"body_phrase_no_filename",
+ "query":"개인정보 영향평가 수행 절차를 설명한 HWP 문서",
+ "expected_paths":["자료실/hwp/file_57.hwp"]}</pre>
+    <p><b>평가:</b> 72 test cases · top-k 10.</p>
+  </div></details>
 </section>
 
 <section id="publicdata">
@@ -193,6 +317,14 @@
     </tbody>
   </table></div>
   <div class="note">동일 로컬 에이전트를 더 정확하고(+0.1666 Hit@5/10) 더 빠르게(약 1.50×) 만듦.</div>
+  <details class="ex"><summary>예시 데이터·평가</summary><div class="body">
+    <p>한국 오픈데이터 XLSX 90건을 노이즈 폴더에 배치. 빌더가 <code>sheet/서울/통계/현황</code> 같은 일반어 단서는 질의에서 제거해 난이도를 올린다.</p>
+    <pre><span class="c"># 형식 예시</span>
+{"id":"pub-0012","scenario":"xlsx_content",
+ "query":"자치구별 공영주차장 요금이 정리된 엑셀 파일",
+ "expected_paths":["받은자료/기관별/parking_fee_2025.xlsx"]}</pre>
+    <p><b>평가:</b> 18 test cases. XLSX 파서가 시트·행을 샘플해 본문 단서를 인덱스에 넣은 뒤 검색.</p>
+  </div></details>
 </section>
 
 <section id="workspace">
@@ -215,6 +347,14 @@
     </tbody>
   </table></div>
   <div class="note">이 작은 슬라이스는 raw Hermes가 이미 Hit@5/10 만점이라 정확도 개선 여지가 없었음. Jikji는 top-k 정확도 유지 + 약 1.22× 시간 단축. 결정론적 진단에서는 Jikji 인덱스가 더 잘 랭킹.</div>
+  <details class="ex"><summary>예시 데이터·평가</summary><div class="body">
+    <p>Workspace-Bench-Lite 태스크를 "이 작업에 필요한 파일"을 찾는 no-leak 케이스로 변환.</p>
+    <pre><span class="c"># 형식 예시</span>
+{"id":"wsl-0003","scenario":"task_support_file",
+ "query":"이 데이터 정제 스크립트가 읽어 들이는 설정/스키마 파일",
+ "expected_paths":["config/schema.yaml"]}</pre>
+    <p><b>평가:</b> 12 tasks(결정론) / 6 cases(에이전트). 파일 탐색만 채점하고 최종 출력 생성은 평가하지 않는다.</p>
+  </div></details>
 </section>
 
 <section id="hippocamp">
@@ -320,6 +460,15 @@
 
     <div style="margin-top: 10px; font-size: 13px; color: var(--good);">💡 Victoria 대기업 재무 시나리오에서 raw 에이전트는 Hit@10 0.60에 그치지만, Jikji 다이어트로 <b>LLM 호출 29회 ➜ 10회</b>, <b>총 토큰 240,624 ➜ 109,650 (−54.4%)</b>로 줄이며 정확도(Hit@10)를 <b>60% ➜ 80%</b>로 끌어올립니다.</div>
   </div>
+  <details class="ex"><summary>예시 데이터·평가</summary><div class="body">
+    <p>개인 PC형 파일에 대한 클라이언트 응대식 질문. 정답은 보통 근거 문서 1개.</p>
+    <pre><span class="c"># 실제 케이스</span>
+{"id":"hippocamp_factual_retention-0002","scenario":"hippocamp_factual_retention",
+ "query":"A client asked whether, under the confidentiality agreement with FNHA,
+          the company can share confidential info with its consultants...",
+ "expected_paths":["contractnli/FNHA-2019RFP-02-NDA-form.pdf"]}</pre>
+    <p><b>평가:</b> 결정론 551건 전수 + 프로필당 10건 에이전트. 정답 문서를 상위 k에 올렸는지 Hit@k·MRR로 채점.</p>
+  </div></details>
 </section>
 
 <section id="generalization">
@@ -336,6 +485,14 @@
     </tbody>
   </table></div>
   <div class="note">교차 시나리오 일반화 코퍼스(8개 도메인: engineering/finance/korean/legal/ops/personal/recipe/travel)에서 raw·Jikji 모두 9/9 케이스 Hit@1=1.0 — 쉬운 도메인 분리 확인용 회귀 신호.</div>
+  <details class="ex"><summary>예시 데이터·평가</summary><div class="body">
+    <p>학습에 없던 unseen 시나리오 일반화 점검(복제본 계열 / 폴더 제약 / 해시 중복).</p>
+    <pre><span class="c"># 형식 예시</span>
+{"id":"gen-008","scenario":"folder_constrained_unseen",
+ "query":"여행 폴더가 아닌 곳에 잘못 들어간 항공권 PDF",
+ "expected_paths":["misc/eticket_0912.pdf"]}</pre>
+    <p><b>평가:</b> 240 cases. <code>dup/exact@10</code>은 내용이 같은 복제본까지 정답으로 인정한 변형 지표.</p>
+  </div></details>
 </section>
 
 <section id="edith">
@@ -357,6 +514,14 @@
       <tr class="jikji"><td><span class="mode jikji"></span>Jikji index</td><td>0.3333</td><td class="up">1.0000</td><td>1.0000</td><td>1.0000</td><td>0.6667</td><td>0.6667</td></tr>
     </tbody>
   </table></div>
+  <details class="ex"><summary>예시 데이터·평가</summary><div class="body">
+    <p>엔터프라이즈 PDF(스캔/검색가능/혼합, 다국어)에서 답이 담긴 파일(들)을 찾기. 정답이 여러 개일 수 있다.</p>
+    <pre><span class="c"># 형식 예시</span>
+{"id":"edith-002","scenario":"enterprise_pdf",
+ "query":"Véracier Industries 데이터 보존 정책의 보존 기간이 명시된 문서",
+ "expected_paths":["veracier/policies/data_retention.pdf"]}</pre>
+    <p><b>평가:</b> 현재는 작은 file-list subset(3 cases) → smoke 벤치. 다중 정답은 SetR@k로 회수율도 본다.</p>
+  </div></details>
 </section>
 
 <section id="miracl">
@@ -382,6 +547,14 @@
     </tbody>
   </table></div>
   <div class="note">개선 요약: full-text BM25 term-frequency 본문 스코어링에 폴더 맥락(folder_profile)·메타데이터 사전(file_cards rare_terms)·마크다운 제목/구조 밀도 앵커를 사전확률로 결합(Contextual Anchor Boost). 그 결과 Markdown-only IR에서 Jikji 결정론 Hit@1이 0.3875 → 0.8375로 회복하며 raw(0.5875)와 RAG(0.8000)를 모두 상회, MRR도 0.9073으로 최고. 지도-우선 <code>agent_jikji_map</code> 모드는 여전히 raw와 동률(에이전트 8 cases). → 파서가 필요한 PDF/HWP/Office뿐 아니라 이미 텍스트화된 Markdown IR에서도 Jikji의 사전화 레이어가 랭킹에 직접 기여한다.</div>
+  <details class="ex"><summary>예시 데이터·평가</summary><div class="body">
+    <p>MIRACL-VISION 위키 문서를 Markdown으로 materialize한 순수 텍스트 IR(ko/en/ja/fr 다국어).</p>
+    <pre><span class="c"># 형식 예시</span>
+{"id":"miracl-ko-031","scenario":"wiki_passage",
+ "query":"올림픽 마라톤 거리가 42.195km로 확정된 경위는?",
+ "expected_paths":["docs/ko/article_39675028.md"]}</pre>
+    <p><b>평가:</b> 80 cases. 같은 코퍼스에서 raw lexical·char n-gram RAG와 동시 비교(Hit@k·MRR).</p>
+  </div></details>
 </section>
 
 <section id="beir">
@@ -399,12 +572,20 @@
     </tbody>
   </table></div>
   <div class="note">ArguAna(긴 반론 검색)에서 Jikji가 크게 우세(Hit@10 0.13→0.55), NFCorpus도 전반 우세. SciFact는 raw와 사실상 동률. 순수 IR(이미 텍스트)에서는 도메인에 따라 혼재.</div>
+  <details class="ex"><summary>예시 데이터·평가</summary><div class="body">
+    <p>BEIR 데이터셋(SciFact/ArguAna/NFCorpus)을 Markdown으로 변환한 광역 IR 회귀. 질의=클레임/질문, 정답=관련 문서.</p>
+    <pre><span class="c"># 형식 예시 (SciFact 류 클레임)</span>
+{"id":"scifact-q187","scenario":"scientific_claim",
+ "query":"0-dimensional biomaterials show inductive properties.",
+ "expected_paths":["scifact/corpus/doc_4983.md"]}</pre>
+    <p><b>평가:</b> 각 200 cases, rank 기반 Hit@k·MRR. 이미 텍스트라 파서 스트레스 테스트는 아님.</p>
+  </div></details>
 </section>
 
 <footer>
   <p><b>방법론 / 정직성.</b> raw = Jikji 인덱스/파서 캐시를 쓰지 않고 원본 파일명·경로·native-text만 검색. jikji = Jikji 지도·인덱스·파서 텍스트 캐시 검색. Jikji 코어는 임베딩·벡터DB·RAG·LLM·리랭커 없이 결정론적 lexical/file-map만 사용한다. 실제 에이전트(Hermes/Claude) 타이밍은 워크스테이션·모델·실행마다 변동하므로, 대규모 결정론적 test를 주 회귀 신호로, 소규모 actual-agent run을 제품 sanity check로 사용한다. train/valid는 일반 개선 유도용으로만 쓰고 test 헤드라인과 분리했다.</p>
-  <p>출처 문서: <code>docs/hardbench-benchmark.md</code>, <code>docs/workspacebench-benchmark.md</code>, <code>docs/publicdata-agent-benchmark.md</code>, <code>docs/hippocamp-benchmark.md</code>, <code>docs/public-benchmark-catalog.md</code> · 원시 결과: <code>.benchmarks/</code> (gitignored 로컬 증거).</p>
-  <p>생성일 2026-06-15 · HippoCamp Full split(Fullset) 재측정 반영 · 에이전트 벤치마크 모델 gpt-4o-mini → google/gemini-2.5-flash 전환 재측정 · Jikji file-discovery benchmark summary.</p>
+  <p>출처 문서: <code>docs/hardbench-benchmark.md</code>, <code>docs/workspacebench-benchmark.md</code>, <code>docs/publicdata-agent-benchmark.md</code>, <code>docs/hippocamp-benchmark.md</code>, <code>docs/media-benchmark.md</code>, <code>docs/public-benchmark-catalog.md</code> · 원시 결과: <code>.benchmarks/</code> (gitignored 로컬 증거).</p>
+  <p>생성일 2026-06-16 · 미디어 OCR/ASR(이미지·음성·영상) 벤치마크 + 「평가 방법·예시 데이터」 섹션 추가 · HippoCamp Full split(Fullset) 재측정 반영 · 에이전트 벤치마크 모델 google/gemini-2.5-flash · Jikji file-discovery benchmark summary.</p>
 </footer>
 </div>
 </body>
