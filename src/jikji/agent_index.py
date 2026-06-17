@@ -465,6 +465,46 @@ def _scan_files_and_dirs(root: Path, config: Config) -> tuple[list[Path], list[P
     return sorted(files, key=lambda p: str(p)), sorted(dirs, key=lambda p: str(p))
 
 
+def _tree_signature_from_paths(root: Path, files: list[Path], dirs: list[Path]) -> dict[str, object]:
+    """Return a content-free fingerprint for fast index freshness checks."""
+    h = hashlib.sha256()
+    file_count = 0
+    folder_count = len(dirs) + 1
+    total_size = 0
+    max_mtime_ns = 0
+    for path in sorted(files, key=lambda p: str(p)):
+        try:
+            st = path.stat()
+        except OSError:
+            continue
+        rel = _rel(root, path)
+        size = int(st.st_size)
+        mtime_ns = int(st.st_mtime_ns)
+        file_count += 1
+        total_size += size
+        max_mtime_ns = max(max_mtime_ns, mtime_ns)
+        h.update(rel.encode("utf-8", errors="surrogateescape"))
+        h.update(b"\0")
+        h.update(str(size).encode("ascii"))
+        h.update(b"\0")
+        h.update(str(mtime_ns).encode("ascii"))
+        h.update(b"\n")
+    return {
+        "algorithm": "sha256(relpath,size,mtime_ns).v1",
+        "digest": h.hexdigest(),
+        "files": file_count,
+        "folders": folder_count,
+        "total_size": total_size,
+        "max_mtime_ns": max_mtime_ns,
+    }
+
+
+def tree_signature(root: Path, config: Config) -> dict[str, object]:
+    """Compute the current source-tree signature without parsing file contents."""
+    files, dirs = _scan_files_and_dirs(Path(root), config)
+    return _tree_signature_from_paths(Path(root).expanduser().resolve(), files, dirs)
+
+
 _TOKEN_TEXT_RE = re.compile(r"[0-9A-Za-z가-힣ぁ-ゟ゠-ヿ一-鿿][0-9A-Za-z가-힣ぁ-ゟ゠-ヿ一-鿿._-]*")
 _CJK_RE = re.compile(r"[가-힣ぁ-ゟ゠-ヿ一-鿿]")
 
@@ -980,6 +1020,7 @@ def _build_agent_index_unlocked(
     if progress:
         progress("jikji: 파일/폴더 변경분 스캔", 0.02)
     files, dirs = _scan_files_and_dirs(root, config)
+    source_tree_signature = _tree_signature_from_paths(root, files, dirs)
     check()
 
     previous = _load_jsonl_by_path(index_dir / "file_index.jsonl")
@@ -1237,6 +1278,7 @@ def _build_agent_index_unlocked(
         "retired_cleanup_paths": RETIRED_GENERATED_PATHS,
         "parser_required_extensions": sorted(DOCUMENT_CACHE_EXTENSIONS),
         "native_text_extensions": sorted(TEXT_LIKE_EXTENSIONS),
+        "source_tree_signature": source_tree_signature,
         **llm_wiki_artifacts,
     }
     _write_json(index_dir / "manifest.json", manifest)

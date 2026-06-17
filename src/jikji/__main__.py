@@ -20,6 +20,7 @@ from .agent_index import (
     VISIBLE_MAP_NAME,
     VISIBLE_MAP_NAMES,
     build_agent_index,
+    tree_signature,
 )
 from .agent_skill_install import (
     CUSTOM_AGENT_NAMES,
@@ -452,13 +453,18 @@ def _search_config_from_args(args) -> Config:
     return cfg
 
 
-def _manifest_generated_at(root: Path) -> datetime | None:
+def _read_manifest(root: Path) -> dict:
     path = root / AGENT_DIR_NAME / "manifest.json"
-    if not path.exists():
-        return None
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
-        value = str(raw.get("generated_at") or "")
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return raw if isinstance(raw, dict) else {}
+
+
+def _manifest_generated_at(manifest: dict) -> datetime | None:
+    try:
+        value = str(manifest.get("generated_at") or "")
         if not value:
             return None
         if value.endswith("Z"):
@@ -467,15 +473,34 @@ def _manifest_generated_at(root: Path) -> datetime | None:
         if generated.tzinfo is None:
             generated = generated.replace(tzinfo=UTC)
         return generated
-    except (OSError, ValueError, json.JSONDecodeError):
+    except (ValueError, TypeError):
         return None
 
 
-def _search_index_status(root: Path, *, stale_after_seconds: int) -> tuple[str, bool]:
+def _stored_tree_signature(manifest: dict) -> dict:
+    value = manifest.get("source_tree_signature")
+    return value if isinstance(value, dict) else {}
+
+
+def _tree_signature_changed(root: Path, args, manifest: dict) -> bool:
+    stored = _stored_tree_signature(manifest)
+    if not stored.get("digest"):
+        return False
+    try:
+        current = tree_signature(root, _search_config_from_args(args))
+    except (OSError, RuntimeError):
+        return False
+    return str(current.get("digest") or "") != str(stored.get("digest") or "")
+
+
+def _search_index_status(root: Path, args, *, stale_after_seconds: int, detect_changes: bool = True) -> tuple[str, bool]:
     index = instant_index_path(root)
     if not index.exists():
         return "missing", True
-    generated_at = _manifest_generated_at(root)
+    manifest = _read_manifest(root)
+    if detect_changes and _tree_signature_changed(root, args, manifest):
+        return "changed_using_previous_index", False
+    generated_at = _manifest_generated_at(manifest)
     if generated_at is None:
         try:
             age = time.time() - index.stat().st_mtime
@@ -536,7 +561,7 @@ def _maybe_start_background_refresh(args, root: Path) -> bool:
 
 def cmd_search(args) -> int:
     root = Path(args.path).expanduser().resolve()
-    index_status, should_prepare = _search_index_status(root, stale_after_seconds=args.stale_after_seconds)
+    index_status, should_prepare = _search_index_status(root, args, stale_after_seconds=args.stale_after_seconds)
     foreground_prepared = False
     if args.fresh or (should_prepare and args.auto_prepare):
         build_agent_index(root, _search_config_from_args(args))
@@ -548,7 +573,7 @@ def cmd_search(args) -> int:
 
     ranked = search(root, args.query, top_k=args.top_k)
     background_refresh_started = False
-    if index_status == "stale_using_previous_index" and not args.fresh:
+    if index_status in {"stale_using_previous_index", "changed_using_previous_index"} and not args.fresh:
         background_refresh_started = _maybe_start_background_refresh(args, root)
     payload = {
         "root": str(root),
@@ -562,9 +587,10 @@ def cmd_search(args) -> int:
     if args.json:
         print(json.dumps(payload, ensure_ascii=False, indent=2))
     else:
-        if index_status == "stale_using_previous_index":
+        if index_status in {"stale_using_previous_index", "changed_using_previous_index"}:
+            label = "changed" if index_status == "changed_using_previous_index" else "stale"
             suffix = "background refresh started" if background_refresh_started else "using previous index"
-            print(f"Jikji index is stale; {suffix}.")
+            print(f"Jikji index is {label}; {suffix}.")
         elif foreground_prepared:
             print(f"Jikji index {index_status.replace('_', ' ')}.")
         for idx, item in enumerate(ranked, 1):
@@ -575,7 +601,7 @@ def cmd_search(args) -> int:
 
 def cmd_brief(args) -> int:
     root = Path(args.path).expanduser().resolve()
-    index_status, should_prepare = _search_index_status(root, stale_after_seconds=args.stale_after_seconds)
+    index_status, should_prepare = _search_index_status(root, args, stale_after_seconds=args.stale_after_seconds)
     foreground_prepared = False
     if args.fresh or (should_prepare and args.auto_prepare):
         build_agent_index(root, _search_config_from_args(args))
@@ -587,7 +613,7 @@ def cmd_brief(args) -> int:
 
     candidates = search(root, args.query, top_k=args.top_k)
     background_refresh_started = False
-    if index_status == "stale_using_previous_index" and not args.fresh:
+    if index_status in {"stale_using_previous_index", "changed_using_previous_index"} and not args.fresh:
         background_refresh_started = _maybe_start_background_refresh(args, root)
     if getattr(args, "compact", False):
         payload = build_compact_agent_brief_payload(
@@ -621,10 +647,10 @@ def cmd_brief(args) -> int:
 
 def cmd_find(args) -> int:
     root = Path(args.path).expanduser().resolve()
-    index_status, should_prepare = _search_index_status(root, stale_after_seconds=args.stale_after_seconds)
-    if args.fresh or (should_prepare and args.auto_prepare):
+    index_status, should_prepare = _search_index_status(root, args, stale_after_seconds=args.stale_after_seconds)
+    if args.fresh or index_status == "changed_using_previous_index" or (should_prepare and args.auto_prepare):
         build_agent_index(root, _search_config_from_args(args))
-        index_status = "prepared_now" if should_prepare else "refreshed_now"
+        index_status = "refreshed_now" if index_status == "changed_using_previous_index" else ("prepared_now" if should_prepare else "refreshed_now")
     elif should_prepare and not args.auto_prepare:
         print(f"No Jikji search index found under {root}. Run: jikji prepare {root}", file=sys.stderr)
         return 1
@@ -917,7 +943,7 @@ def cmd_agent_skill_install(args) -> int:
         "after_install_protocol": (
             "When this SKILL.md is in an agent's skill directory, local file/document "
             "discovery requests under an explicit root should trigger Jikji first: "
-            "jikji brief ROOT \"query\" --top-k 10 --json."
+            "jikji find ROOT \"query\" --first, then jikji brief ROOT \"query\" --compact --json when evidence is needed."
         ),
     }
     if args.json:

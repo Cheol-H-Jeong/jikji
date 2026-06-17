@@ -52,11 +52,12 @@ jikji eval /path/to/folder [--top-k N] [--json]
 ```
 
 `find` is the primary zero-LLM path for one-file lookup: it prints likely paths only.
-`search` is the primary local-agent ranked-candidate entry point. Both may auto-prepare a missing
-instant index for the explicit root, use a stale-but-present index for immediate
-results, and launch a background refresh unless disabled. Manual
-`prepare`/`refresh` are administrative controls, not something users should need
-to run before every lookup.
+On every `find`, Jikji compares a content-free source-tree signature
+`sha256(relpath,size,mtime_ns)` against the manifest and refreshes in the
+foreground when files were added, deleted, or renamed. `search` and `brief` may
+use a changed/stale-but-present index for immediate results and launch a
+background refresh unless disabled. Manual `prepare`/`refresh` are administrative
+controls, not something users should need to run before every lookup.
 
 Important prepare/refresh options:
 
@@ -167,7 +168,15 @@ The cache key for document text is `sha256:<content-hash>`.
 
 Refresh policy:
 
-- Use `(size, mtime_ns)` to detect unchanged files.
+- Store a content-free source-tree signature in `.jikji/manifest.json` using
+  relative path, size, and `mtime_ns`; do not read file bodies for freshness
+  checks.
+- On `jikji find`, refresh in the foreground when that signature changes so
+  newly created files can be returned by the same command.
+- On `jikji search` / `jikji brief`, return the previous index immediately when
+  the signature changed or the index is age-stale, and launch a background
+  refresh unless disabled.
+- Use `(size, mtime_ns)` to detect unchanged files during refresh.
 - Do not recompute SHA256 for unchanged files.
 - Recompute SHA256 and parser caches only when size or mtime changes, or when a
   previous cache is missing.

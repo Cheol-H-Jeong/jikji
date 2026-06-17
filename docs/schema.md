@@ -22,6 +22,9 @@ Required fields include:
 - `retired_cleanup_paths`
 - `parser_required_extensions`
 - `native_text_extensions`
+- `source_tree_signature`: content-free freshness fingerprint with `algorithm`,
+  `digest`, `files`, `folders`, `total_size`, and `max_mtime_ns`; computed from
+  relative path, size, and `mtime_ns` only
 
 ## file_index.jsonl
 

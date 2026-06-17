@@ -139,6 +139,27 @@ def test_find_cli_returns_minimal_paths(tmp_path, capsys):
     assert payload["paths"] == ["contracts/ACME.txt"]
 
 
+def test_find_refreshes_when_source_tree_changes(tmp_path, capsys):
+    from jikji.__main__ import main
+
+    (tmp_path / "old.txt").write_text("old searchable marker", encoding="utf-8")
+    assert main(["prepare", str(tmp_path), "--json"]) == 0
+    capsys.readouterr()
+
+    manifest = json.loads((tmp_path / ".jikji" / "manifest.json").read_text(encoding="utf-8"))
+    signature = manifest.get("source_tree_signature") or {}
+    assert signature.get("digest")
+    assert signature.get("files") == 1
+
+    (tmp_path / "new_contract.txt").write_text("fresh renewal indemnity clause", encoding="utf-8")
+    assert main(["find", str(tmp_path), "fresh renewal indemnity", "--first"]) == 0
+    assert capsys.readouterr().out.strip() == "new_contract.txt"
+
+    refreshed = json.loads((tmp_path / ".jikji" / "manifest.json").read_text(encoding="utf-8"))
+    refreshed_signature = refreshed.get("source_tree_signature") or {}
+    assert refreshed_signature.get("files") == 2
+    assert refreshed_signature.get("digest") != signature.get("digest")
+
 def test_graph_cli_status_query_and_explain(tmp_path, capsys):
     from jikji.__main__ import main
 
@@ -415,7 +436,7 @@ def test_eval_generate_and_run_scores_local_search(tmp_path, capsys):
 
     assert main(["search", str(tmp_path), "uniqueanchor", "--top-k", "3", "--json"]) == 0
     search_report = json.loads(capsys.readouterr().out)
-    assert search_report["index_status"] == "ready"
+    assert search_report["index_status"] in {"ready", "changed_using_previous_index"}
     assert search_report["candidates"]
     assert search_report["candidates"][0]["path"] == "projects/apollo/mission-notes.txt"
 

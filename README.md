@@ -95,6 +95,10 @@ jikji find ~/Documents "작년 봄 계약서 PDF" --first
 ```
 
 `brief --compact`는 evidence/wiki/cache까지 필요한 경우의 다음 단계입니다.
+`find`는 실행 때마다 `.jikji/manifest.json`의 source-tree signature와 현재
+`relpath,size,mtime_ns` signature를 비교합니다. 새 파일/삭제/이름변경이
+감지되면 그 명령 안에서 foreground refresh를 한 뒤 검색하므로 상주 데몬 없이도
+파일 탐색용 인덱스가 최신 상태를 따라갑니다.
 
 GUI 관리 대시보드:
 

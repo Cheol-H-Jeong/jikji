@@ -82,6 +82,11 @@ For a single file path, default to `find`:
 jikji find /explicit/root "natural language file clue" --first
 ```
 
+`find` performs a cheap source-tree freshness check before searching. If files
+were added/deleted/renamed since prepare, it refreshes Jikji artifacts in the
+foreground and then returns the path; do not manually crawl first to compensate
+for possible staleness.
+
 ```bash
 jikji brief /explicit/root "natural language file clue" --top-k 10 --compact --json
 ```
