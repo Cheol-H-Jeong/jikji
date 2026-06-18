@@ -44,6 +44,7 @@ Jikji-equipped agents replace blind crawl with deterministic local retrieval plu
 LLM judgment/rewrite when needed:
 
 ```text
+jikji discover ROOT "query"             # adaptive accuracy-first cascade
 jikji find ROOT "query" --first        # smallest single-file path handoff
 jikji search ROOT "query" --top-k 20   # ranked candidates replacing grep/find crawl
 jikji brief ROOT "query" --compact     # evidence/wiki/cache hints for agent reasoning

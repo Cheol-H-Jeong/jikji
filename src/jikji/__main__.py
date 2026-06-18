@@ -30,6 +30,7 @@ from .agent_skill_install import (
 )
 from .beir import materialize_beir_dataset, run_beir_suite
 from .config import Config
+from .discover import discover
 from .edith import edith_answer_summary, materialize_edith_dataset, run_edith_suite
 from .eval import (
     analyze_eval_failures,
@@ -674,6 +675,26 @@ def cmd_find(args) -> int:
     else:
         for path in paths:
             print(path)
+    return 0
+
+
+def cmd_discover(args) -> int:
+    root = Path(args.path).expanduser().resolve()
+    index_status, should_prepare = _search_index_status(root, args, stale_after_seconds=args.stale_after_seconds)
+    if args.fresh or index_status == "changed_using_previous_index" or (should_prepare and args.auto_prepare):
+        build_agent_index(root, _search_config_from_args(args))
+        index_status = "refreshed_now" if index_status == "changed_using_previous_index" else ("prepared_now" if should_prepare else "refreshed_now")
+    elif should_prepare and not args.auto_prepare:
+        print(f"No Jikji search index found under {root}. Run: jikji prepare {root}", file=sys.stderr)
+        return 1
+    payload = discover(root, args.query, top_k=args.top_k)
+    payload["index_status"] = index_status
+    if args.json:
+        print(json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
+    else:
+        print(f"query_type={payload['query_type']} confidence={payload['confidence']} action={payload['recommended_action']}")
+        for idx, item in enumerate(payload.get("candidates") or [], 1):
+            print(f"{idx:02d} {item.get('s'):>8} {item.get('p')}  [{','.join(str(x) for x in item.get('why') or [])}]")
     return 0
 
 
@@ -1772,6 +1793,23 @@ def main(argv: list[str] | None = None) -> int:
     p_find.add_argument("--json", action="store_true")
     p_find.set_defaults(auto_prepare=True, background_refresh=False)
     p_find.set_defaults(func=cmd_find)
+
+    p_discover = sub.add_parser("discover", help="adaptive accuracy-first local discovery cascade for agents")
+    p_discover.add_argument("path")
+    p_discover.add_argument("query")
+    p_discover.add_argument("--top-k", type=int, default=20)
+    p_discover.add_argument("--fresh", action="store_true", help="run a foreground refresh before discovery")
+    p_discover.add_argument("--no-auto-prepare", dest="auto_prepare", action="store_false")
+    p_discover.add_argument("--stale-after-seconds", type=int, default=24 * 60 * 60)
+    p_discover.add_argument("--max-files", type=int, default=100_000)
+    p_discover.add_argument("--include-hidden", action="store_true")
+    p_discover.add_argument("--include-sensitive", action="store_true")
+    p_discover.add_argument("--exclude", action="append", default=[])
+    p_discover.add_argument("--max-hash-bytes", type=int, default=512 * 1024 * 1024)
+    p_discover.add_argument("--parse-timeout", type=float, default=5.0)
+    p_discover.add_argument("--json", action="store_true")
+    p_discover.set_defaults(auto_prepare=True, background_refresh=False)
+    p_discover.set_defaults(func=cmd_discover)
 
     p_search = sub.add_parser("search", help="rank likely files from Jikji indexes for a natural-language query")
     p_search.add_argument("path")

@@ -160,6 +160,25 @@ def test_find_refreshes_when_source_tree_changes(tmp_path, capsys):
     assert refreshed_signature.get("files") == 2
     assert refreshed_signature.get("digest") != signature.get("digest")
 
+
+def test_discover_cli_classifies_and_returns_candidates(tmp_path, capsys):
+    from jikji.__main__ import main
+
+    (tmp_path / "sports").mkdir()
+    (tmp_path / "sports" / "tennis_lessons.txt").write_text("tennis club lessons booking", encoding="utf-8")
+    (tmp_path / "sports" / "tennis_strategy.txt").write_text("tennis championship strategy", encoding="utf-8")
+    assert main(["prepare", str(tmp_path), "--json"]) == 0
+    capsys.readouterr()
+
+    assert main(["discover", str(tmp_path), "What is my primary sports interest?", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["mode"] == "discover"
+    assert payload["query_type"] == "evidence_set"
+    assert payload["recommended_action"] == "return_top5_to_top10_evidence_set"
+    assert "sports/tennis_lessons.txt" in payload["paths"]
+    assert payload["query_variants"]
+
+
 def test_graph_cli_status_query_and_explain(tmp_path, capsys):
     from jikji.__main__ import main
 

@@ -38,6 +38,7 @@ Jikji must not:
 The stable commands are:
 
 ```bash
+jikji discover /path/to/folder "query" [--top-k N] [--json] # adaptive accuracy-first cascade
 jikji find /path/to/folder "query" [--first] [--json]   # path-only deterministic lookup
 jikji search /path/to/folder "query" [--top-k N] [--json]
 jikji agent-skill-install [--agent NAME|all] [--prepare-root PATH] [--foreground-prepare] [--no-prepare] [--json]
@@ -199,27 +200,30 @@ Write policy:
 
 A local agent using Jikji should follow this sequence:
 
-1. Run `jikji find ROOT "query" --first` first for a single-file lookup. This is
-   the lowest-token path and usually returns only one relative path.
-2. Run `jikji brief ROOT "query" --compact --json` when the agent needs route
+1. Run `jikji discover ROOT "query" --top-k 20 --json` first for general agent
+   discovery. It classifies the query, estimates confidence, merges deterministic
+   query variants, and returns a recommended action.
+2. Run `jikji find ROOT "query" --first` when the task is definitely a single-file
+   lookup and the cheapest path-only handoff is enough.
+3. Run `jikji brief ROOT "query" --compact --json` when the agent needs route
    evidence, source wiki paths, cache hints, and short evidence.
-3. Run `jikji brief ROOT "query" --json` for a fuller query-specific route
+4. Run `jikji brief ROOT "query" --json` for a fuller query-specific route
    sheet when compact evidence is insufficient. Use its candidate paths first
    when evidence/reasons match.
-4. Run `jikji search ROOT "query" --json` when only ranked candidates are
+5. Run `jikji search ROOT "query" --json` when only ranked candidates are
    needed or when refining the query.
-5. Read `.jikji_agent_map.md`.
-6. Read `.jikji/wiki/index.md`, `.jikji/graph_routes.jsonl`, or
+6. Read `.jikji_agent_map.md`.
+7. Read `.jikji/wiki/index.md`, `.jikji/graph_routes.jsonl`, or
    `.jikji/knowledge_graph.json` to traverse source/term/intent/folder links.
-7. Read `.jikji/agent_map.md` and `.jikji/agent_routes.md` for human-oriented
+8. Read `.jikji/agent_map.md` and `.jikji/agent_routes.md` for human-oriented
    fallback routing.
-8. Query `.jikji/file_index.jsonl`, `.jikji/folder_index.jsonl`, and
+9. Query `.jikji/file_index.jsonl`, `.jikji/folder_index.jsonl`, and
    `.jikji/document_index.jsonl` with `rg`/`jq` only after compact routes are
    insufficient.
-9. Search parser-required document bodies in `.jikji/doc_text/`.
-10. Search native text-like files in their original locations, excluding `.jikji`.
-11. Open the original file only through the `path` field after finding a match.
-12. Never move, rename, delete, or reorganize source files as part of search.
+10. Search parser-required document bodies in `.jikji/doc_text/`.
+11. Search native text-like files in their original locations, excluding `.jikji`.
+12. Open the original file only through the `path` field after finding a match.
+13. Never move, rename, delete, or reorganize source files as part of search.
 
 Example:
 

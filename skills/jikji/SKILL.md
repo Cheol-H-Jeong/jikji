@@ -45,7 +45,7 @@ Then use `~/.local/share/jikji/repo/.venv/bin/jikji` for all commands, or add th
 ## Absolute rule: Jikji search FIRST, never crawl blind
 
 When Jikji is installed and a root has a `.jikji/` index, you MUST treat
-`jikji find` / `jikji brief --compact` / `jikji search` as the **mandatory first action** for any local
+`jikji discover` / `jikji find` / `jikji brief --compact` / `jikji search` as the **mandatory first action** for any local
 file/folder/document discovery request. This is non-negotiable:
 The goal is not to avoid LLM calls blindly; the goal is to beat raw grep/find
 exploration on accuracy while reducing calls/tokens. Use Jikji first, then use
@@ -55,11 +55,11 @@ first deterministic result is not sufficient.
 - **NEVER** start by running `grep`, `rg`, `ls`, `find`, `fd`, `cat`, `tree`,
   or any manual filesystem crawl to locate a file. Jikji has already built the
   map; re-crawling wastes turns and is strictly slower.
-- Your **first tool call** must be:
-  `jikji find /explicit/root "natural language clue" --first`
-  (or `jikji search …` when you only need ranked candidates).
-  Use `jikji brief … --compact --json` only when evidence/wiki/cache hints are needed.
-- For `find`, accept the printed path as the working answer. For JSON `brief`, accept `candidates[].p` as the working answer. Open at
+- Your **first tool call** for general file discovery must be:
+  `jikji discover /explicit/root "natural language clue" --top-k 20 --json`
+  Use `jikji find … --first` only when the task is definitely a single-file path lookup.
+  Use `jikji brief … --compact --json` when extra evidence/wiki/cache hints are needed.
+- For JSON `discover` / `brief`, accept `paths[]` or `candidates[].p` as the working answer. Open at
   most the top 1–3 candidates, or `candidates[].wiki`/`cache`, only to verify.
 - `grep`/`rg`/`ls`/`find` are permitted **only** as a last resort, and **only
   after** Jikji returned an empty or clearly-wrong candidate list.

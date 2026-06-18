@@ -24,6 +24,7 @@ from typing import Any
 from .agent_brief import build_agent_brief_payload
 from .agent_index import AGENT_DIR_NAME, VISIBLE_MAP_NAME, VISIBLE_MAP_NAMES, _atomic_write_text
 from .agent_skill_install import install_agent_skill
+from .discover import discover
 from .eval import _path_fingerprints, _rank_for_expected, _read_jsonl, search
 
 
@@ -183,6 +184,17 @@ def _brief_lines(root: Path, query: str, *, top_k: int) -> list[str]:
     return lines
 
 
+def _discover_lines(root: Path, query: str, *, top_k: int) -> list[str]:
+    payload = discover(root, query, top_k=top_k)
+    return [
+        "JIKJI DISCOVER CASCADE:",
+        f"`jikji discover . {json.dumps(query, ensure_ascii=False)} --top-k {top_k} --json` is the intended first tool call for this task.",
+        "Use this adaptive payload as the primary retrieval plan. It includes query_type, confidence, recommended_action, query variants, merged candidates, and evidence.",
+        json.dumps(payload, ensure_ascii=False, indent=2),
+        "Policy: follow recommended_action. If confidence is high, return/verify those paths. If confidence is low, run additional Jikji query variants before any raw grep/find fallback.",
+    ]
+
+
 def _mode_family(mode: str) -> str:
     normalized = mode.strip().lower().replace("_", "-")
     if normalized in {
@@ -204,6 +216,8 @@ def _mode_family(mode: str) -> str:
         return "jikji-fast"
     if normalized in {"jikji", "jikji-brief", "brief", "map", "jikji-map"}:
         return "jikji-brief"
+    if normalized in {"jikji-discover", "discover", "discover-agent", "adaptive-discover"}:
+        return "jikji-discover"
     if normalized in {"jikji-agent", "agent", "assisted", "jikji-assisted", "agentic"}:
         return "jikji-agent"
     if normalized in {"jikji-tool", "tool", "tool-first"}:
@@ -237,6 +251,15 @@ def _prompt(root: Path, mode: str, case: dict, *, candidate_top_k: int = 0, retr
             "If candidates are present, return at most 10 listed candidate paths.",
         ]
         base.extend(_fast_candidate_lines(root, str(case.get("query") or ""), top_k=candidate_top_k))
+    elif mode_family == "jikji-discover":
+        effective_top_k = max(candidate_top_k, DEFAULT_AGENT_TOP_K)
+        base.extend([
+            "JIKJI DISCOVER MODE: use the adaptive Jikji discover cascade as the first-class replacement for raw grep/find exploration.",
+            "Start from the provided discover payload. It already classified the query, generated deterministic query variants, merged candidate sets, and chose a recommended action.",
+            "For single_file/high-confidence payloads, return the top path after light verification if needed. For evidence_set/profile payloads, return the best 5-10 supporting paths.",
+            "Only run extra `jikji discover/search/brief` commands when the payload is low confidence or visibly irrelevant. Use raw grep/find only as a last fallback after Jikji variants fail.",
+        ])
+        base.extend(_discover_lines(root, str(case.get("query") or ""), top_k=effective_top_k))
     elif mode_family == "jikji-agent":
         effective_top_k = max(candidate_top_k, DEFAULT_AGENT_TOP_K)
         base.extend([
@@ -552,6 +575,7 @@ def run_hermes_benchmark(
         "mode_protocols": {
             "raw": "Hermes searches original files/folders and must ignore Jikji artifacts.",
             "jikji-agent": "Jikji-assisted Hermes starts with `jikji find/search/brief`, rewrites queries when needed, and may fall back to original-file verification/search when Jikji is insufficient.",
+            "jikji-discover": "Adaptive discover cascade; Jikji classifies query type/confidence, merges deterministic query variants, and guides Hermes verification/fallback.",
             "jikji-fast": "Map-first Jikji handoff; Hermes receives only ranked paths/evidence and is told not to browse.",
             "jikji": "Alias for jikji-brief: query-specific Jikji route brief and candidates are provided to avoid raw browsing.",
             "jikji-brief": "Agent-map brief handoff; Hermes receives candidate paths, evidence, and fallback route order.",
