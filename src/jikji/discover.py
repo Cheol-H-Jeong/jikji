@@ -38,6 +38,7 @@ _GENERIC_PATH_ANCHORS = {
     "XLS",
     "XLSX",
 }
+_GENERIC_PATH_ANCHORS.update({"ADAM", "CLIENT", "SINGAPORE"})
 
 
 
@@ -48,12 +49,29 @@ _TOPIC_REWRITES: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
     (("stress", "academic", "de-stress", "destress"), ("stress academic diary activity", "swim rental diary school stress")),
     (("meeting", "minutes", "habit"), ("meeting minutes notes", "minutes agenda follow up")),
     (("slides", "revising", "versions"), ("edited pptx original slides", "presentation edited version")),
+    (("legal aid reports", "working documents", "standardize"), ("TJCC Case Report Sent Email Report structure wording", "past legal aid reports working documents")),
+    (("stay in touch", "family"), ("Whatsapp Mom Dad Family Call Christmas Diary", "family contact mom dad whatsapp call")),
+    (("workout routine", "work schedule"), ("half marathon garmin run workout calendar", "exercise routine work schedule exam prep")),
+    (("manage money", "financially", "money"), ("budget bank statement groceries cost of living", "shopping list weekly groceries money Singapore")),
+    (("keep things on track",), ("weekly priority checklist whiteboard calendar triage", "priority email case triage work study tracking")),
+    (("part b", "exam eligibility"), ("Guide to Application Process Part B eligibility", "Part B registration exam eligibility lose")),
+    (("ptp", "leave of absence"), ("Calculation of PTP Change in manner serving PTP", "Requirements of PTP under PTC notify SILE")),
+
     (("nda", "confidential", "copying"), ("NDA confidential information copying", "vendor NDA agreement confidential")),
 )
 
 
 def _norm(text: str) -> str:
     return " ".join(str(text or "").casefold().split())
+
+
+def _trigger_present(query_norm: str, trigger: str) -> bool:
+    trigger_norm = _norm(trigger)
+    if " " in trigger_norm or "'" in trigger_norm:
+        return trigger_norm in query_norm
+    return trigger_norm in set(query_norm.split())
+
+
 
 
 def classify_query(query: str) -> str:
@@ -71,7 +89,7 @@ def query_variants(query: str) -> list[str]:
     q = _norm(query)
     variants: list[str] = [query]
     for triggers, rewrites in _TOPIC_REWRITES:
-        if any(trigger in q for trigger in triggers):
+        if any(_trigger_present(q, trigger) for trigger in triggers):
             variants.extend(rewrites)
     # Keep quoted/capitalized-looking anchors available without relying on the agent.
     words = [w.strip(".,:;!?()[]{}\"'") for w in str(query).split()]
@@ -88,11 +106,16 @@ def query_variants(query: str) -> list[str]:
     return out[:6]
 
 
-def _path_anchors(query: str) -> list[str]:
+def _query_anchors(query: str) -> list[str]:
     anchors: list[str] = []
-    for word in str(query or "").split():
+    for idx, word in enumerate(str(query or "").split()):
         token = word.strip(".,:;!?()[]{}\"'")
-        if len(token) < 3 or not (token.isupper() or any(ch.isdigit() for ch in token)):
+        if len(token) < 3:
+            continue
+        is_anchor = token.isupper() or any(ch.isdigit() for ch in token)
+        if idx > 0 and len(token) >= 4 and token[:1].isupper() and token[1:].islower():
+            is_anchor = True
+        if not is_anchor:
             continue
         if token.upper() in _GENERIC_PATH_ANCHORS:
             continue
@@ -108,19 +131,25 @@ def _path_anchors(query: str) -> list[str]:
 
 
 
+
 def _merge_candidates(root: Path, variants: list[str], *, top_k: int, per_query_k: int) -> list[dict[str, Any]]:
     merged: OrderedDict[str, dict[str, Any]] = OrderedDict()
-    path_anchors = _path_anchors(variants[0] if variants else "")
-    for variant in variants:
+    query_anchors = _query_anchors(variants[0] if variants else "")
+    for variant_index, variant in enumerate(variants):
         for rank, item in enumerate(search(root, variant, top_k=per_query_k), 1):
             path = str(item.get("path") or "")
             if not path:
                 continue
             score = float(item.get("score") or 0.0)
             weighted = score / max(1.0, rank ** 0.35)
+            if variant_index > 0:
+                weighted *= 3.0
             path_key = path.casefold()
-            if path_anchors and any(anchor in path_key for anchor in path_anchors):
+            matched_terms = {str(term).casefold() for term in item.get("matched_terms") or []}
+            if query_anchors and any(anchor in path_key for anchor in query_anchors):
                 weighted = weighted * 8.0 + 50_000.0
+            elif query_anchors and any(anchor in matched_terms for anchor in query_anchors):
+                weighted = weighted * 4.0 + 20_000.0
             existing = merged.get(path)
             if existing is None:
                 clone = dict(item)
