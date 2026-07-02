@@ -193,6 +193,12 @@ fn run_python_bridge(
             return MediaBridgeOutcome::status(MediaBridgeStatus::Failed, error.to_string());
         }
     };
+    if command.python.is_absolute() && !command.python.is_file() {
+        return MediaBridgeOutcome::status(
+            MediaBridgeStatus::Unavailable,
+            format!("{}: not found", command.python.display()),
+        );
+    }
     let spawn = Command::new(command.python)
         .arg(command.script)
         .arg(input)
