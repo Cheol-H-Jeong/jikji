@@ -223,10 +223,13 @@ def check_docs_and_skills(root: Path, issues: list[str]) -> bool:
             issues.append(f"missing docs/skill surface: {rel}")
             passed = False
     install_text = read_joined(root, ("README.md", "docs/agent-installation.md", "skills/jikji/SKILL.md"))
-    for marker in ("cargo install", "jikji-rust", "non-destructive"):
+    for marker in ("cargo install", "github.com/NomaDamas/jikji", "non-destructive"):
         if marker not in install_text:
             issues.append(f"docs/skills missing marker: {marker}")
             passed = False
+    if "github.com/NomaDamas/jikji-rust" in install_text:
+        issues.append("docs/skills still reference the retired jikji-rust fork URL")
+        passed = False
     return passed
 
 
