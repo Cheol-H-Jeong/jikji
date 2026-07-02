@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/NomaDamas/jikji-rust/blob/main/LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-65f2ad.svg"></a>
+  <a href="https://github.com/NomaDamas/jikji/blob/main/LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-65f2ad.svg"></a>
   <img alt="Rust CLI" src="https://img.shields.io/badge/Rust-CLI-7dd9ff.svg">
   <img alt="Safety: non destructive" src="https://img.shields.io/badge/Safety-Non--destructive-64e69f.svg">
 </p>
@@ -20,7 +20,7 @@
 
 <p align="center">
   <a href="https://nomadamas.github.io/jikji/"><strong>Live intro</strong></a> ·
-  <a href="https://github.com/NomaDamas/jikji-rust"><strong>GitHub</strong></a> ·
+  <a href="https://github.com/NomaDamas/jikji"><strong>GitHub</strong></a> ·
   <a href="docs/jikji-benchmarks.html"><strong>Benchmarks</strong></a> ·
   <a href="docs/agent-installation.md"><strong>Agent install guide</strong></a> ·
   <a href="skills/jikji/SKILL.md"><strong>Skill file</strong></a>
@@ -40,6 +40,11 @@ filesystem.
 
 Jikji does not move, rename, delete, or reorganize user files. It creates
 generated maps and caches under `.jikji/` plus `.jikji_agent_map.md`.
+
+This repository is currently a monorepo during the Rust port. The Rust
+workspace under `crates/` is the active CLI implementation, while the Python
+package under `python/jikji/` remains as the reference implementation and
+parity-test source until the port is fully retired.
 
 The public agent command is:
 
@@ -89,12 +94,12 @@ agent when it needs to choose from the returned candidate slate.
 Tell your CLI agent this one sentence:
 
 ```text
-GitHub 저장소 https://github.com/NomaDamas/jikji-rust 에서 Jikji를 설치하고, 내 CLI 에이전트들이 `jikji find`를 바로 쓰도록 Jikji skill까지 연결해줘.
+GitHub 저장소 https://github.com/NomaDamas/jikji 에서 Jikji를 설치하고, 내 CLI 에이전트들이 `jikji find`를 바로 쓰도록 Jikji skill까지 연결해줘.
 ```
 
 ```bash
-git clone https://github.com/nomadamas/jikji-rust.git
-cd jikji-rust
+git clone https://github.com/nomadamas/jikji.git
+cd jikji
 cargo install --path crates/jikji-cli
 
 jikji agent-skill-install --agent all --json
