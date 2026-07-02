@@ -9,14 +9,14 @@ does not move, rename, delete, or reorganize user files.
 ### Cargo install
 
 ```bash
-cargo install --git https://github.com/nomadamas/jikji-rust jikji-cli
+cargo install --git https://github.com/nomadamas/jikji jikji-cli
 jikji --help
 ```
 
 For local development from a checkout:
 
 ```bash
-git clone https://github.com/nomadamas/jikji-rust.git ~/.local/share/jikji/repo
+git clone https://github.com/nomadamas/jikji.git ~/.local/share/jikji/repo
 cd ~/.local/share/jikji/repo
 cargo install --path crates/jikji-cli
 jikji --help
@@ -38,13 +38,13 @@ crates.io trusted-publisher repository configuration.
 CLI 에이전트에게 가장 쉽게 시킬 한 문장:
 
 ```text
-GitHub 저장소 https://github.com/NomaDamas/jikji-rust 에서 Jikji를 설치하고, 내 CLI 에이전트들이 `jikji find`를 바로 쓰도록 Jikji skill까지 연결해줘.
+GitHub 저장소 https://github.com/NomaDamas/jikji 에서 Jikji를 설치하고, 내 CLI 에이전트들이 `jikji find`를 바로 쓰도록 Jikji skill까지 연결해줘.
 ```
 
 ```bash
 mkdir -p ~/.local/share/jikji
 if [ ! -d ~/.local/share/jikji/repo/.git ]; then
-  git clone https://github.com/nomadamas/jikji-rust.git ~/.local/share/jikji/repo
+  git clone https://github.com/nomadamas/jikji.git ~/.local/share/jikji/repo
 fi
 cd ~/.local/share/jikji/repo
 git pull --ff-only

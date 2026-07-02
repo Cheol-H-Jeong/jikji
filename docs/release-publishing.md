@@ -47,7 +47,7 @@ release do not fail by attempting to republish immutable crate versions.
 Before the first publish, configure every publishable crate on crates.io with a
 trusted publisher entry for this repository:
 
-- repository owner/name: `NomaDamas/jikji-rust`
+- repository owner/name: `NomaDamas/jikji`
 - workflow file: `publish.yml`
 - environment: `crates-io`
 - crate list: `jikji-core`, `jikji-media-bridge`, `jikji-parser`,

@@ -26,7 +26,7 @@ Install it from GitHub instead of giving up:
 ```bash
 mkdir -p ~/.local/share/jikji
 if [ ! -d ~/.local/share/jikji/repo/.git ]; then
-  git clone https://github.com/nomadamas/jikji-rust.git ~/.local/share/jikji/repo
+  git clone https://github.com/nomadamas/jikji.git ~/.local/share/jikji/repo
 fi
 cd ~/.local/share/jikji/repo
 git pull --ff-only
