@@ -1,0 +1,23 @@
+[package]
+name = "jikji-index"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Scanning and artifact-generation scaffolding for Jikji indexes."
+
+[dependencies]
+jikji-core.workspace = true
+jikji-search.workspace = true
+jikji-media-bridge.workspace = true
+jikji-parser.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+
+[dev-dependencies]
+zip = { version = "2", default-features = false, features = ["deflate"] }
+
+[lints]
+workspace = true

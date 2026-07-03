@@ -26,6 +26,13 @@ Required fields include:
   `digest`, `files`, `folders`, `total_size`, and `max_mtime_ns`; computed from
   relative path, size, and `mtime_ns` only
 
+`owned_paths` lists the generated artifact surface the Rust CLI may regenerate
+or clean, including `.jikji/wiki/sources/`, `.jikji/doc_text/`,
+`.jikji/doc_meta/`, root `.jikji_agent_map.md`, legacy
+`000_JIKJI_AGENT_MAP.md`, and Jikji routing blocks in `AGENTS.md`, `CLAUDE.md`,
+and `.cursorrules`. Prepare replaces symlinks at generated directory paths
+without following them.
+
 ## file_index.jsonl
 
 One JSON object per row:
@@ -72,6 +79,14 @@ Extends file rows with:
 ```
 
 ## doc_meta/sha256_*.json
+
+## doc_text/sha256_*.txt
+
+Generated parser cache text for parser-supported documents. The public
+contract is presence for parsed documents and non-empty cache content when
+parsing produced body text; exact wording, ordering, and metadata formatting are
+parser implementation details. Search, route rows, and CLI candidate ordering
+validate user-visible discovery behavior.
 
 ## search_index.sqlite
 

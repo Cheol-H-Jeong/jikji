@@ -1,0 +1,1512 @@
+{
+  "eval_set": "/var/folders/8w/_x12f_056yv_z1x45vr_f2cm0000gp/T/jikji-victoria-shared-eval-w7vwomjk/rust-eval/victoria_eval.jsonl",
+  "modes": {
+    "jikji": {
+      "details": [
+        {
+          "duplicate_rank": 1,
+          "expected_paths": [
+            "Documents/Notes/Note_Client_Dinner_Success_Sep2024.txt",
+            "Documents/Notes/Note_Lily_Birthday_Plan_Nov2024.txt",
+            "Documents/Outlook/Archive/Calendar_Event_May10_Personal.ics",
+            "Documents/Outlook/Archive/Email_016.eml",
+            "Documents/Outlook/Archive/Email_018.eml",
+            "Documents/Outlook/Archive/Email_019.eml",
+            "Documents/Outlook/Archive/Email_019_Reply1.eml",
+            "Documents/Outlook/Archive/Email_019_Reply2.eml",
+            "Documents/Outlook/Archive/Email_020.eml",
+            "Documents/Outlook/Calendar_Event_Nov14_Dental.ics",
+            "Documents/Outlook/Drafts/Draft_Email_Mark_Nov14.eml",
+            "Documents/Outlook/Inbox/Dental_Appointment_Reminder.eml",
+            "Documents/Outlook/Inbox/Email_015.eml",
+            "Documents/Outlook/Inbox/Email_017_Reply.eml",
+            "Documents/Outlook/Sent_Items/Email_017.eml",
+            "Documents/Outlook/Sent_Items/Email_021.eml",
+            "Documents/Outlook/Sent_Items/Email_022.eml",
+            "Documents/Outlook/Sent_Items/Email_023.eml",
+            "Downloads/AI_Finance_Summit_Attendees.md",
+            "Pictures/Screenshots/SMS_from_School_Nurse_Mar5.png"
+          ],
+          "hash_rank": 1,
+          "id": "hippocamp_profiling-0001",
+          "query": "What might be a good way for me to spend the afternoon on Friday, November 14, 2025?",
+          "rank": 1,
+          "scenario": "hippocamp_profiling",
+          "top_results": [
+            {
+              "name": "Draft_Email_Mark_Nov14.eml",
+              "path": "Documents/Outlook/Drafts/Draft_Email_Mark_Nov14.eml",
+              "reasons": [
+                "compact-exact-term",
+                "date-anchor-in-name",
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 16361.067
+            },
+            {
+              "name": "Calendar_Event_Nov14_Dental.ics",
+              "path": "Documents/Outlook/Calendar_Event_Nov14_Dental.ics",
+              "reasons": [
+                "compact-exact-term",
+                "date-anchor-in-name",
+                "filename-anchor",
+                "multi-map-term"
+              ],
+              "score": 10773.359
+            },
+            {
+              "name": "Email_009.eml",
+              "path": "Documents/Outlook/Inbox/Email_009.eml",
+              "reasons": [
+                "compact-exact-term",
+                "fielded-bm25",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 6826.26
+            },
+            {
+              "name": "Dental_Appointment_Reminder.eml",
+              "path": "Documents/Outlook/Inbox/Dental_Appointment_Reminder.eml",
+              "reasons": [
+                "compact-exact-term",
+                "fielded-bm25",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 5505.837
+            },
+            {
+              "name": "Email_015.eml",
+              "path": "Documents/Outlook/Inbox/Email_015.eml",
+              "reasons": [
+                "compact-exact-term",
+                "fielded-bm25",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 5341.978
+            },
+            {
+              "name": "Email_Mark_Summer24_Planning_1.eml",
+              "path": "Documents/Outlook/Archive/Email_Mark_Summer24_Planning_1.eml",
+              "reasons": [
+                "fielded-bm25",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 5009.857
+            },
+            {
+              "name": "Email_Mark_OctBreak23_Planning_1.eml",
+              "path": "Documents/Outlook/Archive/Email_Mark_OctBreak23_Planning_1.eml",
+              "reasons": [
+                "fielded-bm25",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 4834.511
+            },
+            {
+              "name": "Note_Next_Skill_Tableau.txt",
+              "path": "Documents/Notes/Note_Next_Skill_Tableau.txt",
+              "reasons": [
+                "fielded-bm25",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 4779.683
+            },
+            {
+              "name": "Note_Considering_Cat.txt",
+              "path": "Documents/Notes/Note_Considering_Cat.txt",
+              "reasons": [
+                "compact-exact-term",
+                "fielded-bm25",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 4440.245
+            },
+            {
+              "name": "Email_School_MidTermBreak_Notice.eml",
+              "path": "Documents/Outlook/Inbox/Email_School_MidTermBreak_Notice.eml",
+              "reasons": [
+                "compact-exact-term",
+                "fielded-bm25",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 4431.176
+            }
+          ]
+        },
+        {
+          "duplicate_rank": 1,
+          "expected_paths": [
+            "Chrome/Bookmarks_Watercolor_Learning.json",
+            "Documents/Certificates/HSK4_Certificate_Scan.png",
+            "Documents/Hobbies/Dance_Class_Notes.md",
+            "Documents/Language Learning/Chinese_HSK4_Notes.md",
+            "Documents/Language Learning/French_Goals.md",
+            "Documents/Notes/Note_Interest_Watercolor.txt",
+            "Documents/Notes/Note_Next_Skill_Guitar.txt",
+            "Documents/Notes/Note_Next_Skill_Tableau.txt",
+            "Documents/Notes/Note_Python_Homework_Reminder.txt",
+            "Documents/Notes/Note_Watercolor_Goal_FramedPiece.txt",
+            "Documents/Outlook/Archive/Calendar_Events_Python_Study_2024.ics",
+            "Documents/Outlook/Archive/Calendar_Events_Skill_2019_2020.ics",
+            "Documents/Outlook/Archive/Calendar_Events_Skill_2021_2022.ics",
+            "Documents/Outlook/Archive/Calendar_Events_Skill_2023_2024.ics",
+            "Documents/Outlook/Calendar_Event_Watercolor_Study_Sat.ics",
+            "Documents/Outlook/Inbox/Email_Skillshare_Welcome.eml",
+            "Documents/Personal Development/Recitation_Practice_Log.md",
+            "Documents/Programming/Python_Course_Progress.md",
+            "Documents/Voice Memos/Audio_Note_Watercolor_ColorMix.mp3",
+            "Documents/Voice Memos/Audio_Recitation_Sample_Jul2022.mp3",
+            "Documents/Watercolor Learning Log.md",
+            "Pictures/Artwork/Image_First_Watercolor_Attempt.png",
+            "Pictures/Personal/Image_Dance_Recital_Dec2024.png",
+            "Pictures/Personal/Image_Watercolor_Supplies.png"
+          ],
+          "hash_rank": 1,
+          "id": "hippocamp_profiling-0002",
+          "query": "I've been thinking about picking up something creative or technical again. How did I usually get started with extracurricular skills like this before?",
+          "rank": 1,
+          "scenario": "hippocamp_profiling",
+          "top_results": [
+            {
+              "name": "Email_Skillshare_Welcome.eml",
+              "path": "Documents/Outlook/Inbox/Email_Skillshare_Welcome.eml",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 7067.239
+            },
+            {
+              "name": "Note_Lily_Interests_Camps.txt",
+              "path": "Documents/Lily_School/Note_Lily_Interests_Camps.txt",
+              "reasons": [
+                "fielded-bm25",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 6785.261
+            },
+            {
+              "name": "Email_Mark_Summer24_Planning_1.eml",
+              "path": "Documents/Outlook/Archive/Email_Mark_Summer24_Planning_1.eml",
+              "reasons": [
+                "fielded-bm25",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 4943.513
+            },
+            {
+              "name": "Note_Interest_Watercolor.txt",
+              "path": "Documents/Notes/Note_Interest_Watercolor.txt",
+              "reasons": [
+                "fielded-bm25",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 4482.495
+            },
+            {
+              "name": "Watercolor Learning Log.md",
+              "path": "Documents/Watercolor Learning Log.md",
+              "reasons": [
+                "fielded-bm25",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 4281.782
+            },
+            {
+              "name": "Email_017.eml",
+              "path": "Documents/Outlook/Sent_Items/Email_017.eml",
+              "reasons": [
+                "fielded-bm25",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 4131.359
+            },
+            {
+              "name": "Email_CWS_Home_Visit_Confirm.eml",
+              "path": "Documents/Outlook/Archive/Email_CWS_Home_Visit_Confirm.eml",
+              "reasons": [
+                "fielded-bm25",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 3963.4
+            },
+            {
+              "name": "Email_Mark_OctBreak23_Planning_3.eml",
+              "path": "Documents/Outlook/Archive/Email_Mark_OctBreak23_Planning_3.eml",
+              "reasons": [
+                "fielded-bm25",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 3955.611
+            },
+            {
+              "name": "Email_023.eml",
+              "path": "Documents/Outlook/Sent_Items/Email_023.eml",
+              "reasons": [
+                "fielded-bm25",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 3864.788
+            },
+            {
+              "name": "Note_Shadow_Care_Routine.md",
+              "path": "Documents/Pets/Note_Shadow_Care_Routine.md",
+              "reasons": [
+                "fielded-bm25",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 3716.89
+            }
+          ]
+        },
+        {
+          "duplicate_rank": 1,
+          "expected_paths": [
+            "Documents/Lily_School/Note_Lily_Interests_Camps.txt",
+            "Documents/Notes/Note_MidTerm_Break_Final_Plan.txt",
+            "Documents/Notes/Note_OctBreak_2023_Final_Plan.txt",
+            "Documents/Outlook/Archive/Calendar_Event_Lily_Piano_Nov.ics",
+            "Documents/Outlook/Archive/Calendar_Victoria_Oct_2023.ics",
+            "Documents/Outlook/Archive/Email_Camp_Booking_Summer2024.eml",
+            "Documents/Outlook/Archive/Email_CodingCamp_Booking_Oct2023.eml",
+            "Documents/Outlook/Archive/Email_Mark_OctBreak23_Planning_1.eml",
+            "Documents/Outlook/Archive/Email_Mark_OctBreak23_Planning_2.eml",
+            "Documents/Outlook/Archive/Email_Mark_OctBreak23_Planning_3.eml",
+            "Documents/Outlook/Archive/Email_Mark_Summer24_Planning_1.eml",
+            "Documents/Outlook/Archive/Email_Mark_Summer24_Planning_2.eml",
+            "Documents/Outlook/Archive/Email_Mark_Summer24_Planning_3.eml",
+            "Documents/Outlook/Archive/Email_Mark_Summer24_Planning_4.eml",
+            "Documents/Outlook/Archive/Email_School_OctBreak_2023_Notice.eml",
+            "Documents/Outlook/Archive/Email_School_SummerBreak_2024_Notice.eml",
+            "Documents/Outlook/Calendar_Victoria_Nov_Dec_2025.ics",
+            "Documents/Outlook/Drafts/Draft_Email_Mark_MidTermBreak.eml",
+            "Documents/Outlook/Inbox/Email_School_MidTermBreak_Notice.eml",
+            "Pictures/Lily_School/Image_Art_Camp_Screenshot.png"
+          ],
+          "hash_rank": 1,
+          "id": "hippocamp_profiling-0003",
+          "query": "There's a school break coming up for Lily. How should I plan things this time?",
+          "rank": 1,
+          "scenario": "hippocamp_profiling",
+          "top_results": [
+            {
+              "name": "Note_MidTerm_Break_Final_Plan.txt",
+              "path": "Documents/Notes/Note_MidTerm_Break_Final_Plan.txt",
+              "reasons": [
+                "break-plan-name",
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term",
+                "rare-token-in-name",
+                "strong-map-term"
+              ],
+              "score": 26659.9
+            },
+            {
+              "name": "Note_Lily_Birthday_Plan_Nov2024.txt",
+              "path": "Documents/Notes/Note_Lily_Birthday_Plan_Nov2024.txt",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term",
+                "rare-token-in-name",
+                "strong-map-term"
+              ],
+              "score": 25734.726
+            },
+            {
+              "name": "Note_OctBreak_2023_Final_Plan.txt",
+              "path": "Documents/Notes/Note_OctBreak_2023_Final_Plan.txt",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term",
+                "rare-token-in-name",
+                "strong-map-term"
+              ],
+              "score": 15448.5
+            },
+            {
+              "name": "Note_Lily_Interests_Camps.txt",
+              "path": "Documents/Lily_School/Note_Lily_Interests_Camps.txt",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term",
+                "rare-token-in-name",
+                "strong-map-term"
+              ],
+              "score": 14708.929
+            },
+            {
+              "name": "Calendar_Event_Lily_Piano_Nov.ics",
+              "path": "Documents/Outlook/Archive/Calendar_Event_Lily_Piano_Nov.ics",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term",
+                "rare-token-in-name"
+              ],
+              "score": 12823.446
+            },
+            {
+              "name": "Image_Lily_Park_Oct25.png",
+              "path": "Pictures/Personal/Image_Lily_Park_Oct25.png",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "rare-token-in-name"
+              ],
+              "score": 11461.269
+            },
+            {
+              "name": "Image_Lily_Playing_With_Shadow.png",
+              "path": "Documents/Pets/Image_Lily_Playing_With_Shadow.png",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "rare-token-in-name"
+              ],
+              "score": 11380.523
+            },
+            {
+              "name": "Email_Mark_OctBreak23_Planning_1.eml",
+              "path": "Documents/Outlook/Archive/Email_Mark_OctBreak23_Planning_1.eml",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 8260.96
+            },
+            {
+              "name": "Image_Art_Camp_Screenshot.png",
+              "path": "Pictures/Lily_School/Image_Art_Camp_Screenshot.png",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term",
+                "rare-token-in-path"
+              ],
+              "score": 7766.569
+            },
+            {
+              "name": "Calendar_Victoria_Oct_2023.ics",
+              "path": "Documents/Outlook/Archive/Calendar_Victoria_Oct_2023.ics",
+              "reasons": [
+                "fielded-bm25",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 6539.736
+            }
+          ]
+        },
+        {
+          "duplicate_rank": 6,
+          "expected_paths": [
+            "Documents/CFA/Prep for CFA Python Webinar.docx",
+            "Documents/Capitol_Investments/Companies/AAPL - Apple Inc/",
+            "Documents/Capitol_Investments/Companies/AAPL - Apple Inc/1. Investor Relations/",
+            "Documents/Capitol_Investments/Companies/AAPL - Apple Inc/1. Investor Relations/2024-App-Store-Transparency-Report.pdf",
+            "Documents/Capitol_Investments/Companies/AAPL - Apple Inc/1. Investor Relations/Apple_Environmental_Progress_Report_2024.pdf",
+            "Documents/Capitol_Investments/Companies/AAPL - Apple Inc/1. Investor Relations/FY24_Q3_Consolidated_Financial_Statements.pdf",
+            "Documents/Capitol_Investments/Companies/AAPL - Apple Inc/2. SEC Filings/",
+            "Documents/Capitol_Investments/Companies/AAPL - Apple Inc/2. SEC Filings/_10-K-2021-(As-Filed).pdf",
+            "Documents/Capitol_Investments/Companies/AAPL - Apple Inc/2. SEC Filings/_10-K-2022-(As-Filed).pdf",
+            "Documents/Capitol_Investments/Companies/AAPL - Apple Inc/2. SEC Filings/_10-K-Q4-2023-As-Filed.pdf",
+            "Documents/Capitol_Investments/Companies/AAPL - Apple Inc/3. Leadership & Governance/",
+            "Documents/Capitol_Investments/Companies/AAPL - Apple Inc/3. Leadership & Governance/Anti-Corruption-Policy.pdf",
+            "Documents/Capitol_Investments/Companies/AAPL - Apple Inc/3. Leadership & Governance/Corporate-Governance-Guidelines.pdf",
+            "Documents/Capitol_Investments/Companies/AAPL - Apple Inc/4. Analysis & Models/",
+            "Documents/Capitol_Investments/Companies/AAPL - Apple Inc/4. Analysis & Models/AAPL_Coverage_Initiation_Notes.md",
+            "Documents/Notes/Note_Weekend_ToDo.txt",
+            "Documents/Outlook/Archive/Calendar_Events_Oct.ics",
+            "Documents/Outlook/Archive/Email_Redmart_Delivery_Oct25.eml",
+            "Documents/Outlook/Inbox/Email_006.eml",
+            "Documents/Outlook/Inbox/Email_009.eml",
+            "Documents/Outlook/Inbox/Email_Lush_Order_Confirm.eml",
+            "Documents/Outlook/Sent_Items/Email_Confirm_Dinner_Sun.eml",
+            "Documents/Tasks.md",
+            "Downloads/Image_Chat_Panic.png",
+            "Downloads/MAS_AI_Risk_Mgmt_Info_Paper_Dec2024.pdf",
+            "Downloads/Teams Media/Audio_001.mp3",
+            "Pictures/Lily_School/Image_Art_Camp_Screenshot.png",
+            "Pictures/Personal/Image_Lily_Park_Oct25.png"
+          ],
+          "hash_rank": 6,
+          "id": "hippocamp_profiling-0004",
+          "query": "The week of October 20–26, 2025 was a blur. Can you help me sort out what I did that week?",
+          "rank": 6,
+          "scenario": "hippocamp_profiling",
+          "top_results": [
+            {
+              "name": "Running_Log_Export_Oct2025.csv",
+              "path": "Documents/Fitness/Running_Log_Export_Oct2025.csv",
+              "reasons": [
+                "compact-exact-term",
+                "date-anchor-in-name",
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term"
+              ],
+              "score": 12656.528
+            },
+            {
+              "name": "Email_CodingCamp_Booking_Oct2023.eml",
+              "path": "Documents/Outlook/Archive/Email_CodingCamp_Booking_Oct2023.eml",
+              "reasons": [
+                "date-anchor-in-name",
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 11619.991
+            },
+            {
+              "name": "Calendar_Victoria_Oct_2023.ics",
+              "path": "Documents/Outlook/Archive/Calendar_Victoria_Oct_2023.ics",
+              "reasons": [
+                "date-anchor-in-name",
+                "filename-anchor",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 10521.958
+            },
+            {
+              "name": "Email_Mark_OctBreak23_Planning_1.eml",
+              "path": "Documents/Outlook/Archive/Email_Mark_OctBreak23_Planning_1.eml",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 5659.397
+            },
+            {
+              "name": "Email_Mark_OctBreak23_Planning_3.eml",
+              "path": "Documents/Outlook/Archive/Email_Mark_OctBreak23_Planning_3.eml",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 4712.762
+            },
+            {
+              "name": "Email_Lush_Order_Confirm.eml",
+              "path": "Documents/Outlook/Inbox/Email_Lush_Order_Confirm.eml",
+              "reasons": [
+                "compact-exact-term",
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 4479.032
+            },
+            {
+              "name": "Draft_Email_Mark_Nov14.eml",
+              "path": "Documents/Outlook/Drafts/Draft_Email_Mark_Nov14.eml",
+              "reasons": [
+                "compact-exact-term",
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 4415.496
+            },
+            {
+              "name": "WATCH LIVE Meta Platforms Q1 2025 Earnings Call  META - Benzinga (youtube).mp3",
+              "path": "Meta/WATCH LIVE Meta Platforms Q1 2025 Earnings Call  META - Benzinga (youtube).mp3",
+              "reasons": [
+                "compact-exact-term",
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 4295.038
+            },
+            {
+              "name": "META Meta Platforms Q2 2025 Earnings Conference Call - EARNMOAR (youtube).mp3",
+              "path": "Meta/META Meta Platforms Q2 2025 Earnings Conference Call - EARNMOAR (youtube).mp3",
+              "reasons": [
+                "compact-exact-term",
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 4287.719
+            },
+            {
+              "name": "MSFT Microsoft Q2 2025 Earnings Conference Call - EARNMOAR (youtube).mp3",
+              "path": "Microsoft/MSFT Microsoft Q2 2025 Earnings Conference Call - EARNMOAR (youtube).mp3",
+              "reasons": [
+                "compact-exact-term",
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 4287.719
+            }
+          ]
+        },
+        {
+          "duplicate_rank": 1,
+          "expected_paths": [
+            "Documents/Notes/Note_Considering_Cat.txt",
+            "Documents/Outlook/Archive/Email_CWS_Adoption_Inquiry_Reply.eml",
+            "Documents/Outlook/Archive/Email_CWS_Home_Visit_Confirm.eml",
+            "Documents/Outlook/Archive/Email_CatToy_Order_Apr2026.eml",
+            "Documents/Outlook/Archive/Email_PetFood_Order_Mar2026.eml",
+            "Documents/Outlook/Archive/Email_ScratchingPost_Order_Mar2026.eml",
+            "Documents/Outlook/Archive/Email_Vet_Food_Query.eml",
+            "Documents/Outlook/Calendar_Event_Flea_Tick_Monthly.ics",
+            "Documents/Outlook/Calendar_Event_Vet_Visit_Mar2026.ics",
+            "Documents/Pets/Bookmarks_Cat_Care_Resources.json",
+            "Documents/Pets/Cat_Adoption_Certificate_Shadow_Feb2026.png",
+            "Documents/Pets/Image_Lily_Playing_With_Shadow.png",
+            "Documents/Pets/Image_Shadow_First_Day.png",
+            "Documents/Pets/Image_Shadow_Sleeping_On_Desk.png",
+            "Documents/Pets/Image_Shadow_Using_Post.png",
+            "Documents/Pets/Note_Shadow_Care_Routine.md",
+            "Documents/Pets/Pet_Care_Learning_Log.md",
+            "Documents/Pets/Vet_Visit_Summary_Mar2026.pdf",
+            "Documents/Voice Memos/Audio_Note_Grooming_Challenge.mp3",
+            "Documents/Voice Memos/Audio_Note_Scratching_Issue.mp3"
+          ],
+          "hash_rank": 1,
+          "id": "hippocamp_profiling-0005",
+          "query": "Could you look back at everything related to Shadow since she came home?",
+          "rank": 1,
+          "scenario": "hippocamp_profiling",
+          "top_results": [
+            {
+              "name": "Note_Shadow_Care_Routine.md",
+              "path": "Documents/Pets/Note_Shadow_Care_Routine.md",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term",
+                "rare-token-in-name"
+              ],
+              "score": 13806.642
+            },
+            {
+              "name": "Image_Shadow_First_Day.png",
+              "path": "Documents/Pets/Image_Shadow_First_Day.png",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "rare-token-in-name"
+              ],
+              "score": 13328.001
+            },
+            {
+              "name": "Image_Shadow_Using_Post.png",
+              "path": "Documents/Pets/Image_Shadow_Using_Post.png",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "rare-token-in-name"
+              ],
+              "score": 13327.99
+            },
+            {
+              "name": "Image_Shadow_Sleeping_On_Desk.png",
+              "path": "Documents/Pets/Image_Shadow_Sleeping_On_Desk.png",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "rare-token-in-name"
+              ],
+              "score": 13195.477
+            },
+            {
+              "name": "Image_Lily_Playing_With_Shadow.png",
+              "path": "Documents/Pets/Image_Lily_Playing_With_Shadow.png",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "rare-token-in-name"
+              ],
+              "score": 13195.471
+            },
+            {
+              "name": "Cat_Adoption_Certificate_Shadow_Feb2026.png",
+              "path": "Documents/Pets/Cat_Adoption_Certificate_Shadow_Feb2026.png",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "rare-token-in-name"
+              ],
+              "score": 13178.517
+            },
+            {
+              "name": "AAPL_Coverage_Initiation_Notes.md",
+              "path": "Documents/Capitol_Investments/Companies/AAPL - Apple Inc/4. Analysis & Models/AAPL_Coverage_Initiation_Notes.md",
+              "reasons": [
+                "fielded-bm25",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 5767.337
+            },
+            {
+              "name": "Email_Mark_Summer24_Planning_2.eml",
+              "path": "Documents/Outlook/Archive/Email_Mark_Summer24_Planning_2.eml",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 5184.978
+            },
+            {
+              "name": "Email_021.eml",
+              "path": "Documents/Outlook/Sent_Items/Email_021.eml",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 5098.616
+            },
+            {
+              "name": "Email_CWS_Home_Visit_Confirm.eml",
+              "path": "Documents/Outlook/Archive/Email_CWS_Home_Visit_Confirm.eml",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term"
+              ],
+              "score": 4945.364
+            }
+          ]
+        },
+        {
+          "duplicate_rank": 5,
+          "expected_paths": [
+            "Documents/Fitness/Running_Log_Export_Oct2025.csv",
+            "Documents/Notes/Note_Weekend_ToDo.txt",
+            "Documents/Outlook/Calendar_Events_Oct.ics",
+            "Documents/Outlook/Inbox/Email_Lush_Order_Confirm.eml",
+            "Documents/Voice Memos/Audio_Note_Sleep_Schedule.mp3",
+            "Pictures/Personal/Image_Morning_Run_Botanic_Gardens.png"
+          ],
+          "hash_rank": 5,
+          "id": "hippocamp_profiling-0006",
+          "query": "I've been wondering what I usually do in a week for my health. Can you take a look at my records?",
+          "rank": 5,
+          "scenario": "hippocamp_profiling",
+          "top_results": [
+            {
+              "name": "Draft_Email_Mark_MidTermBreak.eml",
+              "path": "Documents/Outlook/Drafts/Draft_Email_Mark_MidTermBreak.eml",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 7361.227
+            },
+            {
+              "name": "Note_Shadow_Care_Routine.md",
+              "path": "Documents/Pets/Note_Shadow_Care_Routine.md",
+              "reasons": [
+                "fielded-bm25",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 4166.586
+            },
+            {
+              "name": "Email_Mark_Summer24_Planning_3.eml",
+              "path": "Documents/Outlook/Archive/Email_Mark_Summer24_Planning_3.eml",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 3946.962
+            },
+            {
+              "name": "Watercolor Learning Log.md",
+              "path": "Documents/Watercolor Learning Log.md",
+              "reasons": [
+                "fielded-bm25",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 3659.228
+            },
+            {
+              "name": "Note_Weekend_ToDo.txt",
+              "path": "Documents/Notes/Note_Weekend_ToDo.txt",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 3125.841
+            },
+            {
+              "name": "Email_Mark_OctBreak23_Planning_1.eml",
+              "path": "Documents/Outlook/Archive/Email_Mark_OctBreak23_Planning_1.eml",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 3118.165
+            },
+            {
+              "name": "Email_Mark_Summer24_Planning_2.eml",
+              "path": "Documents/Outlook/Archive/Email_Mark_Summer24_Planning_2.eml",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 3089.193
+            },
+            {
+              "name": "Email_School_OctBreak_2023_Notice.eml",
+              "path": "Documents/Outlook/Archive/Email_School_OctBreak_2023_Notice.eml",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 3088.295
+            },
+            {
+              "name": "Email_CodingCamp_Booking_Oct2023.eml",
+              "path": "Documents/Outlook/Archive/Email_CodingCamp_Booking_Oct2023.eml",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 3083.792
+            },
+            {
+              "name": "Draft_Email_Mark_Nov14.eml",
+              "path": "Documents/Outlook/Drafts/Draft_Email_Mark_Nov14.eml",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 3003.793
+            }
+          ]
+        },
+        {
+          "duplicate_rank": 2,
+          "expected_paths": [
+            "Uber/$UBER Uber Q1 2025 Earnings Conference Call.mp3",
+            "Uber/$UBER Uber Q4 2024 Earnings Conference Call.mp3",
+            "Uber/Uber-Q1-25-Earnings-Press-Release.pdf",
+            "Uber/Uber-Q2-25-Earnings-Press-Release.pdf",
+            "Uber/Uber-Q3-24-Earnings-Press-Release.pdf",
+            "Uber/Uber-Q4-24-Earnings-Press-Release.pdf"
+          ],
+          "hash_rank": 2,
+          "id": "hippocamp_factual_retention-0001",
+          "query": "How have Uber's Adjusted EBITDA and its margin as a percentage of Gross Bookings trended on a quarterly basis, and what key drivers—such as operating leverage, advertising revenue growth, membership-related frequency gains, and cost discipline—have contributed to these trends?",
+          "rank": 2,
+          "scenario": "hippocamp_factual_retention",
+          "top_results": [
+            {
+              "name": "AAPL_Coverage_Initiation_Notes.md",
+              "path": "Documents/Capitol_Investments/Companies/AAPL - Apple Inc/4. Analysis & Models/AAPL_Coverage_Initiation_Notes.md",
+              "reasons": [
+                "fielded-bm25",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 15361.231
+            },
+            {
+              "name": "$UBER Uber Q1 2025 Earnings Conference Call.mp3",
+              "path": "Uber/$UBER Uber Q1 2025 Earnings Conference Call.mp3",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "rare-token-in-name"
+              ],
+              "score": 13796.966
+            },
+            {
+              "name": "$UBER Uber Q4 2024 Earnings Conference Call.mp3",
+              "path": "Uber/$UBER Uber Q4 2024 Earnings Conference Call.mp3",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "rare-token-in-name"
+              ],
+              "score": 13796.966
+            },
+            {
+              "name": "Uber-Q1-25-Earnings-Press-Release.pdf",
+              "path": "Uber/Uber-Q1-25-Earnings-Press-Release.pdf",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term",
+                "rare-token-in-name"
+              ],
+              "score": 12774.164
+            },
+            {
+              "name": "26-Q1 - 10-Q_ Quarterly report [Sections 13 or 15(d)] _ Walmart Inc. (WMT).pdf",
+              "path": "Walmart/26-Q1 - 10-Q_ Quarterly report [Sections 13 or 15(d)] _ Walmart Inc. (WMT).pdf",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term",
+                "rare-token-in-name"
+              ],
+              "score": 12273.929
+            },
+            {
+              "name": "Uber-Q4-24-Earnings-Press-Release.pdf",
+              "path": "Uber/Uber-Q4-24-Earnings-Press-Release.pdf",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "rare-token-in-name"
+              ],
+              "score": 12230.965
+            },
+            {
+              "name": "Uber-Q3-24-Earnings-Press-Release.pdf",
+              "path": "Uber/Uber-Q3-24-Earnings-Press-Release.pdf",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "rare-token-in-name"
+              ],
+              "score": 12227.574
+            },
+            {
+              "name": "Uber-Q2-25-Earnings-Press-Release.pdf",
+              "path": "Uber/Uber-Q2-25-Earnings-Press-Release.pdf",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "rare-token-in-name"
+              ],
+              "score": 12214.818
+            },
+            {
+              "name": "MSFT_FY25q4_10K.docx",
+              "path": "Microsoft/MSFT_FY25q4_10K.docx",
+              "reasons": [
+                "fielded-bm25",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 12007.922
+            },
+            {
+              "name": "MSFT_FY25Q3_10Q.docx",
+              "path": "Microsoft/MSFT_FY25Q3_10Q.docx",
+              "reasons": [
+                "fielded-bm25",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 11812.008
+            }
+          ]
+        },
+        {
+          "duplicate_rank": 1,
+          "expected_paths": [
+            "Microsoft/MSFT Microsoft Q2 2025 Earnings Conference Call - EARNMOAR (youtube).mp3",
+            "Microsoft/MSFT_FY25Q2_10Q.docx",
+            "Microsoft/MSFT_FY25Q3_10Q.docx",
+            "Microsoft/MSFT_FY25q4_10K.docx"
+          ],
+          "hash_rank": 1,
+          "id": "hippocamp_factual_retention-0002",
+          "query": "Do the year-over-year changes in Microsoft's R&D, S&M, and G&A expenses, and their changes as a percentage of revenue, demonstrate economies of scale in FY25 (quarterly and full year)?",
+          "rank": 1,
+          "scenario": "hippocamp_factual_retention",
+          "top_results": [
+            {
+              "name": "MSFT_FY25q4_10K.docx",
+              "path": "Microsoft/MSFT_FY25q4_10K.docx",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term",
+                "rare-token-in-path",
+                "strong-map-term"
+              ],
+              "score": 14133.29
+            },
+            {
+              "name": "MSFT Microsoft Q2 2025 Earnings Conference Call - EARNMOAR (youtube).mp3",
+              "path": "Microsoft/MSFT Microsoft Q2 2025 Earnings Conference Call - EARNMOAR (youtube).mp3",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "rare-token-in-name"
+              ],
+              "score": 13823.441
+            },
+            {
+              "name": "26-Q1 - 10-Q_ Quarterly report [Sections 13 or 15(d)] _ Walmart Inc. (WMT).pdf",
+              "path": "Walmart/26-Q1 - 10-Q_ Quarterly report [Sections 13 or 15(d)] _ Walmart Inc. (WMT).pdf",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "rare-token-in-name"
+              ],
+              "score": 12203.317
+            },
+            {
+              "name": "MSFT_FY25Q3_10Q.docx",
+              "path": "Microsoft/MSFT_FY25Q3_10Q.docx",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term",
+                "rare-token-in-path",
+                "strong-map-term"
+              ],
+              "score": 12047.213
+            },
+            {
+              "name": "MSFT_FY25Q2_10Q.docx",
+              "path": "Microsoft/MSFT_FY25Q2_10Q.docx",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term",
+                "rare-token-in-path",
+                "strong-map-term"
+              ],
+              "score": 12005.556
+            },
+            {
+              "name": "AAPL_Coverage_Initiation_Notes.md",
+              "path": "Documents/Capitol_Investments/Companies/AAPL - Apple Inc/4. Analysis & Models/AAPL_Coverage_Initiation_Notes.md",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 6839.107
+            },
+            {
+              "name": "Calendar_Victoria_Nov_Dec_2025.ics",
+              "path": "Documents/Outlook/Calendar_Victoria_Nov_Dec_2025.ics",
+              "reasons": [
+                "fielded-bm25",
+                "multi-map-term"
+              ],
+              "score": 4302.105
+            },
+            {
+              "name": "Dance_Class_Notes.md",
+              "path": "Documents/Hobbies/Dance_Class_Notes.md",
+              "reasons": [
+                "fielded-bm25",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 3840.531
+            },
+            {
+              "name": "Note_Shadow_Care_Routine.md",
+              "path": "Documents/Pets/Note_Shadow_Care_Routine.md",
+              "reasons": [
+                "fielded-bm25",
+                "multi-map-term"
+              ],
+              "score": 3579.714
+            },
+            {
+              "name": "Watercolor Learning Log.md",
+              "path": "Documents/Watercolor Learning Log.md",
+              "reasons": [
+                "fielded-bm25",
+                "multi-map-term"
+              ],
+              "score": 2733.419
+            }
+          ]
+        },
+        {
+          "duplicate_rank": 1,
+          "expected_paths": [
+            "Meta/24-Q4.pdf",
+            "Meta/META Meta Platforms Q2 2025 Earnings Conference Call - EARNMOAR (youtube).mp3",
+            "Meta/META Meta Platforms Q4 2024 Earnings Conference Call - EARNMOAR (youtube).mp3",
+            "Meta/META-Q1-2025-Follow-Up-Call-Transcript.pdf",
+            "Meta/META-Q2-2025-Follow-Up-Call-Transcript.pdf",
+            "Meta/WATCH LIVE Meta Platforms Q1 2025 Earnings Call  META - Benzinga (youtube).mp3"
+          ],
+          "hash_rank": 1,
+          "id": "hippocamp_factual_retention-0003",
+          "query": "The CFO has repeatedly mentioned a \"capacity crunch.\" How does this dynamic adjustment on both the supply and demand sides impact the Meta's short-term profit margins and future gross margins (cost structure)?",
+          "rank": 1,
+          "scenario": "hippocamp_factual_retention",
+          "top_results": [
+            {
+              "name": "META Meta Platforms Q2 2025 Earnings Conference Call - EARNMOAR (youtube).mp3",
+              "path": "Meta/META Meta Platforms Q2 2025 Earnings Conference Call - EARNMOAR (youtube).mp3",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "rare-token-in-name"
+              ],
+              "score": 13551.246
+            },
+            {
+              "name": "META Meta Platforms Q4 2024 Earnings Conference Call - EARNMOAR (youtube).mp3",
+              "path": "Meta/META Meta Platforms Q4 2024 Earnings Conference Call - EARNMOAR (youtube).mp3",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "rare-token-in-name"
+              ],
+              "score": 13551.246
+            },
+            {
+              "name": "WATCH LIVE Meta Platforms Q1 2025 Earnings Call  META - Benzinga (youtube).mp3",
+              "path": "Meta/WATCH LIVE Meta Platforms Q1 2025 Earnings Call  META - Benzinga (youtube).mp3",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "rare-token-in-name"
+              ],
+              "score": 13423.569
+            },
+            {
+              "name": "META-Q2-2025-Follow-Up-Call-Transcript.pdf",
+              "path": "Meta/META-Q2-2025-Follow-Up-Call-Transcript.pdf",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "rare-token-in-name"
+              ],
+              "score": 12041.836
+            },
+            {
+              "name": "META-Q1-2025-Follow-Up-Call-Transcript.pdf",
+              "path": "Meta/META-Q1-2025-Follow-Up-Call-Transcript.pdf",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "rare-token-in-name"
+              ],
+              "score": 12019.778
+            },
+            {
+              "name": "AAPL_Coverage_Initiation_Notes.md",
+              "path": "Documents/Capitol_Investments/Companies/AAPL - Apple Inc/4. Analysis & Models/AAPL_Coverage_Initiation_Notes.md",
+              "reasons": [
+                "fielded-bm25",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 11978.951
+            },
+            {
+              "name": "MSFT_FY25Q3_10Q.docx",
+              "path": "Microsoft/MSFT_FY25Q3_10Q.docx",
+              "reasons": [
+                "fielded-bm25",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 8792.893
+            },
+            {
+              "name": "MSFT_FY25Q2_10Q.docx",
+              "path": "Microsoft/MSFT_FY25Q2_10Q.docx",
+              "reasons": [
+                "fielded-bm25",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 8725.545
+            },
+            {
+              "name": "MSFT_FY25q4_10K.docx",
+              "path": "Microsoft/MSFT_FY25q4_10K.docx",
+              "reasons": [
+                "fielded-bm25",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 8056.927
+            },
+            {
+              "name": "24-Q4.pdf",
+              "path": "Meta/24-Q4.pdf",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term",
+                "rare-token-in-path"
+              ],
+              "score": 5884.118
+            }
+          ]
+        },
+        {
+          "duplicate_rank": 1,
+          "expected_paths": [
+            "Walmart/26-Q1 - 10-Q_ Quarterly report [Sections 13 or 15(d)] _ Walmart Inc. (WMT).pdf",
+            "Walmart/26-Q2.pdf",
+            "Walmart/Walmart FY2026 Q1 Earnings Release - Walmart (youtube).mp3",
+            "Walmart/Walmart FY2026 Q2 Earnings Release - Walmart (youtube).mp3",
+            "Walmart/Walmart FYE2025 Q4 Earnings Release - Walmart (youtube).mp3",
+            "Walmart/Walmart Inc. FY2025 Q3 Earnings Release - Walmart (youtube).mp3"
+          ],
+          "hash_rank": 1,
+          "id": "hippocamp_factual_retention-0004",
+          "query": "With Walmart's eCommerce growth rate consistently exceeding 20% quarterly, how has its contribution to the company's overall revenue and profit margin evolved? How does its growth structure differ from that of physical store sales?",
+          "rank": 1,
+          "scenario": "hippocamp_factual_retention",
+          "top_results": [
+            {
+              "name": "26-Q1 - 10-Q_ Quarterly report [Sections 13 or 15(d)] _ Walmart Inc. (WMT).pdf",
+              "path": "Walmart/26-Q1 - 10-Q_ Quarterly report [Sections 13 or 15(d)] _ Walmart Inc. (WMT).pdf",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term",
+                "rare-token-in-name",
+                "strong-map-term"
+              ],
+              "score": 24243.432
+            },
+            {
+              "name": "Walmart FY2026 Q1 Earnings Release - Walmart (youtube).mp3",
+              "path": "Walmart/Walmart FY2026 Q1 Earnings Release - Walmart (youtube).mp3",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term",
+                "rare-token-in-name"
+              ],
+              "score": 14902.737
+            },
+            {
+              "name": "Walmart FY2026 Q2 Earnings Release - Walmart (youtube).mp3",
+              "path": "Walmart/Walmart FY2026 Q2 Earnings Release - Walmart (youtube).mp3",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term",
+                "rare-token-in-name"
+              ],
+              "score": 14902.737
+            },
+            {
+              "name": "Walmart FYE2025 Q4 Earnings Release - Walmart (youtube).mp3",
+              "path": "Walmart/Walmart FYE2025 Q4 Earnings Release - Walmart (youtube).mp3",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term",
+                "rare-token-in-name"
+              ],
+              "score": 14902.718
+            },
+            {
+              "name": "Walmart Inc. FY2025 Q3 Earnings Release - Walmart (youtube).mp3",
+              "path": "Walmart/Walmart Inc. FY2025 Q3 Earnings Release - Walmart (youtube).mp3",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term",
+                "rare-token-in-name"
+              ],
+              "score": 14725.411
+            },
+            {
+              "name": "2024-App-Store-Transparency-Report.pdf",
+              "path": "Documents/Capitol_Investments/Companies/AAPL - Apple Inc/1. Investor Relations/2024-App-Store-Transparency-Report.pdf",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term",
+                "rare-token-in-name",
+                "strong-map-term"
+              ],
+              "score": 13495.987
+            },
+            {
+              "name": "AAPL_Coverage_Initiation_Notes.md",
+              "path": "Documents/Capitol_Investments/Companies/AAPL - Apple Inc/4. Analysis & Models/AAPL_Coverage_Initiation_Notes.md",
+              "reasons": [
+                "fielded-bm25",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 12764.444
+            },
+            {
+              "name": "MSFT_FY25Q2_10Q.docx",
+              "path": "Microsoft/MSFT_FY25Q2_10Q.docx",
+              "reasons": [
+                "fielded-bm25",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 8398.39
+            },
+            {
+              "name": "MSFT_FY25Q3_10Q.docx",
+              "path": "Microsoft/MSFT_FY25Q3_10Q.docx",
+              "reasons": [
+                "fielded-bm25",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 8319.594
+            },
+            {
+              "name": "MSFT_FY25q4_10K.docx",
+              "path": "Microsoft/MSFT_FY25q4_10K.docx",
+              "reasons": [
+                "fielded-bm25",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 7463.918
+            }
+          ]
+        },
+        {
+          "duplicate_rank": 1,
+          "expected_paths": [
+            "Intel/0000050863-25-000109.pdf",
+            "Intel/2Q2025-Earnings-Call Prepared Remarks.pdf",
+            "Intel/Intel 25 Q2.mp3",
+            "Intel/Q2 Earnings Deck for upload.pdf",
+            "Intel/Q2'25_EarningsRelease_FINAL.pdf"
+          ],
+          "hash_rank": 1,
+          "id": "hippocamp_factual_retention-0005",
+          "query": "Intel's gross margin saw a significant sequential decline in Q2 2025. Beyond normal business fluctuations, were there any specific one-time factors that influenced this? After excluding these factors, how did the adjusted gross margin perform against the company's prior guidance?",
+          "rank": 1,
+          "scenario": "hippocamp_factual_retention",
+          "top_results": [
+            {
+              "name": "Intel 25 Q2.mp3",
+              "path": "Intel/Intel 25 Q2.mp3",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term",
+                "rare-token-in-name"
+              ],
+              "score": 18194.514
+            },
+            {
+              "name": "MSFT_FY25Q2_10Q.docx",
+              "path": "Microsoft/MSFT_FY25Q2_10Q.docx",
+              "reasons": [
+                "compact-exact-term",
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 15564.347
+            },
+            {
+              "name": "MSFT_FY25Q3_10Q.docx",
+              "path": "Microsoft/MSFT_FY25Q3_10Q.docx",
+              "reasons": [
+                "compact-exact-term",
+                "fielded-bm25",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 15363.821
+            },
+            {
+              "name": "Q2'25_EarningsRelease_FINAL.pdf",
+              "path": "Intel/Q2'25_EarningsRelease_FINAL.pdf",
+              "reasons": [
+                "compact-exact-term",
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term",
+                "rare-token-in-path",
+                "strong-map-term"
+              ],
+              "score": 10231.164
+            },
+            {
+              "name": "MSFT_FY25q4_10K.docx",
+              "path": "Microsoft/MSFT_FY25q4_10K.docx",
+              "reasons": [
+                "compact-exact-term",
+                "fielded-bm25",
+                "multi-map-term",
+                "strong-map-term"
+              ],
+              "score": 9350.65
+            },
+            {
+              "name": "Q2 Earnings Deck for upload.pdf",
+              "path": "Intel/Q2 Earnings Deck for upload.pdf",
+              "reasons": [
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term",
+                "rare-token-in-path",
+                "strong-map-term"
+              ],
+              "score": 9135.721
+            },
+            {
+              "name": "0000050863-25-000109.pdf",
+              "path": "Intel/0000050863-25-000109.pdf",
+              "reasons": [
+                "compact-exact-term",
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term",
+                "rare-token-in-path",
+                "strong-map-term"
+              ],
+              "score": 7673.706
+            },
+            {
+              "name": "2Q2025-Earnings-Call Prepared Remarks.pdf",
+              "path": "Intel/2Q2025-Earnings-Call Prepared Remarks.pdf",
+              "reasons": [
+                "compact-exact-term",
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term",
+                "rare-token-in-path",
+                "strong-map-term"
+              ],
+              "score": 7330.979
+            },
+            {
+              "name": "META Meta Platforms Q2 2025 Earnings Conference Call - EARNMOAR (youtube).mp3",
+              "path": "Meta/META Meta Platforms Q2 2025 Earnings Conference Call - EARNMOAR (youtube).mp3",
+              "reasons": [
+                "compact-exact-term",
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term"
+              ],
+              "score": 6958.6
+            },
+            {
+              "name": "MSFT Microsoft Q2 2025 Earnings Conference Call - EARNMOAR (youtube).mp3",
+              "path": "Microsoft/MSFT Microsoft Q2 2025 Earnings Conference Call - EARNMOAR (youtube).mp3",
+              "reasons": [
+                "compact-exact-term",
+                "fielded-bm25",
+                "filename-anchor",
+                "multi-map-term"
+              ],
+              "score": 6958.6
+            }
+          ]
+        }
+      ],
+      "metrics": {
+        "by_scenario": {
+          "hippocamp_factual_retention": {
+            "cases": 5,
+            "duplicate_or_exact_hit_at_10": 1.0,
+            "hash_or_exact_hit_at_10": 1.0,
+            "hit_at_1": 0.8,
+            "hit_at_10": 1.0,
+            "hit_at_5": 1.0,
+            "mrr": 0.9,
+            "set_recall_at_10": 0.9667,
+            "set_recall_at_5": 0.8
+          },
+          "hippocamp_profiling": {
+            "cases": 6,
+            "duplicate_or_exact_hit_at_10": 1.0,
+            "hash_or_exact_hit_at_10": 1.0,
+            "hit_at_1": 0.6667,
+            "hit_at_10": 1.0,
+            "hit_at_5": 0.8333,
+            "mrr": 0.7278,
+            "set_recall_at_10": 0.3944,
+            "set_recall_at_5": 0.5667
+          }
+        },
+        "cases": 11,
+        "duplicate_or_exact_hit_at_10": 1.0,
+        "duplicate_or_exact_hit_at_5": 0.9091,
+        "hash_or_exact_hit_at_10": 1.0,
+        "hash_or_exact_hit_at_5": 0.9091,
+        "hit_at_1": 0.7273,
+        "hit_at_10": 1.0,
+        "hit_at_3": 0.8182,
+        "hit_at_5": 0.9091,
+        "mrr": 0.8061,
+        "seconds": 0.495,
+        "set_precision_at_10": 0.4455,
+        "set_precision_at_5": 0.6545,
+        "set_recall_at_10": 0.6545,
+        "set_recall_at_5": 0.6727,
+        "top_k": 10
+      }
+    }
+  },
+  "root": "/private/var/folders/8w/_x12f_056yv_z1x45vr_f2cm0000gp/T/jikji-victoria-shared-eval-w7vwomjk/rust/Victoria_Subset"
+}

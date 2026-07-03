@@ -1,0 +1,177 @@
+name: Publish Crates
+
+on:
+  push:
+    branches:
+      - main
+  release:
+    types:
+      - published
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Manual runs are always package verification only.
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+concurrency:
+  group: crates-io-publish
+  cancel-in-progress: false
+
+jobs:
+  crates-io:
+    name: crates.io trusted publish
+    runs-on: ubuntu-latest
+    environment: crates-io
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Format
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+      - name: Workspace tests
+        run: cargo test --workspace --all-features
+
+      - name: Package verification
+        run: cargo package --workspace --exclude jikji-parity --exclude jikji-bench
+
+      - name: Plan crates to publish
+        id: plan
+        shell: bash
+        env:
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' || inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          crates=(
+            jikji-core
+            jikji-media-bridge
+            jikji-parser
+            jikji-search
+            jikji-agent
+            jikji-index
+            jikji-cli
+          )
+
+          crate_version() {
+            local crate="$1"
+            cargo metadata --format-version 1 --no-deps \
+              | python3 -c 'import json, sys; crate = sys.argv[1]; metadata = json.load(sys.stdin); matches = [package["version"] for package in metadata["packages"] if package["name"] == crate]; print(matches[0]) if matches else sys.exit(f"crate not found in cargo metadata: {crate}")' "$crate"
+          }
+
+          crate_status() {
+            local crate="$1"
+            local version="$2"
+            curl --silent --show-error --location \
+              --header "User-Agent: ${GITHUB_REPOSITORY} publish workflow (${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY})" \
+              --output /dev/null --write-out "%{http_code}" \
+              "https://crates.io/api/v1/crates/${crate}/${version}"
+          }
+
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "dry_run=true" >> "$GITHUB_OUTPUT"
+            echo "crates=" >> "$GITHUB_OUTPUT"
+            echo "Manual dry run completed package verification; no crates will be uploaded."
+            exit 0
+          fi
+
+          planned=()
+          for crate in "${crates[@]}"; do
+            version="$(crate_version "$crate")"
+            status="$(crate_status "$crate" "$version")"
+            case "$status" in
+              200)
+                echo "skip $crate $version: already published"
+                ;;
+              404)
+                echo "queue $crate $version"
+                planned+=("$crate")
+                ;;
+              *)
+                echo "unexpected crates.io status for $crate $version: $status" >&2
+                exit 1
+                ;;
+            esac
+          done
+
+          {
+            echo "dry_run=false"
+            echo "crates<<EOF"
+            printf '%s\n' "${planned[@]}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Authenticate with crates.io trusted publishing
+        id: auth
+        if: steps.plan.outputs.crates != '' && steps.plan.outputs.dry_run != 'true' && (github.event_name == 'release' || github.ref == 'refs/heads/main')
+        uses: rust-lang/crates-io-auth-action@v1
+
+      - name: Publish crates
+        if: steps.plan.outputs.crates != '' && steps.plan.outputs.dry_run != 'true' && (github.event_name == 'release' || github.ref == 'refs/heads/main')
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+          CRATES_TO_PUBLISH: ${{ steps.plan.outputs.crates }}
+        run: |
+          set -euo pipefail
+
+          crate_version() {
+            local crate="$1"
+            cargo metadata --format-version 1 --no-deps \
+              | python3 -c 'import json, sys; crate = sys.argv[1]; metadata = json.load(sys.stdin); matches = [package["version"] for package in metadata["packages"] if package["name"] == crate]; print(matches[0]) if matches else sys.exit(f"crate not found in cargo metadata: {crate}")' "$crate"
+          }
+
+          crate_is_published() {
+            local crate="$1"
+            local version="$2"
+            local status
+            status="$(curl --silent --show-error --location \
+              --header "User-Agent: ${GITHUB_REPOSITORY} publish workflow (${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY})" \
+              --output /dev/null --write-out "%{http_code}" \
+              "https://crates.io/api/v1/crates/${crate}/${version}")"
+            case "$status" in
+              200) return 0 ;;
+              404) return 1 ;;
+              *)
+                echo "unexpected crates.io status for $crate $version: $status" >&2
+                exit 1
+                ;;
+            esac
+          }
+
+          publish_crate() {
+            crate="$1"
+            version="$(crate_version "$crate")"
+            for attempt in 1 2 3 4 5; do
+              if cargo publish -p "$crate"; then
+                return
+              fi
+              if crate_is_published "$crate" "$version"; then
+                echo "$crate $version is already published after attempt $attempt"
+                return
+              fi
+              echo "publish failed for $crate on attempt $attempt; waiting for registry index"
+              sleep 30
+            done
+            cargo publish -p "$crate"
+          }
+          while IFS= read -r crate; do
+            [ -n "$crate" ] || continue
+            publish_crate "$crate"
+          done <<< "$CRATES_TO_PUBLISH"

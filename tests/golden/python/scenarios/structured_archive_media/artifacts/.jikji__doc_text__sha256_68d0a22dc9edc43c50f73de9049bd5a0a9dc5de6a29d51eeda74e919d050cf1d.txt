@@ -1,0 +1,10 @@
+# Source: mail.eml
+# File ID: sha256:68d0a22dc9edc43c50f73de9049bd5a0a9dc5de6a29d51eeda74e919d050cf1d
+# Parsed by: Jikji
+
+# Email: mail.eml
+Subject: Alpha Project Handoff
+From: sender@example.com
+To: receiver@example.com
+# Body
+The launch code marker is emailtoken-7742.

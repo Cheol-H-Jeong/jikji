@@ -1,0 +1,117 @@
+[
+  {
+    "path": ".jikji/agent_map.md",
+    "sha256": "65f25edb5c4a6e7b4f6ac9f7925b455bc592d4f339cdcc06d6a6180d4e0627f3",
+    "bytes": 1995
+  },
+  {
+    "path": ".jikji/agent_routes.md",
+    "sha256": "0782694738dec8146d14daca83bbf7a7afc433c7a43268a627a61fdc9d7d5839",
+    "bytes": 1250
+  },
+  {
+    "path": ".jikji/agent_skill_context.md",
+    "sha256": "b017d4a5c5003eefd7418779b905a7caead60add79ae4d385232b6aac6b1a553",
+    "bytes": 1592
+  },
+  {
+    "path": ".jikji/autorag_manifest.json",
+    "sha256": "029ea853f3ae371292c3b226444cb0517b92e1d3280528b7fd639105be190877",
+    "bytes": 1033
+  },
+  {
+    "path": ".jikji/chunk_map.jsonl",
+    "sha256": "5f5b8afa4e1d333b085b4849c0fac351f61d1eced99a9e3582e7fcfd8d1b9705",
+    "bytes": 748
+  },
+  {
+    "path": ".jikji/corpus_profile.json",
+    "sha256": "5d6e288027ee1e840ffbe1c03fa70135db82e29a9ae419ba86d83b7ff3799917",
+    "bytes": 494
+  },
+  {
+    "path": ".jikji/document_index.jsonl",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0
+  },
+  {
+    "path": ".jikji/duplicate_map.jsonl",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0
+  },
+  {
+    "path": ".jikji/file_cards.jsonl",
+    "sha256": "4db36b018f0f3e3ec371ef43a302228f16d76dfb6a1de7069150c0013def8d91",
+    "bytes": 1760
+  },
+  {
+    "path": ".jikji/file_index.jsonl",
+    "sha256": "52816f8bc347ce75be678e10e743562993462b37c378fde628cf24c214e4c25a",
+    "bytes": 704
+  },
+  {
+    "path": ".jikji/folder_index.jsonl",
+    "sha256": "e303fc2930f3d92830bc7a44ad57206fd8a9c4fcf519b21e40553d9ab8174f28",
+    "bytes": 346
+  },
+  {
+    "path": ".jikji/folder_profile.jsonl",
+    "sha256": "345b64ba38255e3d292e84f45df36cd485e90207d17f8da208531b88cdbe253b",
+    "bytes": 231
+  },
+  {
+    "path": ".jikji/graph_routes.jsonl",
+    "sha256": "0d24b2be02478d7f7f1f8b2415e23d535e9e11e463a273a42d971d312c4561e5",
+    "bytes": 458
+  },
+  {
+    "path": ".jikji/human_guide.md",
+    "sha256": "e517eb3bff599498f573f07fd4163eab0a6ba527e07593f959d0a31d38d54816",
+    "bytes": 378
+  },
+  {
+    "path": ".jikji/intent_taxonomy.json",
+    "sha256": "7ca5dbde4bd3be1d38e8a34069c23cf4ed7e39481b47858bd5d68865389d56d7",
+    "bytes": 1157
+  },
+  {
+    "path": ".jikji/knowledge_graph.json",
+    "sha256": "e9c88b1351841b07da11e24b0a4eb778c80863a6c5439355e6d56a2556b2800d",
+    "bytes": 3928
+  },
+  {
+    "path": ".jikji/llm_wiki_schema.md",
+    "sha256": "c66f550da0bb0fd2981f6490364a3ada01898cd8ba18103851f431ede6f4b100",
+    "bytes": 861
+  },
+  {
+    "path": ".jikji/manifest.json",
+    "sha256": "0249b4e002c7637d5b9de1d93b752237d93e274812fbdf9cc2c89e6027f14888",
+    "bytes": 3437
+  },
+  {
+    "path": ".jikji/parse_errors.jsonl",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0
+  },
+  {
+    "path": ".jikji/search_index.sqlite",
+    "sha256": "<BINARY_ARTIFACT>",
+    "bytes": 77824
+  },
+  {
+    "path": ".jikji/wiki/index.md",
+    "sha256": "b3e7a98037946b64f878205df0b7b59ff54aad5da2ee5b559d1696fdfbc811f8",
+    "bytes": 1169
+  },
+  {
+    "path": ".jikji/wiki/sources/notes-83348d283c1b.md",
+    "sha256": "dfc160e424f93c5e2710464d08311b8b915e606c2b7c3216a94ad9803b2ca486",
+    "bytes": 901
+  },
+  {
+    "path": ".jikji_agent_map.md",
+    "sha256": "6f21c0f8e4d1fc57317aa9a3327b10bbeefb9f011eaa93960bbfb143dab1aca3",
+    "bytes": 546
+  }
+]

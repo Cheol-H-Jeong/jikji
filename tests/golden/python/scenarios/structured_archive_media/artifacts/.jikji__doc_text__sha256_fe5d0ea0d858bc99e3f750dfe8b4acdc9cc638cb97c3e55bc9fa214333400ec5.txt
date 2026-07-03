@@ -1,0 +1,8 @@
+# Source: visual.png
+# File ID: sha256:fe5d0ea0d858bc99e3f750dfe8b4acdc9cc638cb97c3e55bc9fa214333400ec5
+# Parsed by: Jikji
+
+# Image: visual.png
+Format: PNG
+Dimensions: 13x21 pixels
+Color mode: RGB

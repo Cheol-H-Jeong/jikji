@@ -1,0 +1,3 @@
+{"autorag_priority": "normal", "backup_like_score": 0, "file_count_direct": 0, "folder_id": "folder_3a52ce780950", "path": ".", "roles": [], "summary": ". — 파일 0개, 하위 폴더 2개", "top_extensions_direct": {}}
+{"autorag_priority": "normal", "backup_like_score": 0, "file_count_direct": 1, "folder_id": "folder_71ab8b6afb1b", "path": "docs", "roles": [], "summary": "docs — 파일 1개, 하위 폴더 0개", "top_extensions_direct": {".txt": 1}}
+{"autorag_priority": "high", "backup_like_score": 0, "file_count_direct": 1, "folder_id": "folder_feccdc2efacb", "path": "자료", "roles": ["점검자료"], "summary": "자료 — 파일 1개, 하위 폴더 0개", "top_extensions_direct": {".txt": 1}}

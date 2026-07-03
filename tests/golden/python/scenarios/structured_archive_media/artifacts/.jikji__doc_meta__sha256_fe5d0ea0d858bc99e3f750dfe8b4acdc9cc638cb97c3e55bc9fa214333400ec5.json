@@ -1,0 +1,19 @@
+{
+  "author": "",
+  "created": "<TIMESTAMP>",
+  "exif": {},
+  "file_id": "sha256:fe5d0ea0d858bc99e3f750dfe8b4acdc9cc638cb97c3e55bc9fa214333400ec5",
+  "modified": "<TIMESTAMP>",
+  "office": {},
+  "page_count": null,
+  "parser": {
+    "parse_status": "success",
+    "summary": "# Image: visual.png Format: PNG Dimensions: 13x21 pixels Color mode: RGB",
+    "text_cache_path": ".jikji/doc_text/sha256_fe5d0ea0d858bc99e3f750dfe8b4acdc9cc638cb97c3e55bc9fa214333400ec5.txt"
+  },
+  "path": "visual.png",
+  "schema_version": 1,
+  "source": "jikji",
+  "subject": "",
+  "title": ""
+}

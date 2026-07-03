@@ -1,0 +1,323 @@
+[
+  {
+    "name": "prepare",
+    "command": [
+      "prepare",
+      "<SCENARIO_ROOT>",
+      "--json"
+    ],
+    "exit_code": 0,
+    "stdout": "{\n  \"root\": \"<SCENARIO_ROOT>\",\n  \"index_dir\": \"<SCENARIO_ROOT>/.jikji\",\n  \"agent_map\": \"<SCENARIO_ROOT>/.jikji/agent_map.md\",\n  \"files\": 6,\n  \"folders\": 0,\n  \"docs_parsed\": 6,\n  \"docs_reused\": 0,\n  \"docs_failed\": 0,\n  \"deleted\": 0\n}\n",
+    "stderr": "",
+    "stdout_json": {
+      "root": "<SCENARIO_ROOT>",
+      "index_dir": "<SCENARIO_ROOT>/.jikji",
+      "agent_map": "<SCENARIO_ROOT>/.jikji/agent_map.md",
+      "files": 6,
+      "folders": 0,
+      "docs_parsed": 6,
+      "docs_reused": 0,
+      "docs_failed": 0,
+      "deleted": 0
+    }
+  },
+  {
+    "name": "search_eml",
+    "command": [
+      "search",
+      "<SCENARIO_ROOT>",
+      "emailtoken-7742",
+      "--top-k",
+      "1",
+      "--json"
+    ],
+    "exit_code": 0,
+    "stdout": "{\n  \"root\": \"<SCENARIO_ROOT>\",\n  \"query\": \"emailtoken-7742\",\n  \"top_k\": 1,\n  \"index_status\": \"ready\",\n  \"foreground_prepared\": false,\n  \"background_refresh_started\": false,\n  \"candidates\": [\n    {\n      \"path\": \"mail.eml\",\n      \"name\": \"mail.eml\",\n      \"score\": 3250.348,\n      \"reasons\": [\n        \"body-contains-query\",\n        \"multi-token-overlap\",\n        \"compact-exact-term\",\n        \"multi-compact-term\",\n        \"map-phrase\",\n        \"chunk-map\",\n        \"multi-map-term\",\n        \"fielded-bm25\"\n      ],\n      \"matched_terms\": [\n        \"emailtoken7742\",\n        \"7742\",\n        \"emailtoken-7742\",\n        \"emailtoken\"\n      ],\n      \"matched_intents\": [],\n      \"duplicate_group_id\": \"sha256_68d0a22dc9edc43c50f73de9049bd5a0a9dc5de6a29d51eeda74e919d050cf1d\",\n      \"evidence\": [\n        \"Subject: Alpha Project Handoff\",\n        \"From: sender@example\",\n        \"To: receiver@example\"\n      ]\n    }\n  ]\n}\n",
+    "stderr": "",
+    "stdout_json": {
+      "root": "<SCENARIO_ROOT>",
+      "query": "emailtoken-7742",
+      "top_k": 1,
+      "index_status": "ready",
+      "foreground_prepared": false,
+      "background_refresh_started": false,
+      "candidates": [
+        {
+          "path": "mail.eml",
+          "name": "mail.eml",
+          "score": 3250.348,
+          "reasons": [
+            "body-contains-query",
+            "multi-token-overlap",
+            "compact-exact-term",
+            "multi-compact-term",
+            "map-phrase",
+            "chunk-map",
+            "multi-map-term",
+            "fielded-bm25"
+          ],
+          "matched_terms": [
+            "emailtoken7742",
+            "7742",
+            "emailtoken-7742",
+            "emailtoken"
+          ],
+          "matched_intents": [],
+          "duplicate_group_id": "sha256_68d0a22dc9edc43c50f73de9049bd5a0a9dc5de6a29d51eeda74e919d050cf1d",
+          "evidence": [
+            "Subject: Alpha Project Handoff",
+            "From: sender@example",
+            "To: receiver@example"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "search_ics",
+    "command": [
+      "search",
+      "<SCENARIO_ROOT>",
+      "uniquecalendar991",
+      "--top-k",
+      "1",
+      "--json"
+    ],
+    "exit_code": 0,
+    "stdout": "{\n  \"root\": \"<SCENARIO_ROOT>\",\n  \"query\": \"uniquecalendar991\",\n  \"top_k\": 1,\n  \"index_status\": \"ready\",\n  \"foreground_prepared\": false,\n  \"background_refresh_started\": false,\n  \"candidates\": [\n    {\n      \"path\": \"calendar.ics\",\n      \"name\": \"calendar.ics\",\n      \"score\": 592.179,\n      \"reasons\": [\n        \"body-contains-query\",\n        \"chunk-map\",\n        \"fielded-bm25\"\n      ],\n      \"matched_terms\": [\n        \"uniquecalendar991\"\n      ],\n      \"matched_intents\": [],\n      \"duplicate_group_id\": \"sha256_a3bc8f7eac528bcd867165fa1f23afcdf3c74035a37036dda58407ad5fb57f19\",\n      \"evidence\": [\n        \"SUMMARY: Design sync uniquecalendar991\",\n        \"SUMMARY: Design sync uniquecalendar991\",\n        \"DTSTART: 20260526T090000Z\"\n      ]\n    }\n  ]\n}\n",
+    "stderr": "",
+    "stdout_json": {
+      "root": "<SCENARIO_ROOT>",
+      "query": "uniquecalendar991",
+      "top_k": 1,
+      "index_status": "ready",
+      "foreground_prepared": false,
+      "background_refresh_started": false,
+      "candidates": [
+        {
+          "path": "calendar.ics",
+          "name": "calendar.ics",
+          "score": 592.179,
+          "reasons": [
+            "body-contains-query",
+            "chunk-map",
+            "fielded-bm25"
+          ],
+          "matched_terms": [
+            "uniquecalendar991"
+          ],
+          "matched_intents": [],
+          "duplicate_group_id": "sha256_a3bc8f7eac528bcd867165fa1f23afcdf3c74035a37036dda58407ad5fb57f19",
+          "evidence": [
+            "SUMMARY: Design sync uniquecalendar991",
+            "SUMMARY: Design sync uniquecalendar991",
+            "DTSTART: 20260526T090000Z"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "search_sqlite",
+    "command": [
+      "search",
+      "<SCENARIO_ROOT>",
+      "sqlitebodytoken-3301",
+      "--top-k",
+      "1",
+      "--json"
+    ],
+    "exit_code": 0,
+    "stdout": "{\n  \"root\": \"<SCENARIO_ROOT>\",\n  \"query\": \"sqlitebodytoken-3301\",\n  \"top_k\": 1,\n  \"index_status\": \"ready\",\n  \"foreground_prepared\": false,\n  \"background_refresh_started\": false,\n  \"candidates\": [\n    {\n      \"path\": \"notes.sqlite\",\n      \"name\": \"notes.sqlite\",\n      \"score\": 3337.774,\n      \"reasons\": [\n        \"body-contains-query\",\n        \"multi-token-overlap\",\n        \"compact-exact-term\",\n        \"multi-compact-term\",\n        \"map-phrase\",\n        \"chunk-map\",\n        \"multi-map-term\",\n        \"fielded-bm25\"\n      ],\n      \"matched_terms\": [\n        \"sqlitebodytoken3301\",\n        \"3301\",\n        \"sqlitebodytoken-3301\",\n        \"sqlitebodytoken\"\n      ],\n      \"matched_intents\": [],\n      \"duplicate_group_id\": \"sha256_e239552e4ba8389acea4d6b4d076222a81b4caedc7ed16f4106b0f6479c75318\",\n      \"evidence\": [\n        \"Columns: id, title, body\",\n        \"1 | Research | sqlitebodytoken-3301 inside row\"\n      ]\n    }\n  ]\n}\n",
+    "stderr": "",
+    "stdout_json": {
+      "root": "<SCENARIO_ROOT>",
+      "query": "sqlitebodytoken-3301",
+      "top_k": 1,
+      "index_status": "ready",
+      "foreground_prepared": false,
+      "background_refresh_started": false,
+      "candidates": [
+        {
+          "path": "notes.sqlite",
+          "name": "notes.sqlite",
+          "score": 3337.774,
+          "reasons": [
+            "body-contains-query",
+            "multi-token-overlap",
+            "compact-exact-term",
+            "multi-compact-term",
+            "map-phrase",
+            "chunk-map",
+            "multi-map-term",
+            "fielded-bm25"
+          ],
+          "matched_terms": [
+            "sqlitebodytoken3301",
+            "3301",
+            "sqlitebodytoken-3301",
+            "sqlitebodytoken"
+          ],
+          "matched_intents": [],
+          "duplicate_group_id": "sha256_e239552e4ba8389acea4d6b4d076222a81b4caedc7ed16f4106b0f6479c75318",
+          "evidence": [
+            "Columns: id, title, body",
+            "1 | Research | sqlitebodytoken-3301 inside row"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "search_epub",
+    "command": [
+      "search",
+      "<SCENARIO_ROOT>",
+      "epubtoken-8802",
+      "--top-k",
+      "1",
+      "--json"
+    ],
+    "exit_code": 0,
+    "stdout": "{\n  \"root\": \"<SCENARIO_ROOT>\",\n  \"query\": \"epubtoken-8802\",\n  \"top_k\": 1,\n  \"index_status\": \"ready\",\n  \"foreground_prepared\": false,\n  \"background_refresh_started\": false,\n  \"candidates\": [\n    {\n      \"path\": \"book.epub\",\n      \"name\": \"book.epub\",\n      \"score\": 3367.811,\n      \"reasons\": [\n        \"body-contains-query\",\n        \"multi-token-overlap\",\n        \"compact-exact-term\",\n        \"multi-compact-term\",\n        \"map-phrase\",\n        \"chunk-map\",\n        \"multi-map-term\",\n        \"fielded-bm25\"\n      ],\n      \"matched_terms\": [\n        \"epubtoken8802\",\n        \"8802\",\n        \"epubtoken-8802\",\n        \"epubtoken\"\n      ],\n      \"matched_intents\": [],\n      \"duplicate_group_id\": \"sha256_f0dda7b469d0d5b6b1acebd5c6e08bb98183c6a0cc7da3721f0a537e009c2592\",\n      \"evidence\": [\n        \"epubtoken-8802 appears here\",\n        \"epubtoken-8802 appears here\"\n      ]\n    }\n  ]\n}\n",
+    "stderr": "",
+    "stdout_json": {
+      "root": "<SCENARIO_ROOT>",
+      "query": "epubtoken-8802",
+      "top_k": 1,
+      "index_status": "ready",
+      "foreground_prepared": false,
+      "background_refresh_started": false,
+      "candidates": [
+        {
+          "path": "book.epub",
+          "name": "book.epub",
+          "score": 3367.811,
+          "reasons": [
+            "body-contains-query",
+            "multi-token-overlap",
+            "compact-exact-term",
+            "multi-compact-term",
+            "map-phrase",
+            "chunk-map",
+            "multi-map-term",
+            "fielded-bm25"
+          ],
+          "matched_terms": [
+            "epubtoken8802",
+            "8802",
+            "epubtoken-8802",
+            "epubtoken"
+          ],
+          "matched_intents": [],
+          "duplicate_group_id": "sha256_f0dda7b469d0d5b6b1acebd5c6e08bb98183c6a0cc7da3721f0a537e009c2592",
+          "evidence": [
+            "epubtoken-8802 appears here",
+            "epubtoken-8802 appears here"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "search_archive",
+    "command": [
+      "search",
+      "<SCENARIO_ROOT>",
+      "archive_lookup_marker_9123",
+      "--top-k",
+      "1",
+      "--json"
+    ],
+    "exit_code": 0,
+    "stdout": "{\n  \"root\": \"<SCENARIO_ROOT>\",\n  \"query\": \"archive_lookup_marker_9123\",\n  \"top_k\": 1,\n  \"index_status\": \"ready\",\n  \"foreground_prepared\": false,\n  \"background_refresh_started\": false,\n  \"candidates\": [\n    {\n      \"path\": \"bundle.zip\",\n      \"name\": \"bundle.zip\",\n      \"score\": 4083.541,\n      \"reasons\": [\n        \"body-contains-query\",\n        \"multi-token-overlap\",\n        \"doc-type-match\",\n        \"compact-exact-term\",\n        \"multi-compact-term\",\n        \"map-phrase\",\n        \"chunk-map\",\n        \"multi-map-term\",\n        \"strong-map-term\",\n        \"fielded-bm25\"\n      ],\n      \"matched_terms\": [\n        \"archivelookupmarker9123\",\n        \"9123\",\n        \"archive_lookup_marker_9123\",\n        \"archive\",\n        \"lookup\",\n        \"marker\"\n      ],\n      \"matched_intents\": [],\n      \"duplicate_group_id\": \"sha256_809bee8bea8668bd25efbb3b9ebe5dab9d5c78fb40e29adcd6980a4d260425b9\",\n      \"evidence\": [\n        \"nested/archive_lookup_marker_9123\",\n        \"nested/archive_lookup_marker_9123\"\n      ]\n    }\n  ]\n}\n",
+    "stderr": "",
+    "stdout_json": {
+      "root": "<SCENARIO_ROOT>",
+      "query": "archive_lookup_marker_9123",
+      "top_k": 1,
+      "index_status": "ready",
+      "foreground_prepared": false,
+      "background_refresh_started": false,
+      "candidates": [
+        {
+          "path": "bundle.zip",
+          "name": "bundle.zip",
+          "score": 4083.541,
+          "reasons": [
+            "body-contains-query",
+            "multi-token-overlap",
+            "doc-type-match",
+            "compact-exact-term",
+            "multi-compact-term",
+            "map-phrase",
+            "chunk-map",
+            "multi-map-term",
+            "strong-map-term",
+            "fielded-bm25"
+          ],
+          "matched_terms": [
+            "archivelookupmarker9123",
+            "9123",
+            "archive_lookup_marker_9123",
+            "archive",
+            "lookup",
+            "marker"
+          ],
+          "matched_intents": [],
+          "duplicate_group_id": "sha256_809bee8bea8668bd25efbb3b9ebe5dab9d5c78fb40e29adcd6980a4d260425b9",
+          "evidence": [
+            "nested/archive_lookup_marker_9123",
+            "nested/archive_lookup_marker_9123"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "search_media_metadata",
+    "command": [
+      "search",
+      "<SCENARIO_ROOT>",
+      "13x21 pixels",
+      "--top-k",
+      "1",
+      "--json"
+    ],
+    "exit_code": 0,
+    "stdout": "{\n  \"root\": \"<SCENARIO_ROOT>\",\n  \"query\": \"13x21 pixels\",\n  \"top_k\": 1,\n  \"index_status\": \"ready\",\n  \"foreground_prepared\": false,\n  \"background_refresh_started\": false,\n  \"candidates\": [\n    {\n      \"path\": \"visual.png\",\n      \"name\": \"visual.png\",\n      \"score\": 1454.878,\n      \"reasons\": [\n        \"body-contains-query\",\n        \"compact-exact-term\",\n        \"evidence-phrase\",\n        \"chunk-map\",\n        \"fielded-bm25\"\n      ],\n      \"matched_terms\": [\n        \"13x21\",\n        \"pixels\"\n      ],\n      \"matched_intents\": [],\n      \"duplicate_group_id\": \"sha256_fe5d0ea0d858bc99e3f750dfe8b4acdc9cc638cb97c3e55bc9fa214333400ec5\",\n      \"evidence\": [\n        \"Dimensions: 13x21 pixels\",\n        \"Dimensions: 13x21 pixels\"\n      ]\n    }\n  ]\n}\n",
+    "stderr": "",
+    "stdout_json": {
+      "root": "<SCENARIO_ROOT>",
+      "query": "13x21 pixels",
+      "top_k": 1,
+      "index_status": "ready",
+      "foreground_prepared": false,
+      "background_refresh_started": false,
+      "candidates": [
+        {
+          "path": "visual.png",
+          "name": "visual.png",
+          "score": 1454.878,
+          "reasons": [
+            "body-contains-query",
+            "compact-exact-term",
+            "evidence-phrase",
+            "chunk-map",
+            "fielded-bm25"
+          ],
+          "matched_terms": [
+            "13x21",
+            "pixels"
+          ],
+          "matched_intents": [],
+          "duplicate_group_id": "sha256_fe5d0ea0d858bc99e3f750dfe8b4acdc9cc638cb97c3e55bc9fa214333400ec5",
+          "evidence": [
+            "Dimensions: 13x21 pixels",
+            "Dimensions: 13x21 pixels"
+          ]
+        }
+      ]
+    }
+  }
+]

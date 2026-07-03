@@ -1,0 +1,6 @@
+# Source: media/photo.jpg
+# File ID: sha256:e11b9d9763dbcc461fc6aea37579d5b2319f9d56818586c2705c3f07d46e0f89
+# Parsed by: Jikji
+
+# Image: photo.jpg
+Format: JPEG

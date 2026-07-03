@@ -1,0 +1,19 @@
+{
+  "author": "",
+  "created": "<TIMESTAMP>",
+  "exif": {},
+  "file_id": "sha256:e239552e4ba8389acea4d6b4d076222a81b4caedc7ed16f4106b0f6479c75318",
+  "modified": "<TIMESTAMP>",
+  "office": {},
+  "page_count": null,
+  "parser": {
+    "parse_status": "success",
+    "summary": "# SQLite database: notes.sqlite ## Table: notes Columns: id, title, body 1 | Research | sqlitebodytoken-3301 inside row",
+    "text_cache_path": ".jikji/doc_text/sha256_e239552e4ba8389acea4d6b4d076222a81b4caedc7ed16f4106b0f6479c75318.txt"
+  },
+  "path": "notes.sqlite",
+  "schema_version": 1,
+  "source": "jikji",
+  "subject": "",
+  "title": ""
+}

@@ -21,13 +21,13 @@ deterministic core → defer media → keep Python until parity).
 The default index requires no embeddings, no LLM, and no cloud (README, "Why It
 Saves Calls"). The deterministic pipeline that must port is:
 
-1. **Scan** — `src/jikji/scanner.py`: walk the root, collect path/size/mtime;
+1. **Scan** — `python/jikji/src/jikji/scanner.py`: walk the root, collect path/size/mtime;
    the content-free `source_tree_signature` (relative path + size + `mtime_ns`
    only; see `docs/schema.md`) is then computed in `agent_index.py`
    (`_tree_signature_from_paths`).
-2. **Parse** — `src/jikji/parsers/*`: extension-dispatched text extraction
+2. **Parse** — `python/jikji/src/jikji/parsers/*`: extension-dispatched text extraction
    (`registry.py` `SUPPORTED_EXTENSIONS`) into `.jikji/doc_text/`.
-3. **Index** — `src/jikji/search_index.py` + `agent_index.py`: fielded BM25 over
+3. **Index** — `python/jikji/src/jikji/search_index.py` + `agent_index.py`: fielded BM25 over
    `path`, `name`, `ext`, `body`, `meta`, `semantic`, persisted to
    `.jikji/search_index.sqlite` (rebuildable, not source of truth).
 4. **Graph / wiki** — `llm_wiki.py`, `graph_query.py`: deterministic local wiki

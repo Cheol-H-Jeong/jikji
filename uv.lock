@@ -6,6 +6,11 @@ resolution-markers = [
     "python_full_version < '3.12'",
 ]
 
+[manifest]
+members = [
+    "jikji",
+]
+
 [[package]]
 name = "annotated-doc"
 version = "0.0.4"
@@ -277,7 +282,7 @@ wheels = [
 [[package]]
 name = "jikji"
 version = "0.1.0"
-source = { editable = "." }
+source = { editable = "python/jikji" }
 dependencies = [
     { name = "olefile" },
     { name = "openpyxl" },

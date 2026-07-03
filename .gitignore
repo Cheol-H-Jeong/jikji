@@ -1,4 +1,5 @@
 .venv/
+/target/
 __pycache__/
 *.py[cod]
 .pytest_cache/
@@ -7,6 +8,7 @@ __pycache__/
 .jikji/
 000_JIKJI_AGENT_MAP.md
 .jikji_agent_map.md
+!tests/golden/python/scenarios/*/artifacts/.jikji_agent_map.md
 .benchmarks/
 .omc/
 .omx/

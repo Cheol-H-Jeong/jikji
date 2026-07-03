@@ -1,0 +1,202 @@
+[
+  {
+    "path": ".jikji/agent_map.md",
+    "sha256": "6b2e02a0745681d1b14e892250a9cd03b701a4f6db8b036f6bc51fc375719690",
+    "bytes": 3301
+  },
+  {
+    "path": ".jikji/agent_routes.md",
+    "sha256": "0782694738dec8146d14daca83bbf7a7afc433c7a43268a627a61fdc9d7d5839",
+    "bytes": 1250
+  },
+  {
+    "path": ".jikji/agent_skill_context.md",
+    "sha256": "b017d4a5c5003eefd7418779b905a7caead60add79ae4d385232b6aac6b1a553",
+    "bytes": 1592
+  },
+  {
+    "path": ".jikji/autorag_manifest.json",
+    "sha256": "4e2fdb096e2d9422cfc3dddcf145b598d45148e5da1a626b8af9cfcf27d8dd19",
+    "bytes": 1040
+  },
+  {
+    "path": ".jikji/chunk_map.jsonl",
+    "sha256": "203f49023108d9769c13d92457202a6edd26a4e9929171690d82a466d5beab9d",
+    "bytes": 5044
+  },
+  {
+    "path": ".jikji/corpus_profile.json",
+    "sha256": "89c83181a030cd66842f4fb47c2956a0dfab8b5a5dd3f15be73015640f7e987e",
+    "bytes": 603
+  },
+  {
+    "path": ".jikji/doc_meta/sha256_68d0a22dc9edc43c50f73de9049bd5a0a9dc5de6a29d51eeda74e919d050cf1d.json",
+    "sha256": "f0ffea3039d932191f5948f14ee520acf38e6d31e89b2f35083511e62d03aecf",
+    "bytes": 676
+  },
+  {
+    "path": ".jikji/doc_meta/sha256_809bee8bea8668bd25efbb3b9ebe5dab9d5c78fb40e29adcd6980a4d260425b9.json",
+    "sha256": "ea040d6fb0f9ad0962bb8604d142a5b6f6330c17aa077bd8e2a14fcb658e3db4",
+    "bytes": 613
+  },
+  {
+    "path": ".jikji/doc_meta/sha256_a3bc8f7eac528bcd867165fa1f23afcdf3c74035a37036dda58407ad5fb57f19.json",
+    "sha256": "12bbda43c724e189cfb1260fb1d874c4eaacaa0502a14fea77ff242e9cc0ff49",
+    "bytes": 685
+  },
+  {
+    "path": ".jikji/doc_meta/sha256_e239552e4ba8389acea4d6b4d076222a81b4caedc7ed16f4106b0f6479c75318.json",
+    "sha256": "f9a3aedd586fbd92d15eaa7b3b0520629a01f07145655e3d5971ebacc3384c6e",
+    "bytes": 651
+  },
+  {
+    "path": ".jikji/doc_meta/sha256_f0dda7b469d0d5b6b1acebd5c6e08bb98183c6a0cc7da3721f0a537e009c2592.json",
+    "sha256": "f6d284629d77ad0b83730b16a8048ef01a8348762d46215be0952600f67f3ef5",
+    "bytes": 599
+  },
+  {
+    "path": ".jikji/doc_meta/sha256_fe5d0ea0d858bc99e3f750dfe8b4acdc9cc638cb97c3e55bc9fa214333400ec5.json",
+    "sha256": "4f3e05fbdb75fed0d587ee286cf60fb46714cf91cca9bb6d58eaeeca5c0802ad",
+    "bytes": 602
+  },
+  {
+    "path": ".jikji/doc_text/sha256_68d0a22dc9edc43c50f73de9049bd5a0a9dc5de6a29d51eeda74e919d050cf1d.txt",
+    "sha256": "a83b58bbe8bed153af6065684be462f77f130dfcabed720c0b1a91381c10f7ca",
+    "bytes": 270
+  },
+  {
+    "path": ".jikji/doc_text/sha256_809bee8bea8668bd25efbb3b9ebe5dab9d5c78fb40e29adcd6980a4d260425b9.txt",
+    "sha256": "244cd4851d8c7ecb7394b762046f5a8ae942f8466e1c6d641808f7942806b678",
+    "bytes": 199
+  },
+  {
+    "path": ".jikji/doc_text/sha256_a3bc8f7eac528bcd867165fa1f23afcdf3c74035a37036dda58407ad5fb57f19.txt",
+    "sha256": "cfdb4e9562b10fac2024bf1e03e6e592c2d7befc00fd18b040ab0b2591cf6a30",
+    "bytes": 279
+  },
+  {
+    "path": ".jikji/doc_text/sha256_e239552e4ba8389acea4d6b4d076222a81b4caedc7ed16f4106b0f6479c75318.txt",
+    "sha256": "6b3ee06f3dbe7fdf475d2371d6e97d91bda3e224e6bff2983264338408d88b18",
+    "bytes": 245
+  },
+  {
+    "path": ".jikji/doc_text/sha256_f0dda7b469d0d5b6b1acebd5c6e08bb98183c6a0cc7da3721f0a537e009c2592.txt",
+    "sha256": "b1f5693a53ed5019300aded1e361d40e5dd30806f753e4d86f3d7ee31b65d29c",
+    "bytes": 193
+  },
+  {
+    "path": ".jikji/doc_text/sha256_fe5d0ea0d858bc99e3f750dfe8b4acdc9cc638cb97c3e55bc9fa214333400ec5.txt",
+    "sha256": "67cd2fc985532e4186765f28524039949b0ce0adcc2cc870b27ad20761197135",
+    "bytes": 196
+  },
+  {
+    "path": ".jikji/document_index.jsonl",
+    "sha256": "05427b1233162d84b97e4cd3db9117f4ddd319087e8a3ee4af7531e269a9eb02",
+    "bytes": 7758
+  },
+  {
+    "path": ".jikji/duplicate_map.jsonl",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0
+  },
+  {
+    "path": ".jikji/file_cards.jsonl",
+    "sha256": "f4ec2d2e1792f3b5df616f9185185091a91bc9c78777d27710d751ce47ce4f4c",
+    "bytes": 12408
+  },
+  {
+    "path": ".jikji/file_index.jsonl",
+    "sha256": "bb2cd9b4df885119fff5e9aea3a67b0908edae2aec029444c338c0b75230b8cb",
+    "bytes": 7242
+  },
+  {
+    "path": ".jikji/folder_index.jsonl",
+    "sha256": "5693d1cd60a95771c429f976f08fa76c28ed9fd464735c90d19ecea1ad787b6d",
+    "bytes": 470
+  },
+  {
+    "path": ".jikji/folder_profile.jsonl",
+    "sha256": "aba73f2ae87f0007557ef6d1481f0f53325ed9181d3573412a99c8c0d0247c5e",
+    "bytes": 290
+  },
+  {
+    "path": ".jikji/graph_routes.jsonl",
+    "sha256": "68c1faa9ce6558fb46f3cbd770c9c784c98cbe0a269344cd3720773dd437cbb8",
+    "bytes": 3404
+  },
+  {
+    "path": ".jikji/human_guide.md",
+    "sha256": "f44569d98959ed5fdbd19ad46b5f5263ebd371512b87f5966b61defbec3bcbd4",
+    "bytes": 378
+  },
+  {
+    "path": ".jikji/intent_taxonomy.json",
+    "sha256": "7ca5dbde4bd3be1d38e8a34069c23cf4ed7e39481b47858bd5d68865389d56d7",
+    "bytes": 1157
+  },
+  {
+    "path": ".jikji/knowledge_graph.json",
+    "sha256": "871168442e8009aeb146a70158ea6e450d636784d50043237d57b494c74c69b0",
+    "bytes": 22267
+  },
+  {
+    "path": ".jikji/llm_wiki_schema.md",
+    "sha256": "c66f550da0bb0fd2981f6490364a3ada01898cd8ba18103851f431ede6f4b100",
+    "bytes": 861
+  },
+  {
+    "path": ".jikji/manifest.json",
+    "sha256": "05c24b1fa01d0b1a840bb4e9271edbc4dc7c3e044324b538831235c7b20cf607",
+    "bytes": 3464
+  },
+  {
+    "path": ".jikji/parse_errors.jsonl",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0
+  },
+  {
+    "path": ".jikji/search_index.sqlite",
+    "sha256": "<BINARY_ARTIFACT>",
+    "bytes": 143360
+  },
+  {
+    "path": ".jikji/wiki/index.md",
+    "sha256": "3bae5c3c1d2586187728d8ab3adf5b42c14ade71895c5c3aac979f4555192c79",
+    "bytes": 1698
+  },
+  {
+    "path": ".jikji/wiki/sources/book-e8fdb0f7ae45.md",
+    "sha256": "fb4de78240f9573824752340c03b4d1521b08b3f5a61f0071d388a8bb24f8a38",
+    "bytes": 1001
+  },
+  {
+    "path": ".jikji/wiki/sources/bundle-5e7f783b2ce8.md",
+    "sha256": "6e73d0b7bf0bbfc3d5c4da1a0754ae500ac900fc4dc677700fe7495353382a33",
+    "bytes": 878
+  },
+  {
+    "path": ".jikji/wiki/sources/calendar-3c5b5e259db6.md",
+    "sha256": "5631c6b59c58c87daf222d50a40a634fdc767fbcd60dc7c9351775fa3f4ac27f",
+    "bytes": 1124
+  },
+  {
+    "path": ".jikji/wiki/sources/mail-d7167cfeecba.md",
+    "sha256": "6f192f9fdaf386d106fab455a322bb55ef041d2a00cebb2939b85045de89a8c3",
+    "bytes": 1148
+  },
+  {
+    "path": ".jikji/wiki/sources/notes-7eb1564a02ab.md",
+    "sha256": "09d6a0cd34ca57f60101369ee691cc56b531dbede95482075b56e3c1f100bc70",
+    "bytes": 1089
+  },
+  {
+    "path": ".jikji/wiki/sources/visual-5e32e7e2cbf6.md",
+    "sha256": "4d523346fc012b897697a1a9890a0ac6739f2435a06f9b0c402ba5bd5f3e9544",
+    "bytes": 902
+  },
+  {
+    "path": ".jikji_agent_map.md",
+    "sha256": "6f21c0f8e4d1fc57317aa9a3327b10bbeefb9f011eaa93960bbfb143dab1aca3",
+    "bytes": 554
+  }
+]

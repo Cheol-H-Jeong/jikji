@@ -1,0 +1,22 @@
+{
+  "autorag_readiness": {
+    "document_card_coverage": 0.0,
+    "has_chunk_map": true,
+    "has_duplicate_map": false,
+    "has_file_cards": true
+  },
+  "chunks": 1,
+  "documents": 0,
+  "duplicate_groups": 0,
+  "file_cards": 1,
+  "files": 1,
+  "folders": 1,
+  "parse_status_counts": {
+    "native_text": 1
+  },
+  "root": "<SCENARIO_ROOT>",
+  "schema_version": 1,
+  "top_extensions": {
+    ".txt": 1
+  }
+}

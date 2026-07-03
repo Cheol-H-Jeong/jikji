@@ -1,0 +1,8 @@
+# Source: notes.sqlite
+# File ID: sha256:e239552e4ba8389acea4d6b4d076222a81b4caedc7ed16f4106b0f6479c75318
+# Parsed by: Jikji
+
+# SQLite database: notes.sqlite
+## Table: notes
+Columns: id, title, body
+1 | Research | sqlitebodytoken-3301 inside row

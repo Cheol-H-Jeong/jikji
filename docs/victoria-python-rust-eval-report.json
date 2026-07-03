@@ -1,0 +1,98 @@
+{
+  "dataset": "<hippocamp-victoria-subset>/Victoria_Subset",
+  "annotation": "<hippocamp-victoria-subset>/Victoria_Subset.json",
+  "eval_code": "python_jikji.hippocamp.run_benchmark",
+  "rust_under_test": "target/release/jikji",
+  "cases": 11,
+  "top_k": 10,
+  "metrics": {
+    "python_jikji": {
+      "cases": 11,
+      "top_k": 10,
+      "hit_at_1": 0.7273,
+      "hit_at_3": 0.8182,
+      "hit_at_5": 0.9091,
+      "hit_at_10": 1.0,
+      "set_recall_at_5": 0.5455,
+      "set_recall_at_10": 0.6121,
+      "set_precision_at_5": 0.5273,
+      "set_precision_at_10": 0.4364,
+      "hash_or_exact_hit_at_5": 0.9091,
+      "hash_or_exact_hit_at_10": 1.0,
+      "duplicate_or_exact_hit_at_5": 0.9091,
+      "duplicate_or_exact_hit_at_10": 1.0,
+      "mrr": 0.8056,
+      "by_scenario": {
+        "hippocamp_factual_retention": {
+          "cases": 5,
+          "hit_at_1": 0.6,
+          "hit_at_5": 1.0,
+          "hit_at_10": 1.0,
+          "set_recall_at_5": 0.56,
+          "set_recall_at_10": 0.8133,
+          "hash_or_exact_hit_at_10": 1.0,
+          "duplicate_or_exact_hit_at_10": 1.0,
+          "mrr": 0.75
+        },
+        "hippocamp_profiling": {
+          "cases": 6,
+          "hit_at_1": 0.8333,
+          "hit_at_5": 0.8333,
+          "hit_at_10": 1.0,
+          "set_recall_at_5": 0.5333,
+          "set_recall_at_10": 0.4444,
+          "hash_or_exact_hit_at_10": 1.0,
+          "duplicate_or_exact_hit_at_10": 1.0,
+          "mrr": 0.8519
+        }
+      },
+      "seconds": 0.413
+    },
+    "rust_jikji": {
+      "cases": 11,
+      "top_k": 10,
+      "hit_at_1": 0.7273,
+      "hit_at_3": 0.8182,
+      "hit_at_5": 0.9091,
+      "hit_at_10": 1.0,
+      "set_recall_at_5": 0.6727,
+      "set_recall_at_10": 0.6545,
+      "set_precision_at_5": 0.6545,
+      "set_precision_at_10": 0.4455,
+      "hash_or_exact_hit_at_5": 0.9091,
+      "hash_or_exact_hit_at_10": 1.0,
+      "duplicate_or_exact_hit_at_5": 0.9091,
+      "duplicate_or_exact_hit_at_10": 1.0,
+      "mrr": 0.8061,
+      "by_scenario": {
+        "hippocamp_factual_retention": {
+          "cases": 5,
+          "hit_at_1": 0.8,
+          "hit_at_5": 1.0,
+          "hit_at_10": 1.0,
+          "set_recall_at_5": 0.8,
+          "set_recall_at_10": 0.9667,
+          "hash_or_exact_hit_at_10": 1.0,
+          "duplicate_or_exact_hit_at_10": 1.0,
+          "mrr": 0.9
+        },
+        "hippocamp_profiling": {
+          "cases": 6,
+          "hit_at_1": 0.6667,
+          "hit_at_5": 0.8333,
+          "hit_at_10": 1.0,
+          "set_recall_at_5": 0.5667,
+          "set_recall_at_10": 0.3944,
+          "hash_or_exact_hit_at_10": 1.0,
+          "duplicate_or_exact_hit_at_10": 1.0,
+          "mrr": 0.7278
+        }
+      },
+      "seconds": 0.495
+    }
+  },
+  "reports": {
+    "python": "docs/victoria-python-rust-eval-report.python-report.json",
+    "rust": "docs/victoria-python-rust-eval-report.rust-report.json"
+  }
+}

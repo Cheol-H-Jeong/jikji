@@ -33,11 +33,12 @@ Keep annotations and eval sets outside the benchmark root. Jikji refuses
 no-leak benchmarks when answer files such as `*_Subset.json`,
 `*.annotation.json`, or `*_eval_set.jsonl` are visible inside the root.
 
-Then prepare Jikji and import HippoCamp's QA annotations:
+Then prepare Jikji and import HippoCamp's QA annotations with the Python Jikji
+benchmark adapter:
 
 ```bash
-jikji prepare ./benchmarks/hippocamp/Adam_Subset --json
-jikji hippocamp-import ./benchmarks/hippocamp/Adam_Subset \
+python3 -m jikji.__main__ prepare ./benchmarks/hippocamp/Adam_Subset --json
+python3 -m jikji.__main__ hippocamp-import ./benchmarks/hippocamp/Adam_Subset \
   --annotation ./benchmarks/hippocamp/Adam_Subset.annotation.json \
   --cases 200 \
   --json
@@ -46,7 +47,7 @@ jikji hippocamp-import ./benchmarks/hippocamp/Adam_Subset \
 Run the raw-vs-Jikji benchmark:
 
 ```bash
-jikji bench-run ./benchmarks/hippocamp/Adam_Subset \
+python3 -m jikji.__main__ bench-run ./benchmarks/hippocamp/Adam_Subset \
   --eval-set ./benchmarks/hippocamp/Adam_Subset_hippocamp_eval_set.jsonl \
   --modes raw,jikji \
   --json

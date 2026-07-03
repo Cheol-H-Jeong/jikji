@@ -1,0 +1,387 @@
+{
+  "edges": [
+    {
+      "dst": "source:73762198dcc0aa6a",
+      "kind": "folder_contains_source",
+      "src": "folder:71ab8b6afb1bae3d",
+      "weight": 1.0
+    },
+    {
+      "dst": "source:284e7dc49448cf92",
+      "kind": "folder_contains_source",
+      "src": "folder:feccdc2efacb8d85",
+      "weight": 1.0
+    },
+    {
+      "dst": "intent:점검자료",
+      "kind": "folder_has_intent",
+      "src": "folder:feccdc2efacb8d85",
+      "weight": 0.7
+    },
+    {
+      "dst": "folder:3a52ce780950d4d9",
+      "kind": "contains_folder",
+      "src": "root",
+      "weight": 1.0
+    },
+    {
+      "dst": "folder:71ab8b6afb1bae3d",
+      "kind": "contains_folder",
+      "src": "root",
+      "weight": 1.0
+    },
+    {
+      "dst": "folder:feccdc2efacb8d85",
+      "kind": "contains_folder",
+      "src": "root",
+      "weight": 1.0
+    },
+    {
+      "dst": "source:284e7dc49448cf92",
+      "kind": "contains_source",
+      "src": "root",
+      "weight": 1.0
+    },
+    {
+      "dst": "source:73762198dcc0aa6a",
+      "kind": "contains_source",
+      "src": "root",
+      "weight": 1.0
+    },
+    {
+      "dst": "intent:점검자료",
+      "kind": "has_intent",
+      "src": "source:284e7dc49448cf92",
+      "weight": 0.9
+    },
+    {
+      "dst": "duplicate:sha256_6c417508e099615239d9c401377f999f9f6602d931c4178d5e13dbf5e1b905ec",
+      "kind": "member_of_duplicate_group",
+      "src": "source:284e7dc49448cf92",
+      "weight": 0.8
+    },
+    {
+      "dst": "term:cjk-marker-902",
+      "kind": "mentions",
+      "src": "source:284e7dc49448cf92",
+      "weight": 0.9688
+    },
+    {
+      "dst": "term:contains",
+      "kind": "mentions",
+      "src": "source:284e7dc49448cf92",
+      "weight": 0.625
+    },
+    {
+      "dst": "term:구소",
+      "kind": "mentions",
+      "src": "source:284e7dc49448cf92",
+      "weight": 0.75
+    },
+    {
+      "dst": "term:록t",
+      "kind": "mentions",
+      "src": "source:284e7dc49448cf92",
+      "weight": 0.7188
+    },
+    {
+      "dst": "term:록tx",
+      "kind": "mentions",
+      "src": "source:284e7dc49448cf92",
+      "weight": 0.8438
+    },
+    {
+      "dst": "term:록txt",
+      "kind": "mentions",
+      "src": "source:284e7dc49448cf92",
+      "weight": 0.9375
+    },
+    {
+      "dst": "term:서울",
+      "kind": "mentions",
+      "src": "source:284e7dc49448cf92",
+      "weight": 0.6875
+    },
+    {
+      "dst": "term:연구",
+      "kind": "mentions",
+      "src": "source:284e7dc49448cf92",
+      "weight": 0.6562
+    },
+    {
+      "dst": "term:연구소",
+      "kind": "mentions",
+      "src": "source:284e7dc49448cf92",
+      "weight": 0.8125
+    },
+    {
+      "dst": "term:의록t",
+      "kind": "mentions",
+      "src": "source:284e7dc49448cf92",
+      "weight": 0.7812
+    },
+    {
+      "dst": "term:의록tx",
+      "kind": "mentions",
+      "src": "source:284e7dc49448cf92",
+      "weight": 0.9062
+    },
+    {
+      "dst": "term:회의록t",
+      "kind": "mentions",
+      "src": "source:284e7dc49448cf92",
+      "weight": 0.875
+    },
+    {
+      "dst": "duplicate:sha256_d8518733fbfc1404ea57241271f0baeb95a97a243475202d605fae36f92a9462",
+      "kind": "member_of_duplicate_group",
+      "src": "source:73762198dcc0aa6a",
+      "weight": 0.8
+    },
+    {
+      "dst": "term:acme",
+      "kind": "mentions",
+      "src": "source:73762198dcc0aa6a",
+      "weight": 0.75
+    },
+    {
+      "dst": "term:acme-contract.txt",
+      "kind": "mentions",
+      "src": "source:73762198dcc0aa6a",
+      "weight": 0.9688
+    },
+    {
+      "dst": "term:answer",
+      "kind": "mentions",
+      "src": "source:73762198dcc0aa6a",
+      "weight": 0.8125
+    },
+    {
+      "dst": "term:contains",
+      "kind": "mentions",
+      "src": "source:73762198dcc0aa6a",
+      "weight": 0.7188
+    },
+    {
+      "dst": "term:contract",
+      "kind": "mentions",
+      "src": "source:73762198dcc0aa6a",
+      "weight": 0.875
+    },
+    {
+      "dst": "term:direct",
+      "kind": "mentions",
+      "src": "source:73762198dcc0aa6a",
+      "weight": 0.7812
+    },
+    {
+      "dst": "term:direct-answer-771",
+      "kind": "mentions",
+      "src": "source:73762198dcc0aa6a",
+      "weight": 0.9375
+    },
+    {
+      "dst": "term:indemnity",
+      "kind": "mentions",
+      "src": "source:73762198dcc0aa6a",
+      "weight": 0.9062
+    },
+    {
+      "dst": "term:marker",
+      "kind": "mentions",
+      "src": "source:73762198dcc0aa6a",
+      "weight": 0.6875
+    },
+    {
+      "dst": "term:renewal",
+      "kind": "mentions",
+      "src": "source:73762198dcc0aa6a",
+      "weight": 0.8438
+    }
+  ],
+  "nodes": [
+    {
+      "files": 2,
+      "folders": 3,
+      "id": "root",
+      "kind": "corpus",
+      "label": "<SCENARIO_ROOT>"
+    },
+    {
+      "id": "duplicate:sha256_6c417508e099615239d9c401377f999f9f6602d931c4178d5e13dbf5e1b905ec",
+      "kind": "duplicate_group",
+      "label": "sha256_6c417508e099615239d9c401377f999f9f6602d931c4178d5e13dbf5e1b905ec"
+    },
+    {
+      "id": "duplicate:sha256_d8518733fbfc1404ea57241271f0baeb95a97a243475202d605fae36f92a9462",
+      "kind": "duplicate_group",
+      "label": "sha256_d8518733fbfc1404ea57241271f0baeb95a97a243475202d605fae36f92a9462"
+    },
+    {
+      "file_count": 0,
+      "id": "folder:3a52ce780950d4d9",
+      "kind": "folder",
+      "label": ".",
+      "roles": []
+    },
+    {
+      "file_count": 1,
+      "id": "folder:71ab8b6afb1bae3d",
+      "kind": "folder",
+      "label": "docs",
+      "roles": []
+    },
+    {
+      "file_count": 1,
+      "id": "folder:feccdc2efacb8d85",
+      "kind": "folder",
+      "label": "자료",
+      "roles": [
+        "점검자료"
+      ]
+    },
+    {
+      "id": "intent:점검자료",
+      "kind": "intent",
+      "label": "점검자료"
+    },
+    {
+      "ext": ".txt",
+      "id": "source:284e7dc49448cf92",
+      "kind": "source",
+      "label": "자료/회의록.txt",
+      "parse_status": "native_text",
+      "path": "자료/회의록.txt",
+      "preview": "서울 연구소 회의록 contains cjk-marker-902 서울 연구소 회의록 contains cjk-marker-902",
+      "text_cache_path": "",
+      "wiki_path": ".jikji/wiki/sources/회의록-284e7dc49448.md"
+    },
+    {
+      "ext": ".txt",
+      "id": "source:73762198dcc0aa6a",
+      "kind": "source",
+      "label": "docs/acme-contract.txt",
+      "parse_status": "native_text",
+      "path": "docs/acme-contract.txt",
+      "preview": "ACME renewal contract contains indemnity marker direct-answer-771 ACME renewal contract contains indemnity marker direct-answer-771",
+      "text_cache_path": "",
+      "wiki_path": ".jikji/wiki/sources/acme-contract-73762198dcc0.md"
+    },
+    {
+      "id": "term:acme",
+      "kind": "term",
+      "label": "acme"
+    },
+    {
+      "id": "term:acme-contract.txt",
+      "kind": "term",
+      "label": "acme-contract.txt"
+    },
+    {
+      "id": "term:answer",
+      "kind": "term",
+      "label": "answer"
+    },
+    {
+      "id": "term:cjk-marker-902",
+      "kind": "term",
+      "label": "cjk-marker-902"
+    },
+    {
+      "id": "term:contains",
+      "kind": "term",
+      "label": "contains"
+    },
+    {
+      "id": "term:contract",
+      "kind": "term",
+      "label": "contract"
+    },
+    {
+      "id": "term:direct",
+      "kind": "term",
+      "label": "direct"
+    },
+    {
+      "id": "term:direct-answer-771",
+      "kind": "term",
+      "label": "direct-answer-771"
+    },
+    {
+      "id": "term:indemnity",
+      "kind": "term",
+      "label": "indemnity"
+    },
+    {
+      "id": "term:marker",
+      "kind": "term",
+      "label": "marker"
+    },
+    {
+      "id": "term:renewal",
+      "kind": "term",
+      "label": "renewal"
+    },
+    {
+      "id": "term:구소",
+      "kind": "term",
+      "label": "구소"
+    },
+    {
+      "id": "term:록t",
+      "kind": "term",
+      "label": "록t"
+    },
+    {
+      "id": "term:록tx",
+      "kind": "term",
+      "label": "록tx"
+    },
+    {
+      "id": "term:록txt",
+      "kind": "term",
+      "label": "록txt"
+    },
+    {
+      "id": "term:서울",
+      "kind": "term",
+      "label": "서울"
+    },
+    {
+      "id": "term:연구",
+      "kind": "term",
+      "label": "연구"
+    },
+    {
+      "id": "term:연구소",
+      "kind": "term",
+      "label": "연구소"
+    },
+    {
+      "id": "term:의록t",
+      "kind": "term",
+      "label": "의록t"
+    },
+    {
+      "id": "term:의록tx",
+      "kind": "term",
+      "label": "의록tx"
+    },
+    {
+      "id": "term:회의록t",
+      "kind": "term",
+      "label": "회의록t"
+    }
+  ],
+  "root": "<SCENARIO_ROOT>",
+  "schema_version": 1,
+  "source": "jikji deterministic llm-wiki compiler",
+  "stats": {
+    "edges": 33,
+    "folders_linked": 2,
+    "intents": 1,
+    "nodes": 30,
+    "sources": 2,
+    "terms": 21
+  }
+}

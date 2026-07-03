@@ -1,0 +1,10 @@
+# Source: calendar.ics
+# File ID: sha256:a3bc8f7eac528bcd867165fa1f23afcdf3c74035a37036dda58407ad5fb57f19
+# Parsed by: Jikji
+
+# Calendar: calendar.ics
+## VEVENT
+SUMMARY: Design sync uniquecalendar991
+DTSTART: 20260526T090000Z
+LOCATION: Seoul lab
+DESCRIPTION: Calendar body marker

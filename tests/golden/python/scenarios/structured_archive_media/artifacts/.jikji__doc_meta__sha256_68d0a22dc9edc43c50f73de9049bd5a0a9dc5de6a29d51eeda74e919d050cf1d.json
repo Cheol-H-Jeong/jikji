@@ -1,0 +1,19 @@
+{
+  "author": "",
+  "created": "<TIMESTAMP>",
+  "exif": {},
+  "file_id": "sha256:68d0a22dc9edc43c50f73de9049bd5a0a9dc5de6a29d51eeda74e919d050cf1d",
+  "modified": "<TIMESTAMP>",
+  "office": {},
+  "page_count": null,
+  "parser": {
+    "parse_status": "success",
+    "summary": "# Email: mail.eml Subject: Alpha Project Handoff From: sender@example.com To: receiver@example.com # Body The launch code marker is emailtoken-7742.",
+    "text_cache_path": ".jikji/doc_text/sha256_68d0a22dc9edc43c50f73de9049bd5a0a9dc5de6a29d51eeda74e919d050cf1d.txt"
+  },
+  "path": "mail.eml",
+  "schema_version": 1,
+  "source": "jikji",
+  "subject": "",
+  "title": ""
+}

@@ -1,0 +1,881 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Rust Jikji parity and benchmark report with CI, recall, latency, and agent-search performance evidence." />
+  <title>Jikji Rust port benchmark report</title>
+  <style>
+    :root {
+      --bg: #070a0f;
+      --surface: #0d1219;
+      --surface-2: #111923;
+      --line: #283545;
+      --line-soft: rgba(40, 53, 69, 0.66);
+      --text: #eef5fb;
+      --muted: #9eacba;
+      --muted-2: #697887;
+      --cyan: #69d2f8;
+      --green: #64e69f;
+      --amber: #f4c35f;
+      --danger: #f26d6d;
+      --shadow: rgba(0, 0, 0, 0.28);
+      color-scheme: dark;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans KR", sans-serif;
+      font-variant-numeric: tabular-nums;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      background:
+        linear-gradient(180deg, rgba(105, 210, 248, 0.06), transparent 260px),
+        radial-gradient(circle at 70% 0%, rgba(100, 230, 159, 0.08), transparent 30rem),
+        var(--bg);
+      color: var(--text);
+      font-size: 16px;
+      line-height: 1.58;
+    }
+
+    a {
+      color: inherit;
+      text-decoration-thickness: 1px;
+      text-underline-offset: 3px;
+    }
+
+    .shell {
+      width: min(1280px, calc(100% - 32px));
+      margin: 0 auto;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      border-bottom: 1px solid var(--line);
+      background: rgba(7, 10, 15, 0.86);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+    }
+
+    .topbar-inner {
+      display: flex;
+      min-height: 68px;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 850;
+      letter-spacing: 0.02em;
+    }
+
+    .mark {
+      display: grid;
+      width: 34px;
+      height: 34px;
+      place-items: center;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface-2);
+      color: var(--green);
+      font-weight: 900;
+    }
+
+    nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    nav a {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 7px 10px;
+      background: var(--surface);
+      color: var(--muted);
+      font-size: 13px;
+      text-decoration: none;
+      transition: color 160ms ease, border-color 160ms ease, transform 160ms ease;
+    }
+
+    nav a:hover {
+      border-color: var(--cyan);
+      color: var(--cyan);
+      transform: translateY(-1px);
+    }
+
+    main {
+      padding-bottom: 54px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(360px, 0.9fr);
+      gap: 24px;
+      align-items: stretch;
+      min-height: 78dvh;
+      padding: 54px 0 34px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .hero-copy {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      min-width: 0;
+    }
+
+    .eyebrow {
+      width: fit-content;
+      margin: 0 0 14px;
+      border: 1px solid color-mix(in srgb, var(--green) 48%, transparent);
+      border-radius: 6px;
+      padding: 5px 8px;
+      color: var(--green);
+      font-size: 12px;
+      font-weight: 850;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin-top: 0;
+    }
+
+    h1 {
+      max-width: 880px;
+      margin-bottom: 18px;
+      font-size: clamp(38px, 6vw, 78px);
+      line-height: 0.98;
+      letter-spacing: 0;
+      overflow-wrap: anywhere;
+      text-wrap: balance;
+    }
+
+    h1 span {
+      color: var(--amber);
+    }
+
+    .lead {
+      max-width: 760px;
+      margin-bottom: 0;
+      color: var(--muted);
+      font-size: clamp(17px, 2vw, 21px);
+      overflow-wrap: anywhere;
+      word-break: keep-all;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 28px;
+    }
+
+    .button {
+      display: inline-flex;
+      min-height: 42px;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 9px 13px;
+      background: var(--surface-2);
+      color: var(--text);
+      font-weight: 850;
+      text-decoration: none;
+      transition: transform 160ms ease, border-color 160ms ease;
+    }
+
+    .button:hover {
+      transform: translateY(-1px);
+      border-color: var(--cyan);
+    }
+
+    .button.primary {
+      border-color: color-mix(in srgb, var(--green) 58%, transparent);
+      background: #10251d;
+      color: var(--green);
+    }
+
+    .preview {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: linear-gradient(180deg, rgba(17, 25, 35, 0.94), rgba(8, 11, 16, 0.96));
+      box-shadow: 0 22px 80px var(--shadow);
+    }
+
+    .tabs {
+      display: flex;
+      gap: 4px;
+      overflow-x: auto;
+      border-bottom: 1px solid var(--line);
+      padding: 10px;
+    }
+
+    .tab {
+      flex: 0 0 auto;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 7px 9px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 750;
+    }
+
+    .tab.active {
+      border-color: color-mix(in srgb, var(--amber) 48%, transparent);
+      color: var(--amber);
+    }
+
+    .preview-body {
+      display: grid;
+      gap: 12px;
+      padding: 16px;
+    }
+
+    .scoreline {
+      display: grid;
+      grid-template-columns: 94px 1fr 82px;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .scoreline span {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 760;
+    }
+
+    .bar {
+      height: 9px;
+      overflow: hidden;
+      border-radius: 99px;
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .bar i {
+      display: block;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--cyan), var(--green));
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 6px;
+    }
+
+    .stat {
+      min-width: 0;
+      border: 1px solid var(--line-soft);
+      border-radius: 8px;
+      padding: 12px;
+      background: rgba(255, 255, 255, 0.025);
+    }
+
+    .stat small {
+      display: block;
+      color: var(--muted-2);
+      font-size: 12px;
+      font-weight: 740;
+    }
+
+    .stat strong {
+      display: block;
+      margin-top: 4px;
+      color: var(--green);
+      font-size: 23px;
+      line-height: 1.1;
+    }
+
+    section {
+      padding: 42px 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .section-head {
+      display: grid;
+      grid-template-columns: minmax(0, 0.78fr) minmax(280px, 0.42fr);
+      gap: 18px;
+      align-items: end;
+      margin-bottom: 20px;
+    }
+
+    h2 {
+      margin-bottom: 8px;
+      font-size: clamp(28px, 3.6vw, 44px);
+      line-height: 1.05;
+      letter-spacing: 0;
+      text-wrap: balance;
+    }
+
+    .sub {
+      color: var(--muted);
+      word-break: keep-all;
+    }
+
+    .source {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px 12px;
+      background: var(--surface);
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .card {
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 15px;
+      background: var(--surface-2);
+    }
+
+    .card small {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 780;
+    }
+
+    .card strong {
+      display: block;
+      margin-top: 6px;
+      color: var(--green);
+      font-size: clamp(23px, 3vw, 34px);
+      line-height: 1.06;
+    }
+
+    .card .caption {
+      margin-top: 8px;
+      color: var(--muted-2);
+      font-size: 13px;
+    }
+
+    .tablewrap {
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface-2);
+    }
+
+    table {
+      width: 100%;
+      min-width: 900px;
+      border-collapse: collapse;
+    }
+
+    th,
+    td {
+      border-bottom: 1px solid var(--line);
+      padding: 10px 12px;
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    th:first-child,
+    td:first-child,
+    th:nth-child(2),
+    td:nth-child(2) {
+      text-align: left;
+    }
+
+    th {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 820;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .jikji td {
+      background: rgba(100, 230, 159, 0.055);
+    }
+
+    .good {
+      color: var(--green);
+    }
+
+    .warn {
+      color: var(--amber);
+    }
+
+    .bad {
+      color: var(--danger);
+    }
+
+    .split {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(320px, 0.8fr);
+      gap: 14px;
+    }
+
+    .note {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 15px;
+      background: var(--surface);
+      color: var(--muted);
+    }
+
+    .note strong {
+      color: var(--text);
+    }
+
+    pre {
+      margin: 0;
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      background: #05080c;
+      color: #d8e7f1;
+      font: 13px/1.55 "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    }
+
+    code {
+      color: var(--cyan);
+    }
+
+    .footer {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 28px 0 58px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        scroll-behavior: auto !important;
+        transition: none !important;
+      }
+    }
+
+    @media (max-width: 980px) {
+      .hero,
+      .section-head,
+      .split {
+        grid-template-columns: 1fr;
+      }
+
+      .hero {
+        min-height: auto;
+      }
+
+      h1 {
+        max-width: calc(100vw - 32px);
+        font-size: clamp(28px, 6vw, 38px);
+        line-height: 1.06;
+      }
+
+      nav {
+        display: grid;
+        width: 100%;
+        grid-template-columns: minmax(0, 1fr);
+        justify-content: flex-start;
+      }
+
+      nav a {
+        min-width: 0;
+        text-align: center;
+        overflow-wrap: anywhere;
+      }
+
+      .cards {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 640px) {
+      .shell {
+        width: min(100% - 24px, 1280px);
+      }
+
+      .topbar-inner {
+        align-items: flex-start;
+        flex-direction: column;
+        padding: 14px 0;
+      }
+
+      h1 {
+        font-size: 32px;
+      }
+
+      .cards,
+      .stat-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .scoreline {
+        grid-template-columns: 74px 1fr 62px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="shell topbar-inner">
+      <a class="brand" href="./index.html" aria-label="Jikji home">
+        <span class="mark">직</span>
+        <span>Jikji Rust report</span>
+      </a>
+      <nav aria-label="Report sections">
+        <a href="#parity">Parity</a>
+        <a href="#latency">Latency</a>
+        <a href="#recall">Recall</a>
+        <a href="#agent">Agent benchmarks</a>
+        <a href="./jikji-benchmarks.html">Full ledger</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="shell">
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">Cross-OS Rust port evidence</p>
+        <h1>Core CLI parity is clean. Search recall is <span>restored</span>.</h1>
+        <p class="lead">Jikji Rust keeps the Python contract for prepare, search, find, clean, doctor, maps, parser caches, and agent surfaces. A follow-up HippoCamp audit now uses the Python evaluator for both implementations; Rust Hit@1, Hit@10, and MRR are restored on the Victoria subset.</p>
+        <div class="actions">
+          <a class="button primary" href="#latency">View timing delta</a>
+          <a class="button" href="#recall">View recall metrics</a>
+          <a class="button" href="./ci-parity-benchmark-2026-06-29.md">Source markdown</a>
+        </div>
+      </div>
+
+      <aside class="preview" aria-label="Summary score panel">
+        <div class="tabs" role="list">
+          <span class="tab active" role="listitem">Parity</span>
+          <span class="tab" role="listitem">Latency</span>
+          <span class="tab" role="listitem">Recall</span>
+          <span class="tab" role="listitem">CI</span>
+        </div>
+        <div class="preview-body">
+          <div class="scoreline">
+            <span>CI matrix</span>
+            <span class="bar" aria-hidden="true"><i style="width: 100%"></i></span>
+            <span class="good">PASS</span>
+          </div>
+          <div class="scoreline">
+            <span>Parity</span>
+            <span class="bar" aria-hidden="true"><i style="width: 100%"></i></span>
+            <span class="good">PASS</span>
+          </div>
+          <div class="scoreline">
+            <span>Prepare</span>
+            <span class="bar" aria-hidden="true"><i style="width: 93%"></i></span>
+            <span class="good">14.1x</span>
+          </div>
+          <div class="scoreline">
+            <span>Search</span>
+            <span class="bar" aria-hidden="true"><i style="width: 95%"></i></span>
+            <span class="good">22.5x</span>
+          </div>
+          <div class="stat-grid">
+            <div class="stat">
+              <small>Rust prepare</small>
+              <strong>0.0076s</strong>
+            </div>
+            <div class="stat">
+              <small>Rust HippoCamp Hit@10</small>
+              <strong>1.0000</strong>
+            </div>
+            <div class="stat">
+              <small>Fullset call reduction</small>
+              <strong>-91.42%</strong>
+            </div>
+            <div class="stat">
+              <small>Fullset seconds reduction</small>
+              <strong>-96.27%</strong>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </section>
+
+    <section id="parity">
+      <div class="section-head">
+        <div>
+          <h2>Feature parity status</h2>
+          <p class="sub">The Rust binary was compared against the original Python Jikji using the golden parity fixtures. Contract failures were zero.</p>
+        </div>
+        <div class="source">Source: <code>tools/parity/run_rust_vs_python.py</code> with fixtures under <code>tests/golden</code>.</div>
+      </div>
+      <div class="cards">
+        <div class="card">
+          <small>Parity result</small>
+          <strong>PASS</strong>
+          <div class="caption">No JSON/schema/ranking contract failures.</div>
+        </div>
+        <div class="card">
+          <small>Known non-parity</small>
+          <strong>0 blockers</strong>
+          <div class="caption">Only prose/cache bytes and wiki slug hashes differ by implementation.</div>
+        </div>
+        <div class="card">
+          <small>CI matrix</small>
+          <strong>3 OS pass</strong>
+          <div class="caption">Windows, macOS, Ubuntu completed on GitHub Actions.</div>
+        </div>
+        <div class="card">
+          <small>Rust smoke</small>
+          <strong>cargo clean</strong>
+          <div class="caption">fmt, clippy, tests, docs, command smoke passed in CI.</div>
+        </div>
+      </div>
+    </section>
+
+    <section id="latency">
+      <div class="section-head">
+        <div>
+          <h2>Response speed comparison</h2>
+          <p class="sub">The parity run measured wall-clock command latency for equivalent Python and Rust operations on the same fixtures.</p>
+        </div>
+        <div class="source">Interpretation: Rust is materially faster for the tested prepare/search/find surfaces while preserving the contract.</div>
+      </div>
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Operation</th>
+              <th>Python seconds</th>
+              <th>Rust seconds</th>
+              <th>Speedup</th>
+              <th>Rust reduction</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="jikji">
+              <td><strong>prepare</strong></td>
+              <td>0.106958</td>
+              <td class="good">0.007567</td>
+              <td class="good">14.13x</td>
+              <td class="good">-92.93%</td>
+            </tr>
+            <tr class="jikji">
+              <td><strong>search</strong></td>
+              <td>0.096402</td>
+              <td class="good">0.004280</td>
+              <td class="good">22.52x</td>
+              <td class="good">-95.56%</td>
+            </tr>
+            <tr class="jikji">
+              <td><strong>find</strong></td>
+              <td>0.095795</td>
+              <td class="good">0.005046</td>
+              <td class="good">18.98x</td>
+              <td class="good">-94.73%</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="recall">
+      <div class="section-head">
+        <div>
+          <h2>Recall on recreated HippoCamp subset</h2>
+          <p class="sub">The benchmark used the local Victoria subset under <code>~/Projects/FileOrgBench/data/hippocamp</code>. A follow-up audit removed the Rust evaluator from the comparison: Python Jikji and Rust Jikji are now measured by the same Python HippoCamp evaluator.</p>
+        </div>
+        <div class="source">No network or LLM calls. Deterministic retrieval only; not the full Hermes-agent benchmark.</div>
+      </div>
+      <div class="split">
+        <div class="tablewrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Under test</th>
+                <th>Evaluator</th>
+                <th>Cases</th>
+                <th>Hit@1</th>
+                <th>Hit@5</th>
+                <th>Hit@10</th>
+                <th>MRR</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Python Jikji</strong></td>
+                <td>Python HippoCamp</td>
+                <td>11</td>
+                <td class="good">0.7273</td>
+                <td class="good">0.9091</td>
+                <td class="good">1.0000</td>
+                <td class="good">0.8056</td>
+              </tr>
+              <tr class="jikji">
+                <td><strong>Rust Jikji</strong></td>
+                <td>Python HippoCamp</td>
+                <td>11</td>
+                <td class="good">0.7273</td>
+                <td class="good">0.9091</td>
+                <td class="good">1.0000</td>
+                <td class="good">0.8061</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="note">
+          <strong>Audit finding: recall and top-rank parity are restored.</strong>
+          <p>Rust Jikji is now compared against Python Jikji through the same <code>python_jikji.hippocamp.run_benchmark</code> evaluator. The previous low recall came from Rust search over-weighting generic filename anchors and missing Python-style map rescoring, not from the evaluator.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="agent">
+      <div class="section-head">
+        <div>
+          <h2>Historical agent benchmark context</h2>
+          <p class="sub">These rows are historical agent-facing evidence preserved in the docs. They are not rerun by the Rust parity script, but they define the product bar for local-agent discovery.</p>
+        </div>
+        <div class="source">Sources: <code>hippocamp-rerun-report.md</code> and <code>workspacebench-benchmark.md</code>.</div>
+      </div>
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Benchmark</th>
+              <th>Mode</th>
+              <th>Cases</th>
+              <th>Hit@1</th>
+              <th>Hit@10</th>
+              <th>LLM calls</th>
+              <th>Total tokens</th>
+              <th>Seconds</th>
+              <th>Result</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>HippoCamp Fullset</td>
+              <td>raw Hermes</td>
+              <td>551</td>
+              <td>0.6697</td>
+              <td>0.7786</td>
+              <td>6,420</td>
+              <td>21,296,278</td>
+              <td>31,231.9</td>
+              <td>baseline</td>
+            </tr>
+            <tr class="jikji">
+              <td>HippoCamp Fullset</td>
+              <td><strong>Jikji find</strong></td>
+              <td>551</td>
+              <td class="good">0.7949</td>
+              <td class="good">0.7949</td>
+              <td class="good">551</td>
+              <td class="good">246,316</td>
+              <td class="good">1,164.2</td>
+              <td class="good">accuracy up, cost down</td>
+            </tr>
+            <tr>
+              <td>Workspace-Bench-Lite deterministic</td>
+              <td>raw lexical</td>
+              <td>12</td>
+              <td>0.4167</td>
+              <td>0.8333</td>
+              <td>0</td>
+              <td>0</td>
+              <td>0.115</td>
+              <td>baseline</td>
+            </tr>
+            <tr class="jikji">
+              <td>Workspace-Bench-Lite deterministic</td>
+              <td><strong>Jikji index</strong></td>
+              <td>12</td>
+              <td class="good">0.5833</td>
+              <td class="good">0.9167</td>
+              <td>0</td>
+              <td>0</td>
+              <td class="warn">0.452</td>
+              <td class="good">recall up, diagnostic slower</td>
+            </tr>
+            <tr>
+              <td>Workspace-Bench-Lite agent</td>
+              <td>raw Hermes</td>
+              <td>6</td>
+              <td>1.0000</td>
+              <td>1.0000</td>
+              <td>not reported</td>
+              <td>not reported</td>
+              <td>249.454</td>
+              <td>easy subset</td>
+            </tr>
+            <tr class="jikji">
+              <td>Workspace-Bench-Lite agent</td>
+              <td><strong>Hermes + Jikji</strong></td>
+              <td>6</td>
+              <td class="bad">0.8333</td>
+              <td>1.0000</td>
+              <td>not reported</td>
+              <td>not reported</td>
+              <td class="good">203.742</td>
+              <td class="warn">Hit@5 preserved, faster</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="note" style="margin-top: 14px;">
+        <strong>Headline rule:</strong> Workspace-Bench-Lite agent rows are secondary because Hit@1 dipped on the 6-case easy subset. The public headline remains HippoCamp Fullset, where accuracy and resource usage both improve.
+      </div>
+    </section>
+
+    <section id="reproduce">
+      <div class="section-head">
+        <div>
+          <h2>Reproduce the core parity check</h2>
+          <p class="sub">The command below is the source-of-truth parity comparison used for this Rust-port report.</p>
+        </div>
+        <div class="source">Run from the repository root after building <code>target/release/jikji</code>.</div>
+      </div>
+      <pre>python3 tools/parity/run_rust_vs_python.py \
+  --python-repo <repo> \
+  --rust-bin target/release/jikji \
+  --fixtures tests/golden \
+  --out .omo/evidence/rust-port-workplan/task-08-parity-benchmark.txt</pre>
+    </section>
+  </main>
+
+  <footer class="shell footer">
+    <span>Design read: operator-grade Jikji evidence surface with Jitter-style dark preview panels, tab rail, tight labels, and motion-tool product density.</span>
+    <span><a href="./index.html">Landing</a> · <a href="./jikji-benchmarks.html">Full benchmark ledger</a></span>
+  </footer>
+</body>
+</html>

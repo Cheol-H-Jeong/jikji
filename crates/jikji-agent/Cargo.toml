@@ -1,0 +1,18 @@
+[package]
+name = "jikji-agent"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Agent skill export and routing helper scaffolding for Jikji."
+
+[dependencies]
+jikji-core.workspace = true
+serde.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

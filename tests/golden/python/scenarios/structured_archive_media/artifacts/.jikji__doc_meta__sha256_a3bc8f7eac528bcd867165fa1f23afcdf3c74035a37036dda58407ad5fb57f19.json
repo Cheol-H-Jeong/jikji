@@ -1,0 +1,19 @@
+{
+  "author": "",
+  "created": "<TIMESTAMP>",
+  "exif": {},
+  "file_id": "sha256:a3bc8f7eac528bcd867165fa1f23afcdf3c74035a37036dda58407ad5fb57f19",
+  "modified": "<TIMESTAMP>",
+  "office": {},
+  "page_count": null,
+  "parser": {
+    "parse_status": "success",
+    "summary": "# Calendar: calendar.ics ## VEVENT SUMMARY: Design sync uniquecalendar991 DTSTART: 20260526T090000Z LOCATION: Seoul lab DESCRIPTION: Calendar body marker",
+    "text_cache_path": ".jikji/doc_text/sha256_a3bc8f7eac528bcd867165fa1f23afcdf3c74035a37036dda58407ad5fb57f19.txt"
+  },
+  "path": "calendar.ics",
+  "schema_version": 1,
+  "source": "jikji",
+  "subject": "",
+  "title": ""
+}

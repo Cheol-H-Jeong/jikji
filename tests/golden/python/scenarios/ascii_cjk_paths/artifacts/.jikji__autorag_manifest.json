@@ -1,0 +1,29 @@
+{
+  "artifacts": {
+    "chunk_map": ".jikji/chunk_map.jsonl",
+    "corpus_profile": ".jikji/corpus_profile.json",
+    "doc_text_dir": ".jikji/doc_text",
+    "document_index": ".jikji/document_index.jsonl",
+    "duplicate_map": ".jikji/duplicate_map.jsonl",
+    "file_cards": ".jikji/file_cards.jsonl",
+    "folder_profile": ".jikji/folder_profile.jsonl",
+    "graph_routes": ".jikji/graph_routes.jsonl",
+    "instant_search_index": ".jikji/search_index.sqlite",
+    "knowledge_graph": ".jikji/knowledge_graph.json",
+    "llm_wiki": ".jikji/wiki/index.md"
+  },
+  "capabilities": {
+    "embedding_required": false,
+    "has_chunk_map": true,
+    "has_doc_text": false,
+    "has_duplicate_map": false,
+    "has_file_cards": true,
+    "has_intent_tags": true,
+    "has_knowledge_graph": true,
+    "has_llm_wiki": true,
+    "rag_required": false
+  },
+  "generated_at": "<TIMESTAMP>",
+  "root": "<SCENARIO_ROOT>",
+  "schema_version": 1
+}

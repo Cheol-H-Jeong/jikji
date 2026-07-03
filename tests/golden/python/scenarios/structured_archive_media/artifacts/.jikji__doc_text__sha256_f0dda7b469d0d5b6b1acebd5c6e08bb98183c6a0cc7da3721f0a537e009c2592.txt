@@ -1,0 +1,7 @@
+# Source: book.epub
+# File ID: sha256:f0dda7b469d0d5b6b1acebd5c6e08bb98183c6a0cc7da3721f0a537e009c2592
+# Parsed by: Jikji
+
+# EPUB: book.epub
+## OEBPS/chapter1.xhtml
+epubtoken-8802 appears here.

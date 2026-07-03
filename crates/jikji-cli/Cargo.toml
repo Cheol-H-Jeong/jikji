@@ -1,0 +1,30 @@
+[package]
+name = "jikji-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Command-line entry point for Jikji."
+
+[[bin]]
+name = "jikji"
+path = "src/main.rs"
+
+[dependencies]
+clap.workspace = true
+getrandom.workspace = true
+jikji-agent.workspace = true
+jikji-core.workspace = true
+jikji-index.workspace = true
+jikji-search.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+rusqlite = { version = "0.32", features = ["bundled"] }
+tempfile.workspace = true
+zip = { version = "2", default-features = false, features = ["deflate"] }
+
+[lints]
+workspace = true

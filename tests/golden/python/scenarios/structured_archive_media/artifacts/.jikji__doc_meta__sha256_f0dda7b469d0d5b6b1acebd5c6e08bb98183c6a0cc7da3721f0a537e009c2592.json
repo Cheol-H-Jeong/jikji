@@ -1,0 +1,19 @@
+{
+  "author": "",
+  "created": "<TIMESTAMP>",
+  "exif": {},
+  "file_id": "sha256:f0dda7b469d0d5b6b1acebd5c6e08bb98183c6a0cc7da3721f0a537e009c2592",
+  "modified": "<TIMESTAMP>",
+  "office": {},
+  "page_count": null,
+  "parser": {
+    "parse_status": "success",
+    "summary": "# EPUB: book.epub ## OEBPS/chapter1.xhtml epubtoken-8802 appears here.",
+    "text_cache_path": ".jikji/doc_text/sha256_f0dda7b469d0d5b6b1acebd5c6e08bb98183c6a0cc7da3721f0a537e009c2592.txt"
+  },
+  "path": "book.epub",
+  "schema_version": 1,
+  "source": "jikji",
+  "subject": "",
+  "title": ""
+}

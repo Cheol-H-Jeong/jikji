@@ -1,0 +1,3081 @@
+{
+  "eval_set": "/var/folders/8w/_x12f_056yv_z1x45vr_f2cm0000gp/T/jikji-victoria-shared-eval-w7vwomjk/python-eval/victoria_eval.jsonl",
+  "modes": {
+    "jikji": {
+      "details": [
+        {
+          "duplicate_rank": 1,
+          "expected_paths": [
+            "Documents/Notes/Note_Client_Dinner_Success_Sep2024.txt",
+            "Documents/Notes/Note_Lily_Birthday_Plan_Nov2024.txt",
+            "Documents/Outlook/Archive/Calendar_Event_May10_Personal.ics",
+            "Documents/Outlook/Archive/Email_016.eml",
+            "Documents/Outlook/Archive/Email_018.eml",
+            "Documents/Outlook/Archive/Email_019.eml",
+            "Documents/Outlook/Archive/Email_019_Reply1.eml",
+            "Documents/Outlook/Archive/Email_019_Reply2.eml",
+            "Documents/Outlook/Archive/Email_020.eml",
+            "Documents/Outlook/Calendar_Event_Nov14_Dental.ics",
+            "Documents/Outlook/Drafts/Draft_Email_Mark_Nov14.eml",
+            "Documents/Outlook/Inbox/Dental_Appointment_Reminder.eml",
+            "Documents/Outlook/Inbox/Email_015.eml",
+            "Documents/Outlook/Inbox/Email_017_Reply.eml",
+            "Documents/Outlook/Sent_Items/Email_017.eml",
+            "Documents/Outlook/Sent_Items/Email_021.eml",
+            "Documents/Outlook/Sent_Items/Email_022.eml",
+            "Documents/Outlook/Sent_Items/Email_023.eml",
+            "Downloads/AI_Finance_Summit_Attendees.md",
+            "Pictures/Screenshots/SMS_from_School_Nurse_Mar5.png"
+          ],
+          "hash_rank": 1,
+          "id": "hippocamp_profiling-0001",
+          "query": "What might be a good way for me to spend the afternoon on Friday, November 14, 2025?",
+          "rank": 1,
+          "scenario": "hippocamp_profiling",
+          "top_results": [
+            {
+              "duplicate_group_id": "sha256_39851b3ac572a1204137673b3e55899799070507dac7b521d0a3d429f4765e02",
+              "evidence": [
+                "Subject: Quick question - Fri afternoon pickup",
+                "Subject: Quick question - Fri afternoon pickup",
+                "From: Victoria Clarke <victoria"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "2025",
+                "good",
+                "afternoon",
+                "friday",
+                "14"
+              ],
+              "name": "Draft_Email_Mark_Nov14.eml",
+              "path": "Documents/Outlook/Drafts/Draft_Email_Mark_Nov14.eml",
+              "reasons": [
+                "short-id-in-path",
+                "multi-token-overlap",
+                "compact-exact-term",
+                "chunk-map",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 2989.785
+            },
+            {
+              "duplicate_group_id": "sha256_8f69fd8772d21a5b3429800acbb35fc4a2274661f7f94a2b3e964f13a3db05a5",
+              "evidence": [
+                "Thoughts for 2025-2026 Skill Cycle:",
+                "Thoughts for 2025-2026 Skill Cycle:",
+                "- Dance cycle finishing up"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "2025",
+                "might",
+                "good",
+                "way"
+              ],
+              "name": "Note_Considering_Cat.txt",
+              "path": "Documents/Notes/Note_Considering_Cat.txt",
+              "reasons": [
+                "multi-token-overlap",
+                "compact-exact-term",
+                "contextual-anchor",
+                "body-coverage",
+                "chunk-map",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 2501.653
+            },
+            {
+              "duplicate_group_id": "sha256_39c8fb9b5160ab3c5d68b5d15d5996b83e52dfc95d416558a45bccbc4b1db6bc",
+              "evidence": [
+                "Subject: Appointment Reminder for Lily Clarke - Fri Nov 14 @ 3:00 PM",
+                "Subject: Appointment Reminder for Lily Clarke - Fri Nov 14 @ 3:00 PM",
+                "From: Orchard Dental Clinic <appointments@orcharddental"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "2025",
+                "friday",
+                "november",
+                "14"
+              ],
+              "name": "Dental_Appointment_Reminder.eml",
+              "path": "Documents/Outlook/Inbox/Dental_Appointment_Reminder.eml",
+              "reasons": [
+                "multi-token-overlap",
+                "compact-exact-term",
+                "chunk-map",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 1869.825
+            },
+            {
+              "duplicate_group_id": "sha256_1024457b1fa470cd2d786ab81579591092d50e20c60fb4425bc2d4352293b941",
+              "evidence": [
+                "Subject: URGENT: MAS AI Model Risk Mgmt Paper - Need Briefing",
+                "From: Daniel Chen <daniel",
+                "chen@capitolinvestments"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "2025",
+                "spend",
+                "afternoon",
+                "friday"
+              ],
+              "name": "Email_009.eml",
+              "path": "Documents/Outlook/Inbox/Email_009.eml",
+              "reasons": [
+                "multi-token-overlap",
+                "compact-exact-term",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 1746.328
+            },
+            {
+              "duplicate_group_id": "sha256_e08d224673e50ec76f60ffcc1e7267f290df65bd6205c738fa1dd10fe99b4b35",
+              "evidence": [
+                "Subject: Last Minute Invite: AI in Finance Summit - Networking Reception (Fri Nov 14)",
+                "Subject: Last Minute Invite: AI in Finance Summit - Networking Reception (Fri Nov 14)",
+                "From: AI Finance Summit Organizers <events@aifinancesummit"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "2025",
+                "friday",
+                "november",
+                "14"
+              ],
+              "name": "Email_015.eml",
+              "path": "Documents/Outlook/Inbox/Email_015.eml",
+              "reasons": [
+                "multi-token-overlap",
+                "compact-exact-term",
+                "chunk-map",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 1616.715
+            },
+            {
+              "duplicate_group_id": "sha256_ac8c429d8cf5cbcdb441b2dd2c0df3a0470558858decc194d46e5aff4225604c",
+              "evidence": [
+                "**Goal:** Gain comprehensive understanding of responsible cat ownership requirements (time, cost, care) before making adoption decision",
+                "- Read: SPCA Responsible Pet Ownership Guide, CWS Adoption Care Guide",
+                "- Watched: Jackson Galaxy \"Catification\" videos"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "2025",
+                "way"
+              ],
+              "name": "Pet_Care_Learning_Log.md",
+              "path": "Documents/Pets/Pet_Care_Learning_Log.md",
+              "reasons": [
+                "token-overlap",
+                "compact-exact-term",
+                "contextual-anchor",
+                "body-coverage",
+                "chunk-map",
+                "fielded-bm25"
+              ],
+              "score": 1550.136
+            },
+            {
+              "duplicate_group_id": "sha256_3880c4eac5d316cccb6dc0b67015e5c1ea2d321a410a1b352702d4358925c46c",
+              "evidence": [
+                "Subject: New Coverage Assignment: Apple (AAPL)",
+                "From: Daniel Chen <daniel",
+                "chen@capitolinvestments"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "2025",
+                "november",
+                "14"
+              ],
+              "name": "Email_006.eml",
+              "path": "Documents/Outlook/Inbox/Email_006.eml",
+              "reasons": [
+                "multi-token-overlap",
+                "compact-exact-term",
+                "multi-map-term",
+                "fielded-bm25"
+              ],
+              "score": 1423.547
+            },
+            {
+              "duplicate_group_id": "sha256_42e3a41c482bcb5f5730719d4744d9cfa4ce6b2e449bf59e88806611dea325b4",
+              "evidence": [
+                "Format: MP2/3 (MPEG audio layer 2/3)",
+                "Duration seconds: 3620"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "2025"
+              ],
+              "name": "META Meta Platforms Q2 2025 Earnings Conference Call - EARNMOAR (youtube).mp3",
+              "path": "Meta/META Meta Platforms Q2 2025 Earnings Conference Call - EARNMOAR (youtube).mp3",
+              "reasons": [
+                "short-id-in-path",
+                "doc-type-match",
+                "compact-exact-term",
+                "rare-token-in-name",
+                "fielded-bm25"
+              ],
+              "score": 1350.263
+            },
+            {
+              "duplicate_group_id": "sha256_c4e51aada39fe9a894c610d4848f06b3ab12242171099c48f5bc563fcd1a26ba",
+              "evidence": [
+                "Format: MP2/3 (MPEG audio layer 2/3)",
+                "Duration seconds: 5469"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "2025"
+              ],
+              "name": "WATCH LIVE Meta Platforms Q1 2025 Earnings Call  META - Benzinga (youtube).mp3",
+              "path": "Meta/WATCH LIVE Meta Platforms Q1 2025 Earnings Call  META - Benzinga (youtube).mp3",
+              "reasons": [
+                "short-id-in-path",
+                "doc-type-match",
+                "compact-exact-term",
+                "rare-token-in-name",
+                "fielded-bm25"
+              ],
+              "score": 1340.01
+            },
+            {
+              "duplicate_group_id": "sha256_0863ce5863225928fe744d6c9dc7bd84c993fbe4ee57e1794d30d117b31b3517",
+              "evidence": [
+                "Subject: Important Dates: Term 2 Mid-Term Break (Years 3-6)",
+                "From: Tanglin Trust Junior School Office <junioroffice@tts",
+                "To: Parents of Year 3 - Year 6 <parentlist@tts"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "2025",
+                "friday",
+                "november"
+              ],
+              "name": "Email_School_MidTermBreak_Notice.eml",
+              "path": "Documents/Outlook/Inbox/Email_School_MidTermBreak_Notice.eml",
+              "reasons": [
+                "multi-token-overlap",
+                "compact-exact-term",
+                "multi-map-term",
+                "fielded-bm25"
+              ],
+              "score": 1303.021
+            }
+          ]
+        },
+        {
+          "duplicate_rank": 1,
+          "expected_paths": [
+            "Chrome/Bookmarks_Watercolor_Learning.json",
+            "Documents/Certificates/HSK4_Certificate_Scan.png",
+            "Documents/Hobbies/Dance_Class_Notes.md",
+            "Documents/Language Learning/Chinese_HSK4_Notes.md",
+            "Documents/Language Learning/French_Goals.md",
+            "Documents/Notes/Note_Interest_Watercolor.txt",
+            "Documents/Notes/Note_Next_Skill_Guitar.txt",
+            "Documents/Notes/Note_Next_Skill_Tableau.txt",
+            "Documents/Notes/Note_Python_Homework_Reminder.txt",
+            "Documents/Notes/Note_Watercolor_Goal_FramedPiece.txt",
+            "Documents/Outlook/Archive/Calendar_Events_Python_Study_2024.ics",
+            "Documents/Outlook/Archive/Calendar_Events_Skill_2019_2020.ics",
+            "Documents/Outlook/Archive/Calendar_Events_Skill_2021_2022.ics",
+            "Documents/Outlook/Archive/Calendar_Events_Skill_2023_2024.ics",
+            "Documents/Outlook/Calendar_Event_Watercolor_Study_Sat.ics",
+            "Documents/Outlook/Inbox/Email_Skillshare_Welcome.eml",
+            "Documents/Personal Development/Recitation_Practice_Log.md",
+            "Documents/Programming/Python_Course_Progress.md",
+            "Documents/Voice Memos/Audio_Note_Watercolor_ColorMix.mp3",
+            "Documents/Voice Memos/Audio_Recitation_Sample_Jul2022.mp3",
+            "Documents/Watercolor Learning Log.md",
+            "Pictures/Artwork/Image_First_Watercolor_Attempt.png",
+            "Pictures/Personal/Image_Dance_Recital_Dec2024.png",
+            "Pictures/Personal/Image_Watercolor_Supplies.png"
+          ],
+          "hash_rank": 1,
+          "id": "hippocamp_profiling-0002",
+          "query": "I've been thinking about picking up something creative or technical again. How did I usually get started with extracurricular skills like this before?",
+          "rank": 1,
+          "scenario": "hippocamp_profiling",
+          "top_results": [
+            {
+              "duplicate_group_id": "sha256_7316f8d0d00ae901bce50d1a61fe43220cfd7cfa788be4224a24a0a1e75e1c94",
+              "evidence": [
+                "Feeling a bit burned out from the intensity of the dance prep last year",
+                "Need something more relaxing for the next skill cycle",
+                "Watercolor painting looks calming"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "ve",
+                "something",
+                "creative"
+              ],
+              "name": "Note_Interest_Watercolor.txt",
+              "path": "Documents/Notes/Note_Interest_Watercolor.txt",
+              "reasons": [
+                "multi-token-overlap",
+                "contextual-anchor",
+                "body-coverage",
+                "chunk-map",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 4246.875
+            },
+            {
+              "duplicate_group_id": "sha256_a6e9ef781351bf2a1ca3da8178ecfc179eff4c7a2fffe600f71f408674a4f218",
+              "evidence": [
+                "**Goal:** To develop proficiency in watercolor painting as a relaxing, creative outlet",
+                "**Goal:** To develop proficiency in watercolor painting as a relaxing, creative outlet",
+                "Aim to be able to paint detailed botanical illustrations (like orchids from Botanic Gardens) good enough to frame for the living room wall by end of 2027"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "ve",
+                "creative",
+                "skills",
+                "like",
+                "get"
+              ],
+              "name": "Watercolor Learning Log.md",
+              "path": "Documents/Watercolor Learning Log.md",
+              "reasons": [
+                "multi-token-overlap",
+                "contextual-anchor",
+                "body-coverage",
+                "chunk-map",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 3171.484
+            },
+            {
+              "duplicate_group_id": "sha256_b8aaf995bbb919164735dd7b250edd9d3ada6938eb4c11d733101316d4fe546f",
+              "evidence": [
+                "Subject: Welcome to Skillshare, Victoria",
+                "Subject: Welcome to Skillshare, Victoria",
+                "From: Skillshare <hello@skillshare"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "ve",
+                "creative",
+                "get",
+                "started",
+                "skills"
+              ],
+              "name": "Email_Skillshare_Welcome.eml",
+              "path": "Documents/Outlook/Inbox/Email_Skillshare_Welcome.eml",
+              "reasons": [
+                "multi-token-overlap",
+                "rare-token-in-name",
+                "chunk-map",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 3013.008
+            },
+            {
+              "duplicate_group_id": "sha256_21228fd62c08fe83941d11583b3ac9c540cb3fd9f5ebf6203805741b4aeb363e",
+              "evidence": [
+                "Lily's Interests & Potential Holiday Camps:",
+                "Current Interests (Late 2025):",
+                "- Still loves drawing and painting, very creative"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "ve",
+                "creative",
+                "again",
+                "something"
+              ],
+              "name": "Note_Lily_Interests_Camps.txt",
+              "path": "Documents/Lily_School/Note_Lily_Interests_Camps.txt",
+              "reasons": [
+                "multi-token-overlap",
+                "contextual-anchor",
+                "body-coverage",
+                "chunk-map",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 2793.716
+            },
+            {
+              "duplicate_group_id": "sha256_4ae84869ff8eae63fba6d8ceb9c316d0f74fffdd12e5c022244a3958ed2a1ea5",
+              "evidence": [
+                "Thinking about the next skill to build on top of Python/Excel",
+                "Thinking about the next skill to build on top of Python/Excel",
+                "The models are good, but presenting the data is still very manual in PowerPoint"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "ve",
+                "thinking",
+                "get"
+              ],
+              "name": "Note_Next_Skill_Tableau.txt",
+              "path": "Documents/Notes/Note_Next_Skill_Tableau.txt",
+              "reasons": [
+                "token-overlap",
+                "contextual-anchor",
+                "body-coverage",
+                "chunk-map",
+                "multi-map-term",
+                "fielded-bm25"
+              ],
+              "score": 2447.349
+            },
+            {
+              "duplicate_group_id": "sha256_0b1581bd343fbcef3f940b97091f3e214f1d1f5296f2db67ea54c95ec3e75663",
+              "evidence": [
+                "Long term goal for watercolor: Be able to paint a decent botanical illustration (maybe one of the orchids from Botanic Gardens",
+                ") good enough to frame for the living room wall"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "something",
+                "like"
+              ],
+              "name": "Note_Watercolor_Goal_FramedPiece.txt",
+              "path": "Documents/Notes/Note_Watercolor_Goal_FramedPiece.txt",
+              "reasons": [
+                "token-overlap",
+                "contextual-anchor",
+                "body-coverage",
+                "chunk-map",
+                "multi-map-term",
+                "fielded-bm25"
+              ],
+              "score": 2383.94
+            },
+            {
+              "duplicate_group_id": "sha256_6cfda36ed054a0a5fc3fcd94fb832304e03e91a4066d80496ab296234413fa81",
+              "evidence": [
+                "Subject: Re: Lily's Oct Break (Oct 23-27) - Planning",
+                "From: Victoria Clarke <victoria",
+                "Date: Fri, 22 Sep 2023 10:11:03 +0800"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "ve",
+                "again",
+                "like"
+              ],
+              "name": "Email_Mark_OctBreak23_Planning_3.eml",
+              "path": "Documents/Outlook/Archive/Email_Mark_OctBreak23_Planning_3.eml",
+              "reasons": [
+                "multi-token-overlap",
+                "chunk-map",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 2222.763
+            },
+            {
+              "duplicate_group_id": "sha256_57bb75a715a9e1385b35201202cf8a1fe825d3cbe70a7ffeb2c6b626ab923d7e",
+              "evidence": [
+                "Subject: Re: Potential HK Roadshow - Nov 20th (Wed)",
+                "From: Victoria Clarke <victoria",
+                "clarke@capitolinvestments"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "ve",
+                "thinking",
+                "like"
+              ],
+              "name": "Email_023.eml",
+              "path": "Documents/Outlook/Sent_Items/Email_023.eml",
+              "reasons": [
+                "multi-token-overlap",
+                "chunk-map",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 1583.275
+            },
+            {
+              "duplicate_group_id": "sha256_8f69fd8772d21a5b3429800acbb35fc4a2274661f7f94a2b3e964f13a3db05a5",
+              "evidence": [
+                "Thoughts for 2025-2026 Skill Cycle:",
+                "- Dance cycle finishing up",
+                "Always wanted to learn acoustic"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "ve",
+                "thinking",
+                "get",
+                "like"
+              ],
+              "name": "Note_Considering_Cat.txt",
+              "path": "Documents/Notes/Note_Considering_Cat.txt",
+              "reasons": [
+                "multi-token-overlap",
+                "contextual-anchor",
+                "body-coverage",
+                "chunk-map",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 1475.826
+            },
+            {
+              "duplicate_group_id": "sha256_22bd5eef6f135f81639ca77a8ffd7c7d1825486e795bd799852f585034b065fc",
+              "evidence": [
+                "**Lily's 9th Birthday - Wednesday, Nov 20th, 2024",
+                "- **Date:** Saturday, Nov 23rd (Weekend celebration)",
+                "- **Time:** 2:00 PM - 4:30 PM"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "ve",
+                "started"
+              ],
+              "name": "Note_Lily_Birthday_Plan_Nov2024.txt",
+              "path": "Documents/Notes/Note_Lily_Birthday_Plan_Nov2024.txt",
+              "reasons": [
+                "token-overlap",
+                "contextual-anchor",
+                "body-coverage",
+                "chunk-map",
+                "multi-map-term",
+                "fielded-bm25"
+              ],
+              "score": 1384.525
+            }
+          ]
+        },
+        {
+          "duplicate_rank": 1,
+          "expected_paths": [
+            "Documents/Lily_School/Note_Lily_Interests_Camps.txt",
+            "Documents/Notes/Note_MidTerm_Break_Final_Plan.txt",
+            "Documents/Notes/Note_OctBreak_2023_Final_Plan.txt",
+            "Documents/Outlook/Archive/Calendar_Event_Lily_Piano_Nov.ics",
+            "Documents/Outlook/Archive/Calendar_Victoria_Oct_2023.ics",
+            "Documents/Outlook/Archive/Email_Camp_Booking_Summer2024.eml",
+            "Documents/Outlook/Archive/Email_CodingCamp_Booking_Oct2023.eml",
+            "Documents/Outlook/Archive/Email_Mark_OctBreak23_Planning_1.eml",
+            "Documents/Outlook/Archive/Email_Mark_OctBreak23_Planning_2.eml",
+            "Documents/Outlook/Archive/Email_Mark_OctBreak23_Planning_3.eml",
+            "Documents/Outlook/Archive/Email_Mark_Summer24_Planning_1.eml",
+            "Documents/Outlook/Archive/Email_Mark_Summer24_Planning_2.eml",
+            "Documents/Outlook/Archive/Email_Mark_Summer24_Planning_3.eml",
+            "Documents/Outlook/Archive/Email_Mark_Summer24_Planning_4.eml",
+            "Documents/Outlook/Archive/Email_School_OctBreak_2023_Notice.eml",
+            "Documents/Outlook/Archive/Email_School_SummerBreak_2024_Notice.eml",
+            "Documents/Outlook/Calendar_Victoria_Nov_Dec_2025.ics",
+            "Documents/Outlook/Drafts/Draft_Email_Mark_MidTermBreak.eml",
+            "Documents/Outlook/Inbox/Email_School_MidTermBreak_Notice.eml",
+            "Pictures/Lily_School/Image_Art_Camp_Screenshot.png"
+          ],
+          "hash_rank": 1,
+          "id": "hippocamp_profiling-0003",
+          "query": "There's a school break coming up for Lily. How should I plan things this time?",
+          "rank": 1,
+          "scenario": "hippocamp_profiling",
+          "top_results": [
+            {
+              "duplicate_group_id": "sha256_2a5cc36613190d8908975669b9422c439714946816b7627a67762ab915ca278e",
+              "evidence": [
+                "**Lily Mid-Term Break Plan (Nov 24-28) - Final:**",
+                "**Lily Mid-Term Break Plan (Nov 24-28) - Final:**",
+                "* Mon (24th): Art Jamming Camp (9am-1pm) @ [Camp Location]"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "break",
+                "lily",
+                "plan"
+              ],
+              "name": "Note_MidTerm_Break_Final_Plan.txt",
+              "path": "Documents/Notes/Note_MidTerm_Break_Final_Plan.txt",
+              "reasons": [
+                "multi-token-path-hints",
+                "multi-token-overlap",
+                "contextual-anchor",
+                "body-coverage",
+                "rare-token-in-name",
+                "chunk-map",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 4644.276
+            },
+            {
+              "duplicate_group_id": "sha256_fe28ea9ef9732d35a2fc62493d328ccb835afd5e90a8ca9ac8b37fdd3d9cb512",
+              "evidence": [
+                "**Lily Oct Break Plan (Oct 23-27) - Final:**",
+                "**Lily Oct Break Plan (Oct 23-27) - Final:**",
+                "- Mon (23rd): Kodecoon Camp (9am-1pm)"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "break",
+                "lily",
+                "plan"
+              ],
+              "name": "Note_OctBreak_2023_Final_Plan.txt",
+              "path": "Documents/Notes/Note_OctBreak_2023_Final_Plan.txt",
+              "reasons": [
+                "multi-token-path-hints",
+                "multi-token-overlap",
+                "contextual-anchor",
+                "body-coverage",
+                "rare-token-in-name",
+                "evidence-phrase",
+                "chunk-map",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 4299.127
+            },
+            {
+              "duplicate_group_id": "sha256_22bd5eef6f135f81639ca77a8ffd7c7d1825486e795bd799852f585034b065fc",
+              "evidence": [
+                "**Lily's 9th Birthday - Wednesday, Nov 20th, 2024",
+                "**Lily's 9th Birthday - Wednesday, Nov 20th, 2024",
+                "- **Date:** Saturday, Nov 23rd (Weekend celebration)"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "break",
+                "lily",
+                "plan",
+                "time",
+                "school"
+              ],
+              "name": "Note_Lily_Birthday_Plan_Nov2024.txt",
+              "path": "Documents/Notes/Note_Lily_Birthday_Plan_Nov2024.txt",
+              "reasons": [
+                "multi-token-path-hints",
+                "multi-token-overlap",
+                "contextual-anchor",
+                "body-coverage",
+                "rare-token-in-name",
+                "chunk-map",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 4035.757
+            },
+            {
+              "duplicate_group_id": "sha256_dbb76146fbd3344aec330af11cca936e9fa640980b8ecc5c0bb650fdf52cf45a",
+              "evidence": [
+                "Subject: Lily's Oct Break (Oct 23-27) - Planning",
+                "Subject: Lily's Oct Break (Oct 23-27) - Planning",
+                "From: Victoria Clarke <victoria"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "break",
+                "lily",
+                "plan",
+                "things"
+              ],
+              "name": "Email_Mark_OctBreak23_Planning_1.eml",
+              "path": "Documents/Outlook/Archive/Email_Mark_OctBreak23_Planning_1.eml",
+              "reasons": [
+                "multi-token-path-hints",
+                "multi-token-overlap",
+                "rare-token-in-name",
+                "chunk-map",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 3527.913
+            },
+            {
+              "duplicate_group_id": "sha256_72f129f6fc4e92e153ae039843c5c596c76e0583c53a4858c6a125e00751c52d",
+              "evidence": [
+                "Subject: Important Dates: 2024 Summer Break and Start of 2024/2025 Academic Year",
+                "Subject: Important Dates: 2024 Summer Break and Start of 2024/2025 Academic Year",
+                "From: Tanglin Trust School Office <office@tts"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "school",
+                "break",
+                "coming",
+                "time"
+              ],
+              "name": "Email_School_SummerBreak_2024_Notice.eml",
+              "path": "Documents/Outlook/Archive/Email_School_SummerBreak_2024_Notice.eml",
+              "reasons": [
+                "multi-token-path-hints",
+                "multi-token-overlap",
+                "rare-token-in-name",
+                "chunk-map",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 3070.023
+            },
+            {
+              "duplicate_group_id": "sha256_18ebb41b93c45f500808f65281c46a3083d982862949aefecf2b54c41d50d8fe",
+              "evidence": [
+                "UID: lily_octbreak_2023@mycalendar",
+                "UID: lily_octbreak_2023@mycalendar",
+                "SUMMARY: Lily Oct Break - Plan needed"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "school",
+                "break",
+                "lily",
+                "plan"
+              ],
+              "name": "Calendar_Victoria_Oct_2023.ics",
+              "path": "Documents/Outlook/Archive/Calendar_Victoria_Oct_2023.ics",
+              "reasons": [
+                "multi-token-overlap",
+                "chunk-map",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 2749.045
+            },
+            {
+              "duplicate_group_id": "sha256_21228fd62c08fe83941d11583b3ac9c540cb3fd9f5ebf6203805741b4aeb363e",
+              "evidence": [
+                "Lily's Interests & Potential Holiday Camps:",
+                "Lily's Interests & Potential Holiday Camps:",
+                "Current Interests (Late 2025):"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "school",
+                "break",
+                "lily"
+              ],
+              "name": "Note_Lily_Interests_Camps.txt",
+              "path": "Documents/Lily_School/Note_Lily_Interests_Camps.txt",
+              "reasons": [
+                "multi-token-path-hints",
+                "multi-token-overlap",
+                "contextual-anchor",
+                "body-coverage",
+                "rare-token-in-name",
+                "rare-token-in-path",
+                "chunk-map",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 2681.295
+            },
+            {
+              "duplicate_group_id": "sha256_0863ce5863225928fe744d6c9dc7bd84c993fbe4ee57e1794d30d117b31b3517",
+              "evidence": [
+                "Subject: Important Dates: Term 2 Mid-Term Break (Years 3-6)",
+                "Subject: Important Dates: Term 2 Mid-Term Break (Years 3-6)",
+                "From: Tanglin Trust Junior School Office <junioroffice@tts"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "school",
+                "break",
+                "coming"
+              ],
+              "name": "Email_School_MidTermBreak_Notice.eml",
+              "path": "Documents/Outlook/Inbox/Email_School_MidTermBreak_Notice.eml",
+              "reasons": [
+                "multi-token-path-hints",
+                "multi-token-overlap",
+                "rare-token-in-name",
+                "chunk-map",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 2609.996
+            },
+            {
+              "duplicate_group_id": "sha256_6cfda36ed054a0a5fc3fcd94fb832304e03e91a4066d80496ab296234413fa81",
+              "evidence": [
+                "Subject: Re: Lily's Oct Break (Oct 23-27) - Planning",
+                "Subject: Re: Lily's Oct Break (Oct 23-27) - Planning",
+                "From: Victoria Clarke <victoria"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "break",
+                "lily",
+                "plan"
+              ],
+              "name": "Email_Mark_OctBreak23_Planning_3.eml",
+              "path": "Documents/Outlook/Archive/Email_Mark_OctBreak23_Planning_3.eml",
+              "reasons": [
+                "multi-token-path-hints",
+                "multi-token-overlap",
+                "rare-token-in-name",
+                "chunk-map",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 2576.172
+            },
+            {
+              "duplicate_group_id": "sha256_5f148f10d2185752c0a5dd720e19de85ef1169aff7199c647d572f71df5e25e7",
+              "evidence": [
+                "Subject: Re: Lily's Summer Break (July 1 - Aug 16) - Planning",
+                "Subject: Re: Lily's Summer Break (July 1 - Aug 16) - Planning",
+                "To: Victoria Clarke <victoria"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "break",
+                "lily",
+                "plan",
+                "time"
+              ],
+              "name": "Email_Mark_Summer24_Planning_4.eml",
+              "path": "Documents/Outlook/Archive/Email_Mark_Summer24_Planning_4.eml",
+              "reasons": [
+                "multi-token-overlap",
+                "rare-token-in-name",
+                "chunk-map",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 2339.307
+            }
+          ]
+        },
+        {
+          "duplicate_rank": 9,
+          "expected_paths": [
+            "Documents/CFA/Prep for CFA Python Webinar.docx",
+            "Documents/Capitol_Investments/Companies/AAPL - Apple Inc/",
+            "Documents/Capitol_Investments/Companies/AAPL - Apple Inc/1. Investor Relations/",
+            "Documents/Capitol_Investments/Companies/AAPL - Apple Inc/1. Investor Relations/2024-App-Store-Transparency-Report.pdf",
+            "Documents/Capitol_Investments/Companies/AAPL - Apple Inc/1. Investor Relations/Apple_Environmental_Progress_Report_2024.pdf",
+            "Documents/Capitol_Investments/Companies/AAPL - Apple Inc/1. Investor Relations/FY24_Q3_Consolidated_Financial_Statements.pdf",
+            "Documents/Capitol_Investments/Companies/AAPL - Apple Inc/2. SEC Filings/",
+            "Documents/Capitol_Investments/Companies/AAPL - Apple Inc/2. SEC Filings/_10-K-2021-(As-Filed).pdf",
+            "Documents/Capitol_Investments/Companies/AAPL - Apple Inc/2. SEC Filings/_10-K-2022-(As-Filed).pdf",
+            "Documents/Capitol_Investments/Companies/AAPL - Apple Inc/2. SEC Filings/_10-K-Q4-2023-As-Filed.pdf",
+            "Documents/Capitol_Investments/Companies/AAPL - Apple Inc/3. Leadership & Governance/",
+            "Documents/Capitol_Investments/Companies/AAPL - Apple Inc/3. Leadership & Governance/Anti-Corruption-Policy.pdf",
+            "Documents/Capitol_Investments/Companies/AAPL - Apple Inc/3. Leadership & Governance/Corporate-Governance-Guidelines.pdf",
+            "Documents/Capitol_Investments/Companies/AAPL - Apple Inc/4. Analysis & Models/",
+            "Documents/Capitol_Investments/Companies/AAPL - Apple Inc/4. Analysis & Models/AAPL_Coverage_Initiation_Notes.md",
+            "Documents/Notes/Note_Weekend_ToDo.txt",
+            "Documents/Outlook/Archive/Calendar_Events_Oct.ics",
+            "Documents/Outlook/Archive/Email_Redmart_Delivery_Oct25.eml",
+            "Documents/Outlook/Inbox/Email_006.eml",
+            "Documents/Outlook/Inbox/Email_009.eml",
+            "Documents/Outlook/Inbox/Email_Lush_Order_Confirm.eml",
+            "Documents/Outlook/Sent_Items/Email_Confirm_Dinner_Sun.eml",
+            "Documents/Tasks.md",
+            "Downloads/Image_Chat_Panic.png",
+            "Downloads/MAS_AI_Risk_Mgmt_Info_Paper_Dec2024.pdf",
+            "Downloads/Teams Media/Audio_001.mp3",
+            "Pictures/Lily_School/Image_Art_Camp_Screenshot.png",
+            "Pictures/Personal/Image_Lily_Park_Oct25.png"
+          ],
+          "hash_rank": 9,
+          "id": "hippocamp_profiling-0004",
+          "query": "The week of October 20–26, 2025 was a blur. Can you help me sort out what I did that week?",
+          "rank": 9,
+          "scenario": "hippocamp_profiling",
+          "top_results": [
+            {
+              "duplicate_group_id": "sha256_a6e9ef781351bf2a1ca3da8178ecfc179eff4c7a2fffe600f71f408674a4f218",
+              "evidence": [
+                "**Goal:** To develop proficiency in watercolor painting as a relaxing, creative outlet",
+                "**Goal:** To develop proficiency in watercolor painting as a relaxing, creative outlet",
+                "Aim to be able to paint detailed botanical illustrations (like orchids from Botanic Gardens) good enough to frame for the living room wall by end of 2027"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "2025",
+                "week",
+                "20",
+                "was",
+                "out"
+              ],
+              "name": "Watercolor Learning Log.md",
+              "path": "Documents/Watercolor Learning Log.md",
+              "reasons": [
+                "multi-token-overlap",
+                "compact-exact-term",
+                "contextual-anchor",
+                "body-coverage",
+                "chunk-map",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 2654.297
+            },
+            {
+              "duplicate_group_id": "sha256_447b9f68101778356188bbbd07f270fa4aba3f0a0ad9cc7701c6c16265038740",
+              "evidence": [
+                "**Shadow - Daily/Weekly Care Routine:**",
+                "**Shadow - Daily/Weekly Care Routine:**",
+                "- **Feeding:** Wet food (Fussie Cat Tuna mix) ~1/2 can @ 8am & ~1/2 can @ 7pm"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "week",
+                "out",
+                "20",
+                "was"
+              ],
+              "name": "Note_Shadow_Care_Routine.md",
+              "path": "Documents/Pets/Note_Shadow_Care_Routine.md",
+              "reasons": [
+                "token-overlap",
+                "contextual-anchor",
+                "body-coverage",
+                "rare-token-in-name",
+                "chunk-map",
+                "multi-map-term",
+                "fielded-bm25"
+              ],
+              "score": 2381.828
+            },
+            {
+              "duplicate_group_id": "sha256_c4e51aada39fe9a894c610d4848f06b3ab12242171099c48f5bc563fcd1a26ba",
+              "evidence": [
+                "Format: MP2/3 (MPEG audio layer 2/3)",
+                "Duration seconds: 5469"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "2025",
+                "20",
+                "26",
+                "out"
+              ],
+              "name": "WATCH LIVE Meta Platforms Q1 2025 Earnings Call  META - Benzinga (youtube).mp3",
+              "path": "Meta/WATCH LIVE Meta Platforms Q1 2025 Earnings Call  META - Benzinga (youtube).mp3",
+              "reasons": [
+                "short-id-in-path",
+                "short-id-in-path",
+                "multi-token-path-hints",
+                "multi-token-overlap",
+                "compact-exact-term",
+                "rare-token-in-name",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 2283.727
+            },
+            {
+              "duplicate_group_id": "sha256_42e3a41c482bcb5f5730719d4744d9cfa4ce6b2e449bf59e88806611dea325b4",
+              "evidence": [
+                "Format: MP2/3 (MPEG audio layer 2/3)",
+                "Duration seconds: 3620"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "2025",
+                "20",
+                "out"
+              ],
+              "name": "META Meta Platforms Q2 2025 Earnings Conference Call - EARNMOAR (youtube).mp3",
+              "path": "Meta/META Meta Platforms Q2 2025 Earnings Conference Call - EARNMOAR (youtube).mp3",
+              "reasons": [
+                "short-id-in-path",
+                "short-id-in-path",
+                "multi-token-path-hints",
+                "multi-token-overlap",
+                "compact-exact-term",
+                "rare-token-in-name",
+                "multi-map-term",
+                "fielded-bm25"
+              ],
+              "score": 2208.731
+            },
+            {
+              "duplicate_group_id": "sha256_68a80ff6e21be0d86a832aaebbf661cef59070f69c9878d09bfec79f4e89b325",
+              "evidence": [
+                "Format: MP2/3 (MPEG audio layer 2/3)",
+                "Duration seconds: 3494"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "2025",
+                "20",
+                "out"
+              ],
+              "name": "MSFT Microsoft Q2 2025 Earnings Conference Call - EARNMOAR (youtube).mp3",
+              "path": "Microsoft/MSFT Microsoft Q2 2025 Earnings Conference Call - EARNMOAR (youtube).mp3",
+              "reasons": [
+                "short-id-in-path",
+                "short-id-in-path",
+                "multi-token-path-hints",
+                "multi-token-overlap",
+                "compact-exact-term",
+                "rare-token-in-name",
+                "multi-map-term",
+                "fielded-bm25"
+              ],
+              "score": 2208.731
+            },
+            {
+              "duplicate_group_id": "sha256_ac8c429d8cf5cbcdb441b2dd2c0df3a0470558858decc194d46e5aff4225604c",
+              "evidence": [
+                "**Goal:** Gain comprehensive understanding of responsible cat ownership requirements (time, cost, care) before making adoption decision",
+                "- Read: SPCA Responsible Pet Ownership Guide, CWS Adoption Care Guide",
+                "- Watched: Jackson Galaxy \"Catification\" videos"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "2025",
+                "week",
+                "26",
+                "20"
+              ],
+              "name": "Pet_Care_Learning_Log.md",
+              "path": "Documents/Pets/Pet_Care_Learning_Log.md",
+              "reasons": [
+                "token-overlap",
+                "compact-exact-term",
+                "contextual-anchor",
+                "body-coverage",
+                "chunk-map",
+                "fielded-bm25"
+              ],
+              "score": 2103.973
+            },
+            {
+              "duplicate_group_id": "sha256_3827bb701daae70c05460b690019463c1f3020746fde67d200f8f3ef094dc245",
+              "evidence": [
+                "are subject to income tax in many jurisdictions outside the U",
+                "SECURITIES AND EXCHANGE COMMISSION",
+                "Commission File Number 001-37845"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "2025",
+                "october",
+                "20",
+                "26",
+                "was",
+                "out",
+                "did"
+              ],
+              "name": "MSFT_FY25Q2_10Q.docx",
+              "path": "Microsoft/MSFT_FY25Q2_10Q.docx",
+              "reasons": [
+                "multi-token-overlap",
+                "compact-exact-term",
+                "chunk-map",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 1957.139
+            },
+            {
+              "duplicate_group_id": "sha256_fbb69b891cdf391ef82d67d30cac9638047ab811aedb85f1b7befe33e4edd16f",
+              "evidence": [
+                "evel 1 or Level 2 investments as these vendors either provide a quoted market price in an active market or use observable inputs for their pricing without applying significant adjustments",
+                "SECURITIES AND EXCHANGE COMMISSION",
+                "Commission File Number 001-37845"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "2025",
+                "october",
+                "20",
+                "26",
+                "was",
+                "out",
+                "did"
+              ],
+              "name": "MSFT_FY25Q3_10Q.docx",
+              "path": "Microsoft/MSFT_FY25Q3_10Q.docx",
+              "reasons": [
+                "multi-token-overlap",
+                "compact-exact-term",
+                "chunk-map",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 1914.761
+            },
+            {
+              "duplicate_group_id": "sha256_dc3f9a5db92a8b9f5969b7ea08bd06e18bdbcadbea1e191d174f6b7bb6f4e51c",
+              "evidence": [
+                "Subject: Your Lush Order #LUSH-SG-987654 is Confirmed",
+                "From: Lush Singapore <orders@lush",
+                "To: Victoria Clarke <victoria"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "2025",
+                "october",
+                "20",
+                "out"
+              ],
+              "name": "Email_Lush_Order_Confirm.eml",
+              "path": "Documents/Outlook/Inbox/Email_Lush_Order_Confirm.eml",
+              "reasons": [
+                "multi-token-overlap",
+                "compact-exact-term",
+                "rare-token-in-path",
+                "chunk-map",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 1909.547
+            },
+            {
+              "duplicate_group_id": "sha256_086b70ccb07f58153358927ad9360364e6cb61a4e1a59579a92fee028e2dbba2",
+              "evidence": [
+                "UID: qsm_nov25@capinvest",
+                "DTSTART: 20251125T090000",
+                "DTEND: 20251125T170000"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "2025",
+                "week",
+                "20",
+                "26",
+                "out"
+              ],
+              "name": "Calendar_Victoria_Nov_Dec_2025.ics",
+              "path": "Documents/Outlook/Calendar_Victoria_Nov_Dec_2025.ics",
+              "reasons": [
+                "short-id-in-path",
+                "short-id-in-path",
+                "multi-token-path-hints",
+                "multi-token-overlap",
+                "compact-exact-term",
+                "rare-token-in-path",
+                "rare-token-in-name",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 1750.759
+            }
+          ]
+        },
+        {
+          "duplicate_rank": 1,
+          "expected_paths": [
+            "Documents/Notes/Note_Considering_Cat.txt",
+            "Documents/Outlook/Archive/Email_CWS_Adoption_Inquiry_Reply.eml",
+            "Documents/Outlook/Archive/Email_CWS_Home_Visit_Confirm.eml",
+            "Documents/Outlook/Archive/Email_CatToy_Order_Apr2026.eml",
+            "Documents/Outlook/Archive/Email_PetFood_Order_Mar2026.eml",
+            "Documents/Outlook/Archive/Email_ScratchingPost_Order_Mar2026.eml",
+            "Documents/Outlook/Archive/Email_Vet_Food_Query.eml",
+            "Documents/Outlook/Calendar_Event_Flea_Tick_Monthly.ics",
+            "Documents/Outlook/Calendar_Event_Vet_Visit_Mar2026.ics",
+            "Documents/Pets/Bookmarks_Cat_Care_Resources.json",
+            "Documents/Pets/Cat_Adoption_Certificate_Shadow_Feb2026.png",
+            "Documents/Pets/Image_Lily_Playing_With_Shadow.png",
+            "Documents/Pets/Image_Shadow_First_Day.png",
+            "Documents/Pets/Image_Shadow_Sleeping_On_Desk.png",
+            "Documents/Pets/Image_Shadow_Using_Post.png",
+            "Documents/Pets/Note_Shadow_Care_Routine.md",
+            "Documents/Pets/Pet_Care_Learning_Log.md",
+            "Documents/Pets/Vet_Visit_Summary_Mar2026.pdf",
+            "Documents/Voice Memos/Audio_Note_Grooming_Challenge.mp3",
+            "Documents/Voice Memos/Audio_Note_Scratching_Issue.mp3"
+          ],
+          "hash_rank": 1,
+          "id": "hippocamp_profiling-0005",
+          "query": "Could you look back at everything related to Shadow since she came home?",
+          "rank": 1,
+          "scenario": "hippocamp_profiling",
+          "top_results": [
+            {
+              "duplicate_group_id": "sha256_447b9f68101778356188bbbd07f270fa4aba3f0a0ad9cc7701c6c16265038740",
+              "evidence": [
+                "**Shadow - Daily/Weekly Care Routine:**",
+                "**Shadow - Daily/Weekly Care Routine:**",
+                "- **Feeding:** Wet food (Fussie Cat Tuna mix) ~1/2 can @ 8am & ~1/2 can @ 7pm"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "shadow",
+                "home"
+              ],
+              "name": "Note_Shadow_Care_Routine.md",
+              "path": "Documents/Pets/Note_Shadow_Care_Routine.md",
+              "reasons": [
+                "token-overlap",
+                "contextual-anchor",
+                "body-coverage",
+                "rare-token-in-name",
+                "chunk-map",
+                "fielded-bm25"
+              ],
+              "score": 2037.085
+            },
+            {
+              "duplicate_group_id": "sha256_f18fe25461cac6e38763821e41694043fdc08855891410319a655190c59d4880",
+              "evidence": [
+                "Subject: Re: URGENT: Ad-hoc Call with London - Market Volatility Today",
+                "From: Victoria Clarke <victoria",
+                "clarke@capitolinvestments"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "could",
+                "look",
+                "since",
+                "she",
+                "home"
+              ],
+              "name": "Email_021.eml",
+              "path": "Documents/Outlook/Sent_Items/Email_021.eml",
+              "reasons": [
+                "multi-token-overlap",
+                "rare-token-in-path",
+                "chunk-map",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 1609.085
+            },
+            {
+              "duplicate_group_id": "sha256_e3019026d6234791c8fc33501b0e8fa3b91ed44ce3f854618906f9aa04579cbc",
+              "evidence": [
+                "Subject: Confirmation: CWS Home Visit for Cat Adoption Application",
+                "Subject: Confirmation: CWS Home Visit for Cat Adoption Application",
+                "From: CWS Volunteer Coordinator <volunteers@catwelfare"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "look",
+                "home"
+              ],
+              "name": "Email_CWS_Home_Visit_Confirm.eml",
+              "path": "Documents/Outlook/Archive/Email_CWS_Home_Visit_Confirm.eml",
+              "reasons": [
+                "multi-token-path-hints",
+                "rare-token-in-name",
+                "rare-token-in-path",
+                "chunk-map",
+                "multi-map-term",
+                "fielded-bm25"
+              ],
+              "score": 1532.595
+            },
+            {
+              "duplicate_group_id": "sha256_99897005c665512c8c3eb0c70d1e77411caccb682b4b2ce18d3f987fb331b497",
+              "evidence": [
+                "Dimensions: 1024x1024 pixels",
+                "EXIF DateTime: 2026:02:15 16:10:00"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "shadow"
+              ],
+              "name": "Image_Shadow_First_Day.png",
+              "path": "Documents/Pets/Image_Shadow_First_Day.png",
+              "reasons": [
+                "token-overlap",
+                "rare-token-in-name",
+                "fielded-bm25"
+              ],
+              "score": 1493.472
+            },
+            {
+              "duplicate_group_id": "sha256_f4721a3e253e86c98b6dbc7ae085df66b6d9b6d69aaac82c856095f92db2725d",
+              "evidence": [
+                "Dimensions: 1024x1024 pixels",
+                "EXIF DateTime: 2026:03:25 19:15:00"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "shadow"
+              ],
+              "name": "Image_Shadow_Using_Post.png",
+              "path": "Documents/Pets/Image_Shadow_Using_Post.png",
+              "reasons": [
+                "token-overlap",
+                "rare-token-in-name",
+                "fielded-bm25"
+              ],
+              "score": 1491.691
+            },
+            {
+              "duplicate_group_id": "sha256_412b42b60759c428d209d0bfa34317f537ee91f77a038790abe586606dba7540",
+              "evidence": [
+                "Dimensions: 1024x1024 pixels",
+                "EXIF DateTime: 2026:06:18 15:40:00"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "shadow"
+              ],
+              "name": "Image_Shadow_Sleeping_On_Desk.png",
+              "path": "Documents/Pets/Image_Shadow_Sleeping_On_Desk.png",
+              "reasons": [
+                "token-overlap",
+                "rare-token-in-name",
+                "fielded-bm25"
+              ],
+              "score": 1472.746
+            },
+            {
+              "duplicate_group_id": "sha256_7aa799be15dfabf54575d7549f10cf8c85b4e9bd5b5db02088e08d4abb12e200",
+              "evidence": [
+                "Dimensions: 1024x1024 pixels",
+                "EXIF DateTime: 2026:02:15 14:30:00"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "shadow"
+              ],
+              "name": "Cat_Adoption_Certificate_Shadow_Feb2026.png",
+              "path": "Documents/Pets/Cat_Adoption_Certificate_Shadow_Feb2026.png",
+              "reasons": [
+                "token-overlap",
+                "rare-token-in-name",
+                "fielded-bm25"
+              ],
+              "score": 1471.573
+            },
+            {
+              "duplicate_group_id": "sha256_2d09bc5b67ad7af5e54d1097b87d118e2509f15087d056202e98527e841e7ef1",
+              "evidence": [
+                "Dimensions: 928x1120 pixels",
+                "EXIF DateTime: 2026:05:25 17:10:00"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "shadow"
+              ],
+              "name": "Image_Lily_Playing_With_Shadow.png",
+              "path": "Documents/Pets/Image_Lily_Playing_With_Shadow.png",
+              "reasons": [
+                "token-overlap",
+                "rare-token-in-name",
+                "fielded-bm25"
+              ],
+              "score": 1471.003
+            },
+            {
+              "duplicate_group_id": "sha256_5f148f10d2185752c0a5dd720e19de85ef1169aff7199c647d572f71df5e25e7",
+              "evidence": [
+                "Subject: Re: Lily's Summer Break (July 1 - Aug 16) - Planning",
+                "To: Victoria Clarke <victoria",
+                "Date: Wed, 05 Jun 2024 15:20:19 +0800"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "look",
+                "everything"
+              ],
+              "name": "Email_Mark_Summer24_Planning_4.eml",
+              "path": "Documents/Outlook/Archive/Email_Mark_Summer24_Planning_4.eml",
+              "reasons": [
+                "token-overlap",
+                "rare-token-in-path",
+                "chunk-map",
+                "multi-map-term",
+                "fielded-bm25"
+              ],
+              "score": 1312.913
+            },
+            {
+              "duplicate_group_id": "sha256_1551e687620e444204a618f3b3d3f2c03ae9dc4f4bdc394c6afad5339f9169f9",
+              "evidence": [
+                "Subject: Re: Lily's Summer Break (July 1 - Aug 16) - Planning",
+                "To: Victoria Clarke <victoria",
+                "Date: Tue, 04 Jun 2024 09:30:55 +0800"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "could",
+                "look",
+                "back"
+              ],
+              "name": "Email_Mark_Summer24_Planning_2.eml",
+              "path": "Documents/Outlook/Archive/Email_Mark_Summer24_Planning_2.eml",
+              "reasons": [
+                "multi-token-overlap",
+                "rare-token-in-path",
+                "chunk-map",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 1250.963
+            }
+          ]
+        },
+        {
+          "duplicate_rank": 1,
+          "expected_paths": [
+            "Documents/Fitness/Running_Log_Export_Oct2025.csv",
+            "Documents/Notes/Note_Weekend_ToDo.txt",
+            "Documents/Outlook/Calendar_Events_Oct.ics",
+            "Documents/Outlook/Inbox/Email_Lush_Order_Confirm.eml",
+            "Documents/Voice Memos/Audio_Note_Sleep_Schedule.mp3",
+            "Pictures/Personal/Image_Morning_Run_Botanic_Gardens.png"
+          ],
+          "hash_rank": 1,
+          "id": "hippocamp_profiling-0006",
+          "query": "I've been wondering what I usually do in a week for my health. Can you take a look at my records?",
+          "rank": 1,
+          "scenario": "hippocamp_profiling",
+          "top_results": [
+            {
+              "duplicate_group_id": "sha256_c63e01508a409a79cc1e8d4c707e236d4908d73dbe7afd87a7ddba0f75210438",
+              "evidence": [
+                "**Weekend To-Do List**",
+                "**Weekend To-Do List**",
+                "*Priorities for Nov 8-9 Weekend:*"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "ve",
+                "week",
+                "take"
+              ],
+              "name": "Note_Weekend_ToDo.txt",
+              "path": "Documents/Notes/Note_Weekend_ToDo.txt",
+              "reasons": [
+                "multi-token-overlap",
+                "contextual-anchor",
+                "body-coverage",
+                "rare-token-in-name",
+                "chunk-map",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 2764.006
+            },
+            {
+              "duplicate_group_id": "sha256_de4798b4581210b0b4769d4a2bb3c70b8a075fd9ae3ee3b610e12dbbb872d9a1",
+              "evidence": [
+                "Subject: Lily's Mid-Term Break (Nov 24-28) - Planning",
+                "From: Victoria Clarke <victoria",
+                "Date: Wed, 29 Oct 2025 09:03:05 +0800"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "ve",
+                "wondering",
+                "week",
+                "take",
+                "look"
+              ],
+              "name": "Draft_Email_Mark_MidTermBreak.eml",
+              "path": "Documents/Outlook/Drafts/Draft_Email_Mark_MidTermBreak.eml",
+              "reasons": [
+                "multi-token-overlap",
+                "rare-token-in-path",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 2250.448
+            },
+            {
+              "duplicate_group_id": "sha256_ac8c429d8cf5cbcdb441b2dd2c0df3a0470558858decc194d46e5aff4225604c",
+              "evidence": [
+                "**Goal:** Gain comprehensive understanding of responsible cat ownership requirements (time, cost, care) before making adoption decision",
+                "**Goal:** Gain comprehensive understanding of responsible cat ownership requirements (time, cost, care) before making adoption decision",
+                "- Read: SPCA Responsible Pet Ownership Guide, CWS Adoption Care Guide"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "ve",
+                "week",
+                "take",
+                "health",
+                "look"
+              ],
+              "name": "Pet_Care_Learning_Log.md",
+              "path": "Documents/Pets/Pet_Care_Learning_Log.md",
+              "reasons": [
+                "multi-token-overlap",
+                "contextual-anchor",
+                "body-coverage",
+                "chunk-map",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 1911.454
+            },
+            {
+              "duplicate_group_id": "sha256_7c67c8348cac7dae5ffa0b16f8ca1f205e3f313b760b123cec0b6b87798df64a",
+              "evidence": [
+                "Subject: Re: Lily's Summer Break (July 1 - Aug 16) - Planning",
+                "From: Victoria Clarke <victoria",
+                "Date: Tue, 04 Jun 2024 14:00:27 +0800"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "ve",
+                "week",
+                "take",
+                "look"
+              ],
+              "name": "Email_Mark_Summer24_Planning_3.eml",
+              "path": "Documents/Outlook/Archive/Email_Mark_Summer24_Planning_3.eml",
+              "reasons": [
+                "multi-token-path-hints",
+                "multi-token-overlap",
+                "rare-token-in-path",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 1861.002
+            },
+            {
+              "duplicate_group_id": "sha256_236fd9a36d5d00136afb6f31604edde9d49c209e5ea972535a010eb83f83a6bf",
+              "evidence": [
+                "UID: lily_dental_nov14@mycalendar",
+                "DTSTART: 20251114T143000",
+                "DTEND: 20251114T160000"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "ve",
+                "take",
+                "look"
+              ],
+              "name": "Calendar_Event_Nov14_Dental.ics",
+              "path": "Documents/Outlook/Calendar_Event_Nov14_Dental.ics",
+              "reasons": [
+                "multi-token-path-hints",
+                "multi-token-overlap",
+                "rare-token-in-path",
+                "chunk-map",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 1818.762
+            },
+            {
+              "duplicate_group_id": "sha256_ec8c43a3f4fd4d2a429e526ff9ad90a258165da9309762a2ec01cbaaca1c4a1d",
+              "evidence": [
+                "**Goal:** Improve vocal projection, clarity, and emotional expression for presentations and potentially amateur poetry readings",
+                "**Goal:** Improve vocal projection, clarity, and emotional expression for presentations and potentially amateur poetry readings",
+                "**Method:** Following online course (Udemy - \"Complete Public Speaking Masterclass\") + Weekly Saturday practice recordings + **Daily vocal warm-ups (5-10 min weekdays before work calls)"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "ve",
+                "week",
+                "take"
+              ],
+              "name": "Recitation_Practice_Log.md",
+              "path": "Documents/Personal Development/Recitation_Practice_Log.md",
+              "reasons": [
+                "token-overlap",
+                "contextual-anchor",
+                "body-coverage",
+                "chunk-map",
+                "multi-map-term",
+                "fielded-bm25"
+              ],
+              "score": 1794.423
+            },
+            {
+              "duplicate_group_id": "sha256_deca23a2cad817a3d4e7a5ba9c471ca2e4f58d36300ed7b6ab8cbcb7bbf1a26e",
+              "evidence": [
+                "UID: python_study_weekly_2024@mycalendar",
+                "UID: python_study_weekly_2024@mycalendar",
+                "DTSTART: 20240107T090000"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "ve",
+                "week",
+                "look"
+              ],
+              "name": "Calendar_Events_Python_Study_2024.ics",
+              "path": "Documents/Outlook/Archive/Calendar_Events_Python_Study_2024.ics",
+              "reasons": [
+                "multi-token-path-hints",
+                "multi-token-overlap",
+                "rare-token-in-path",
+                "chunk-map",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 1628.78
+            },
+            {
+              "duplicate_group_id": "sha256_7ad9a6ea660d2116bb8e333b4ca6dd78bcd7d3c0448f9ba006fac49b1c331d1e",
+              "evidence": [
+                "Subject: Re: Lily's Oct Break (Oct 23-27) - Planning",
+                "To: Victoria Clarke <victoria",
+                "Date: Thu, 21 Sep 2023 16:45:18 +0800"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "ve",
+                "take",
+                "look"
+              ],
+              "name": "Email_Mark_OctBreak23_Planning_2.eml",
+              "path": "Documents/Outlook/Archive/Email_Mark_OctBreak23_Planning_2.eml",
+              "reasons": [
+                "multi-token-path-hints",
+                "multi-token-overlap",
+                "rare-token-in-path",
+                "chunk-map",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 1597.123
+            },
+            {
+              "duplicate_group_id": "sha256_e3019026d6234791c8fc33501b0e8fa3b91ed44ce3f854618906f9aa04579cbc",
+              "evidence": [
+                "Subject: Confirmation: CWS Home Visit for Cat Adoption Application",
+                "From: CWS Volunteer Coordinator <volunteers@catwelfare",
+                "To: Victoria Clarke <victoria"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "ve",
+                "usually",
+                "take",
+                "look"
+              ],
+              "name": "Email_CWS_Home_Visit_Confirm.eml",
+              "path": "Documents/Outlook/Archive/Email_CWS_Home_Visit_Confirm.eml",
+              "reasons": [
+                "multi-token-path-hints",
+                "multi-token-overlap",
+                "rare-token-in-path",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 1543.326
+            },
+            {
+              "duplicate_group_id": "sha256_6cfda36ed054a0a5fc3fcd94fb832304e03e91a4066d80496ab296234413fa81",
+              "evidence": [
+                "Subject: Re: Lily's Oct Break (Oct 23-27) - Planning",
+                "From: Victoria Clarke <victoria",
+                "Date: Fri, 22 Sep 2023 10:11:03 +0800"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "ve",
+                "week",
+                "look"
+              ],
+              "name": "Email_Mark_OctBreak23_Planning_3.eml",
+              "path": "Documents/Outlook/Archive/Email_Mark_OctBreak23_Planning_3.eml",
+              "reasons": [
+                "multi-token-path-hints",
+                "multi-token-overlap",
+                "rare-token-in-path",
+                "chunk-map",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 1488.851
+            }
+          ]
+        },
+        {
+          "duplicate_rank": 4,
+          "expected_paths": [
+            "Uber/$UBER Uber Q1 2025 Earnings Conference Call.mp3",
+            "Uber/$UBER Uber Q4 2024 Earnings Conference Call.mp3",
+            "Uber/Uber-Q1-25-Earnings-Press-Release.pdf",
+            "Uber/Uber-Q2-25-Earnings-Press-Release.pdf",
+            "Uber/Uber-Q3-24-Earnings-Press-Release.pdf",
+            "Uber/Uber-Q4-24-Earnings-Press-Release.pdf"
+          ],
+          "hash_rank": 4,
+          "id": "hippocamp_factual_retention-0001",
+          "query": "How have Uber's Adjusted EBITDA and its margin as a percentage of Gross Bookings trended on a quarterly basis, and what key drivers—such as operating leverage, advertising revenue growth, membership-related frequency gains, and cost discipline—have contributed to these trends?",
+          "rank": 4,
+          "scenario": "hippocamp_factual_retention",
+          "top_results": [
+            {
+              "duplicate_group_id": "sha256_6bc0e6bec04a383c6941aee47f18321540371a42f007605669fc238295de992d",
+              "evidence": [
+                "- # Apple (AAPL) - Coverage Initiation Notes",
+                "**Sector:** Technology Hardware, Storage & Peripherals",
+                "**Date Initiated:** 2025-10-21"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "margin",
+                "operating",
+                "advertising",
+                "revenue",
+                "growth",
+                "related",
+                "contributed",
+                "cost",
+                "its",
+                "gross",
+                "key"
+              ],
+              "name": "AAPL_Coverage_Initiation_Notes.md",
+              "path": "Documents/Capitol_Investments/Companies/AAPL - Apple Inc/4. Analysis & Models/AAPL_Coverage_Initiation_Notes.md",
+              "reasons": [
+                "multi-token-overlap",
+                "contextual-anchor",
+                "body-coverage",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 5391.515
+            },
+            {
+              "duplicate_group_id": "sha256_fbb69b891cdf391ef82d67d30cac9638047ab811aedb85f1b7befe33e4edd16f",
+              "evidence": [
+                "on based on actual prices charged, prices when sold separately, or estimated costs plus a profit margin",
+                "SECURITIES AND EXCHANGE COMMISSION",
+                "Commission File Number 001-37845"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "adjusted",
+                "its",
+                "margin",
+                "percentage",
+                "gross",
+                "quarterly",
+                "basis",
+                "key",
+                "such",
+                "operating",
+                "advertising",
+                "revenue"
+              ],
+              "name": "MSFT_FY25Q3_10Q.docx",
+              "path": "Microsoft/MSFT_FY25Q3_10Q.docx",
+              "reasons": [
+                "multi-token-overlap",
+                "chunk-map",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 2094.314
+            },
+            {
+              "duplicate_group_id": "sha256_d2dbe3c6d9bab8303aafc44d500971874c1f46ef39774b7bf89a683618fa1739",
+              "evidence": [],
+              "matched_intents": [],
+              "matched_terms": [
+                "quarterly"
+              ],
+              "name": "26-Q1 - 10-Q_ Quarterly report [Sections 13 or 15(d)] _ Walmart Inc. (WMT).pdf",
+              "path": "Walmart/26-Q1 - 10-Q_ Quarterly report [Sections 13 or 15(d)] _ Walmart Inc. (WMT).pdf",
+              "reasons": [
+                "token-overlap",
+                "rare-token-in-name",
+                "fielded-bm25"
+              ],
+              "score": 2017.52
+            },
+            {
+              "duplicate_group_id": "sha256_f4817895a708e2531137b4cb3fcc6c7b4233ad9f9fb00b4d636feca1153fbacd",
+              "evidence": [
+                "Format: QuickTime / MOV",
+                "Duration seconds: 2624"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "uber"
+              ],
+              "name": "$UBER Uber Q1 2025 Earnings Conference Call.mp3",
+              "path": "Uber/$UBER Uber Q1 2025 Earnings Conference Call.mp3",
+              "reasons": [
+                "token-overlap",
+                "rare-token-in-name",
+                "fielded-bm25"
+              ],
+              "score": 1987.405
+            },
+            {
+              "duplicate_group_id": "sha256_63ff21623cf29c834b08279ca3381c2beb33227e235813c9bbedfb1cc69043d4",
+              "evidence": [
+                "Format: QuickTime / MOV",
+                "Duration seconds: 2530"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "uber"
+              ],
+              "name": "$UBER Uber Q4 2024 Earnings Conference Call.mp3",
+              "path": "Uber/$UBER Uber Q4 2024 Earnings Conference Call.mp3",
+              "reasons": [
+                "token-overlap",
+                "rare-token-in-name",
+                "fielded-bm25"
+              ],
+              "score": 1987.405
+            },
+            {
+              "duplicate_group_id": "sha256_2eda92e732d8eb82b7370fcf94fa523ce91a1e492f4e351683957f2112cf8f5e",
+              "evidence": [],
+              "matched_intents": [],
+              "matched_terms": [
+                "uber"
+              ],
+              "name": "Uber-Q1-25-Earnings-Press-Release.pdf",
+              "path": "Uber/Uber-Q1-25-Earnings-Press-Release.pdf",
+              "reasons": [
+                "token-overlap",
+                "rare-token-in-name",
+                "fielded-bm25"
+              ],
+              "score": 1870.575
+            },
+            {
+              "duplicate_group_id": "sha256_fa9787dcd6e2d69f5ed4a3d676e78f6bb48d3b4b74f0f31dbfd8b983c4200a22",
+              "evidence": [],
+              "matched_intents": [],
+              "matched_terms": [
+                "uber"
+              ],
+              "name": "Uber-Q2-25-Earnings-Press-Release.pdf",
+              "path": "Uber/Uber-Q2-25-Earnings-Press-Release.pdf",
+              "reasons": [
+                "token-overlap",
+                "rare-token-in-name",
+                "fielded-bm25"
+              ],
+              "score": 1870.575
+            },
+            {
+              "duplicate_group_id": "sha256_b3e91396e23793c0d793a4066c4ab3adc078fa5ec0266dd1de637c54af0629f0",
+              "evidence": [],
+              "matched_intents": [],
+              "matched_terms": [
+                "uber"
+              ],
+              "name": "Uber-Q3-24-Earnings-Press-Release.pdf",
+              "path": "Uber/Uber-Q3-24-Earnings-Press-Release.pdf",
+              "reasons": [
+                "token-overlap",
+                "rare-token-in-name",
+                "fielded-bm25"
+              ],
+              "score": 1870.575
+            },
+            {
+              "duplicate_group_id": "sha256_147a9f0225ec778de1ee8b44435f408425367dd1b992b2802a425c7ca82c7f99",
+              "evidence": [],
+              "matched_intents": [],
+              "matched_terms": [
+                "uber"
+              ],
+              "name": "Uber-Q4-24-Earnings-Press-Release.pdf",
+              "path": "Uber/Uber-Q4-24-Earnings-Press-Release.pdf",
+              "reasons": [
+                "token-overlap",
+                "rare-token-in-name",
+                "fielded-bm25"
+              ],
+              "score": 1870.575
+            },
+            {
+              "duplicate_group_id": "sha256_3827bb701daae70c05460b690019463c1f3020746fde67d200f8f3ef094dc245",
+              "evidence": [
+                "in cases based on a relative revenue methodology",
+                "SECURITIES AND EXCHANGE COMMISSION",
+                "Commission File Number 001-37845"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "adjusted",
+                "its",
+                "margin",
+                "percentage",
+                "gross",
+                "quarterly",
+                "basis",
+                "key",
+                "such",
+                "operating",
+                "advertising",
+                "revenue"
+              ],
+              "name": "MSFT_FY25Q2_10Q.docx",
+              "path": "Microsoft/MSFT_FY25Q2_10Q.docx",
+              "reasons": [
+                "multi-token-overlap",
+                "chunk-map",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 1711.746
+            }
+          ]
+        },
+        {
+          "duplicate_rank": 1,
+          "expected_paths": [
+            "Microsoft/MSFT Microsoft Q2 2025 Earnings Conference Call - EARNMOAR (youtube).mp3",
+            "Microsoft/MSFT_FY25Q2_10Q.docx",
+            "Microsoft/MSFT_FY25Q3_10Q.docx",
+            "Microsoft/MSFT_FY25q4_10K.docx"
+          ],
+          "hash_rank": 1,
+          "id": "hippocamp_factual_retention-0002",
+          "query": "Do the year-over-year changes in Microsoft's R&D, S&M, and G&A expenses, and their changes as a percentage of revenue, demonstrate economies of scale in FY25 (quarterly and full year)?",
+          "rank": 1,
+          "scenario": "hippocamp_factual_retention",
+          "top_results": [
+            {
+              "duplicate_group_id": "sha256_777ed663455c01710aaf9235a74ad5044cc0ade639baeb9bda20889e0994b22f",
+              "evidence": [
+                "ign our segments with how we currently manage our business, most notably bringing the commercial components of Microsoft 365 together in the Productivity and Business Processes segment",
+                "SECURITIES AND EXCHANGE COMMISSION",
+                "Commission File Number 001-37845"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "year",
+                "over",
+                "changes",
+                "microsoft",
+                "their",
+                "percentage",
+                "revenue",
+                "economies",
+                "scale",
+                "fy25",
+                "quarterly",
+                "full"
+              ],
+              "name": "MSFT_FY25q4_10K.docx",
+              "path": "Microsoft/MSFT_FY25q4_10K.docx",
+              "reasons": [
+                "short-id-in-path",
+                "multi-token-path-hints",
+                "multi-token-overlap",
+                "rare-token-in-path",
+                "chunk-map",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 2585.763
+            },
+            {
+              "duplicate_group_id": "sha256_6bc0e6bec04a383c6941aee47f18321540371a42f007605669fc238295de992d",
+              "evidence": [
+                "- # Apple (AAPL) - Coverage Initiation Notes",
+                "- # Apple (AAPL) - Coverage Initiation Notes",
+                "**Sector:** Technology Hardware, Storage & Peripherals"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "over",
+                "revenue",
+                "full",
+                "year",
+                "their"
+              ],
+              "name": "AAPL_Coverage_Initiation_Notes.md",
+              "path": "Documents/Capitol_Investments/Companies/AAPL - Apple Inc/4. Analysis & Models/AAPL_Coverage_Initiation_Notes.md",
+              "reasons": [
+                "token-overlap",
+                "contextual-anchor",
+                "body-coverage",
+                "rare-token-in-name",
+                "chunk-map",
+                "multi-map-term",
+                "fielded-bm25"
+              ],
+              "score": 2450.871
+            },
+            {
+              "duplicate_group_id": "sha256_fbb69b891cdf391ef82d67d30cac9638047ab811aedb85f1b7befe33e4edd16f",
+              "evidence": [
+                "rvable changes in price or impairments, measured using the equity method, or measured at fair value using net asset value as a practical expedient which are not categorized in the fair value hierarchy",
+                "SECURITIES AND EXCHANGE COMMISSION",
+                "Commission File Number 001-37845"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "year",
+                "over",
+                "changes",
+                "microsoft",
+                "expenses",
+                "their",
+                "percentage",
+                "revenue",
+                "scale",
+                "fy25",
+                "quarterly",
+                "full"
+              ],
+              "name": "MSFT_FY25Q3_10Q.docx",
+              "path": "Microsoft/MSFT_FY25Q3_10Q.docx",
+              "reasons": [
+                "short-id-in-path",
+                "multi-token-path-hints",
+                "multi-token-overlap",
+                "rare-token-in-path",
+                "chunk-map",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 2307.542
+            },
+            {
+              "duplicate_group_id": "sha256_3827bb701daae70c05460b690019463c1f3020746fde67d200f8f3ef094dc245",
+              "evidence": [
+                "nts for observable changes in price or impairments, measured using the equity method, or measured at fair value using net asset value as a practical expedient which are not categorized in the fair value hierarchy",
+                "SECURITIES AND EXCHANGE COMMISSION",
+                "Commission File Number 001-37845"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "year",
+                "over",
+                "changes",
+                "microsoft",
+                "expenses",
+                "their",
+                "percentage",
+                "revenue",
+                "scale",
+                "fy25",
+                "quarterly",
+                "full"
+              ],
+              "name": "MSFT_FY25Q2_10Q.docx",
+              "path": "Microsoft/MSFT_FY25Q2_10Q.docx",
+              "reasons": [
+                "short-id-in-path",
+                "multi-token-path-hints",
+                "multi-token-overlap",
+                "rare-token-in-path",
+                "chunk-map",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 2240.16
+            },
+            {
+              "duplicate_group_id": "sha256_68a80ff6e21be0d86a832aaebbf661cef59070f69c9878d09bfec79f4e89b325",
+              "evidence": [
+                "Format: MP2/3 (MPEG audio layer 2/3)",
+                "Duration seconds: 3494"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "microsoft"
+              ],
+              "name": "MSFT Microsoft Q2 2025 Earnings Conference Call - EARNMOAR (youtube).mp3",
+              "path": "Microsoft/MSFT Microsoft Q2 2025 Earnings Conference Call - EARNMOAR (youtube).mp3",
+              "reasons": [
+                "token-overlap",
+                "rare-token-in-name",
+                "fielded-bm25"
+              ],
+              "score": 2085.84
+            },
+            {
+              "duplicate_group_id": "sha256_d2dbe3c6d9bab8303aafc44d500971874c1f46ef39774b7bf89a683618fa1739",
+              "evidence": [],
+              "matched_intents": [],
+              "matched_terms": [
+                "quarterly"
+              ],
+              "name": "26-Q1 - 10-Q_ Quarterly report [Sections 13 or 15(d)] _ Walmart Inc. (WMT).pdf",
+              "path": "Walmart/26-Q1 - 10-Q_ Quarterly report [Sections 13 or 15(d)] _ Walmart Inc. (WMT).pdf",
+              "reasons": [
+                "token-overlap",
+                "rare-token-in-name",
+                "fielded-bm25"
+              ],
+              "score": 2017.52
+            },
+            {
+              "duplicate_group_id": "sha256_086b70ccb07f58153358927ad9360364e6cb61a4e1a59579a92fee028e2dbba2",
+              "evidence": [
+                "UID: qsm_nov25@capinvest",
+                "DTSTART: 20251125T090000",
+                "DTEND: 20251125T170000"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "quarterly",
+                "full"
+              ],
+              "name": "Calendar_Victoria_Nov_Dec_2025.ics",
+              "path": "Documents/Outlook/Calendar_Victoria_Nov_Dec_2025.ics",
+              "reasons": [
+                "token-overlap",
+                "chunk-map",
+                "multi-map-term",
+                "fielded-bm25"
+              ],
+              "score": 1864.281
+            },
+            {
+              "duplicate_group_id": "sha256_f24cf2fffbb25aae85f272d2a70357bf9148f3c3ef47eaccc33d6396aaa8799f",
+              "evidence": [
+                "- [ ] (High) Initiate Coverage: Apple (AAPL) - Project Bedrock",
+                "- [ ] (High) Initiate Coverage: Apple (AAPL) - Project Bedrock",
+                "- [X] Create folder scaffold (Done 10/20)"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "year",
+                "over"
+              ],
+              "name": "Tasks.md",
+              "path": "Documents/Tasks.md",
+              "reasons": [
+                "token-overlap",
+                "contextual-anchor",
+                "body-coverage",
+                "chunk-map",
+                "multi-map-term",
+                "fielded-bm25"
+              ],
+              "score": 1743.767
+            },
+            {
+              "duplicate_group_id": "sha256_7316f8d0d00ae901bce50d1a61fe43220cfd7cfa788be4224a24a0a1e75e1c94",
+              "evidence": [
+                "Feeling a bit burned out from the intensity of the dance prep last year",
+                "Feeling a bit burned out from the intensity of the dance prep last year",
+                "Need something more relaxing for the next skill cycle"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "year"
+              ],
+              "name": "Note_Interest_Watercolor.txt",
+              "path": "Documents/Notes/Note_Interest_Watercolor.txt",
+              "reasons": [
+                "token-overlap",
+                "contextual-anchor",
+                "chunk-map",
+                "fielded-bm25"
+              ],
+              "score": 1199.041
+            },
+            {
+              "duplicate_group_id": "sha256_de4798b4581210b0b4769d4a2bb3c70b8a075fd9ae3ee3b610e12dbbb872d9a1",
+              "evidence": [
+                "Subject: Lily's Mid-Term Break (Nov 24-28) - Planning",
+                "From: Victoria Clarke <victoria",
+                "Date: Wed, 29 Oct 2025 09:03:05 +0800"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "over",
+                "full"
+              ],
+              "name": "Draft_Email_Mark_MidTermBreak.eml",
+              "path": "Documents/Outlook/Drafts/Draft_Email_Mark_MidTermBreak.eml",
+              "reasons": [
+                "token-overlap",
+                "multi-map-term",
+                "fielded-bm25"
+              ],
+              "score": 931.645
+            }
+          ]
+        },
+        {
+          "duplicate_rank": 1,
+          "expected_paths": [
+            "Meta/24-Q4.pdf",
+            "Meta/META Meta Platforms Q2 2025 Earnings Conference Call - EARNMOAR (youtube).mp3",
+            "Meta/META Meta Platforms Q4 2024 Earnings Conference Call - EARNMOAR (youtube).mp3",
+            "Meta/META-Q1-2025-Follow-Up-Call-Transcript.pdf",
+            "Meta/META-Q2-2025-Follow-Up-Call-Transcript.pdf",
+            "Meta/WATCH LIVE Meta Platforms Q1 2025 Earnings Call  META - Benzinga (youtube).mp3"
+          ],
+          "hash_rank": 1,
+          "id": "hippocamp_factual_retention-0003",
+          "query": "The CFO has repeatedly mentioned a \"capacity crunch.\" How does this dynamic adjustment on both the supply and demand sides impact the Meta's short-term profit margins and future gross margins (cost structure)?",
+          "rank": 1,
+          "scenario": "hippocamp_factual_retention",
+          "top_results": [
+            {
+              "duplicate_group_id": "sha256_42e3a41c482bcb5f5730719d4744d9cfa4ce6b2e449bf59e88806611dea325b4",
+              "evidence": [
+                "Format: MP2/3 (MPEG audio layer 2/3)",
+                "Duration seconds: 3620"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "meta"
+              ],
+              "name": "META Meta Platforms Q2 2025 Earnings Conference Call - EARNMOAR (youtube).mp3",
+              "path": "Meta/META Meta Platforms Q2 2025 Earnings Conference Call - EARNMOAR (youtube).mp3",
+              "reasons": [
+                "token-overlap",
+                "rare-token-in-name",
+                "fielded-bm25"
+              ],
+              "score": 1935.824
+            },
+            {
+              "duplicate_group_id": "sha256_8b59a2c125c7bd56dfbb43bcbffcd680b59a2565fade44c1ceb5c5cf9d638892",
+              "evidence": [
+                "Format: MP2/3 (MPEG audio layer 2/3)",
+                "Duration seconds: 3635"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "meta"
+              ],
+              "name": "META Meta Platforms Q4 2024 Earnings Conference Call - EARNMOAR (youtube).mp3",
+              "path": "Meta/META Meta Platforms Q4 2024 Earnings Conference Call - EARNMOAR (youtube).mp3",
+              "reasons": [
+                "token-overlap",
+                "rare-token-in-name",
+                "fielded-bm25"
+              ],
+              "score": 1935.824
+            },
+            {
+              "duplicate_group_id": "sha256_f19c7cf182520c373a56cdec73e17d7fef68f1d736361058322ba08a174905dc",
+              "evidence": [],
+              "matched_intents": [],
+              "matched_terms": [
+                "meta"
+              ],
+              "name": "META-Q1-2025-Follow-Up-Call-Transcript.pdf",
+              "path": "Meta/META-Q1-2025-Follow-Up-Call-Transcript.pdf",
+              "reasons": [
+                "token-overlap",
+                "rare-token-in-name",
+                "fielded-bm25"
+              ],
+              "score": 1830.122
+            },
+            {
+              "duplicate_group_id": "sha256_2a5cc36613190d8908975669b9422c439714946816b7627a67762ab915ca278e",
+              "evidence": [
+                "**Lily Mid-Term Break Plan (Nov 24-28) - Final:**",
+                "**Lily Mid-Term Break Plan (Nov 24-28) - Final:**",
+                "* Mon (24th): Art Jamming Camp (9am-1pm) @ [Camp Location]"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "term"
+              ],
+              "name": "Note_MidTerm_Break_Final_Plan.txt",
+              "path": "Documents/Notes/Note_MidTerm_Break_Final_Plan.txt",
+              "reasons": [
+                "token-overlap",
+                "contextual-anchor",
+                "rare-token-in-name",
+                "chunk-map",
+                "fielded-bm25"
+              ],
+              "score": 1643.345
+            },
+            {
+              "duplicate_group_id": "sha256_21228fd62c08fe83941d11583b3ac9c540cb3fd9f5ebf6203805741b4aeb363e",
+              "evidence": [
+                "Lily's Interests & Potential Holiday Camps:",
+                "Current Interests (Late 2025):",
+                "- Still loves drawing and painting, very creative"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "future",
+                "structure"
+              ],
+              "name": "Note_Lily_Interests_Camps.txt",
+              "path": "Documents/Lily_School/Note_Lily_Interests_Camps.txt",
+              "reasons": [
+                "token-overlap",
+                "contextual-anchor",
+                "body-coverage",
+                "multi-map-term",
+                "fielded-bm25"
+              ],
+              "score": 1526.885
+            },
+            {
+              "duplicate_group_id": "sha256_e821761c20fb732d0493eb8997aeccfdbb91445b23f624ee2ce8cf6590bc52a5",
+              "evidence": [
+                "**Coursera Specialization: Python for Financial Analysis & Algorithmic Trading**",
+                "**Goal:** Master core Python libraries (Pandas, NumPy, Matplotlib, Scikit-learn) for financial data analysis and basic algorithmic trading strategy backtesting by end of 2024",
+                "**Progress Tracker:** (Target: 1 Module/Week)"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "mentioned",
+                "structure"
+              ],
+              "name": "Python_Course_Progress.md",
+              "path": "Documents/Programming/Python_Course_Progress.md",
+              "reasons": [
+                "token-overlap",
+                "contextual-anchor",
+                "body-coverage",
+                "multi-map-term",
+                "fielded-bm25"
+              ],
+              "score": 1503.034
+            },
+            {
+              "duplicate_group_id": "sha256_c4e51aada39fe9a894c610d4848f06b3ab12242171099c48f5bc563fcd1a26ba",
+              "evidence": [
+                "Format: MP2/3 (MPEG audio layer 2/3)",
+                "Duration seconds: 5469"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "meta"
+              ],
+              "name": "WATCH LIVE Meta Platforms Q1 2025 Earnings Call  META - Benzinga (youtube).mp3",
+              "path": "Meta/WATCH LIVE Meta Platforms Q1 2025 Earnings Call  META - Benzinga (youtube).mp3",
+              "reasons": [
+                "token-overlap",
+                "rare-token-in-name",
+                "fielded-bm25"
+              ],
+              "score": 1909.75
+            },
+            {
+              "duplicate_group_id": "sha256_4dcb497d014eaeb081c4296ea7ea356970a8cf3ded580cc3c0a8f1ef9a31d9d4",
+              "evidence": [],
+              "matched_intents": [],
+              "matched_terms": [
+                "meta"
+              ],
+              "name": "META-Q2-2025-Follow-Up-Call-Transcript.pdf",
+              "path": "Meta/META-Q2-2025-Follow-Up-Call-Transcript.pdf",
+              "reasons": [
+                "token-overlap",
+                "rare-token-in-name",
+                "fielded-bm25"
+              ],
+              "score": 1830.122
+            },
+            {
+              "duplicate_group_id": "sha256_a095a96a9a28c88f829e057c8669cb77425c88e6cc94d2a0b9c83981db6e58d2",
+              "evidence": [
+                "**Debrief: BlackRock Dinner @ Cut (Sept 12, 2024)**",
+                "- John Doe (Head of Alt Investments, BlackRock APAC)",
+                "- Sarah Lee (Portfolio Manager, BlackRock SG)"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "supply",
+                "structure"
+              ],
+              "name": "Note_Client_Dinner_Success_Sep2024.txt",
+              "path": "Documents/Notes/Note_Client_Dinner_Success_Sep2024.txt",
+              "reasons": [
+                "token-overlap",
+                "contextual-anchor",
+                "body-coverage",
+                "chunk-map",
+                "multi-map-term",
+                "fielded-bm25"
+              ],
+              "score": 1371.329
+            },
+            {
+              "duplicate_group_id": "sha256_0b1581bd343fbcef3f940b97091f3e214f1d1f5296f2db67ea54c95ec3e75663",
+              "evidence": [
+                "Long term goal for watercolor: Be able to paint a decent botanical illustration (maybe one of the orchids from Botanic Gardens",
+                "Long term goal for watercolor: Be able to paint a decent botanical illustration (maybe one of the orchids from Botanic Gardens",
+                ") good enough to frame for the living room wall"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "term"
+              ],
+              "name": "Note_Watercolor_Goal_FramedPiece.txt",
+              "path": "Documents/Notes/Note_Watercolor_Goal_FramedPiece.txt",
+              "reasons": [
+                "token-overlap",
+                "contextual-anchor",
+                "chunk-map",
+                "fielded-bm25"
+              ],
+              "score": 1359.019
+            }
+          ]
+        },
+        {
+          "duplicate_rank": 2,
+          "expected_paths": [
+            "Walmart/26-Q1 - 10-Q_ Quarterly report [Sections 13 or 15(d)] _ Walmart Inc. (WMT).pdf",
+            "Walmart/26-Q2.pdf",
+            "Walmart/Walmart FY2026 Q1 Earnings Release - Walmart (youtube).mp3",
+            "Walmart/Walmart FY2026 Q2 Earnings Release - Walmart (youtube).mp3",
+            "Walmart/Walmart FYE2025 Q4 Earnings Release - Walmart (youtube).mp3",
+            "Walmart/Walmart Inc. FY2025 Q3 Earnings Release - Walmart (youtube).mp3"
+          ],
+          "hash_rank": 2,
+          "id": "hippocamp_factual_retention-0004",
+          "query": "With Walmart's eCommerce growth rate consistently exceeding 20% quarterly, how has its contribution to the company's overall revenue and profit margin evolved? How does its growth structure differ from that of physical store sales?",
+          "rank": 2,
+          "scenario": "hippocamp_factual_retention",
+          "top_results": [
+            {
+              "duplicate_group_id": "sha256_6bc0e6bec04a383c6941aee47f18321540371a42f007605669fc238295de992d",
+              "evidence": [
+                "- # Apple (AAPL) - Coverage Initiation Notes",
+                "**Sector:** Technology Hardware, Storage & Peripherals",
+                "**Date Initiated:** 2025-10-21"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "growth",
+                "20",
+                "has",
+                "revenue",
+                "margin",
+                "store",
+                "profit",
+                "its",
+                "sales",
+                "structure",
+                "overall",
+                "rate"
+              ],
+              "name": "AAPL_Coverage_Initiation_Notes.md",
+              "path": "Documents/Capitol_Investments/Companies/AAPL - Apple Inc/4. Analysis & Models/AAPL_Coverage_Initiation_Notes.md",
+              "reasons": [
+                "multi-token-overlap",
+                "contextual-anchor",
+                "body-coverage",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 3817.688
+            },
+            {
+              "duplicate_group_id": "sha256_d2dbe3c6d9bab8303aafc44d500971874c1f46ef39774b7bf89a683618fa1739",
+              "evidence": [],
+              "matched_intents": [],
+              "matched_terms": [
+                "walmart",
+                "quarterly"
+              ],
+              "name": "26-Q1 - 10-Q_ Quarterly report [Sections 13 or 15(d)] _ Walmart Inc. (WMT).pdf",
+              "path": "Walmart/26-Q1 - 10-Q_ Quarterly report [Sections 13 or 15(d)] _ Walmart Inc. (WMT).pdf",
+              "reasons": [
+                "multi-token-path-hints",
+                "rare-token-in-name",
+                "multi-map-term",
+                "fielded-bm25"
+              ],
+              "score": 3797.162
+            },
+            {
+              "duplicate_group_id": "sha256_dc6fcd8028d19d36ea68ef2e782f23e6cdfac042925c07bfcceb4edd8598fe18",
+              "evidence": [
+                "Format: MP2/3 (MPEG audio layer 2/3)",
+                "Duration seconds: 4335"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "walmart",
+                "20"
+              ],
+              "name": "Walmart FY2026 Q1 Earnings Release - Walmart (youtube).mp3",
+              "path": "Walmart/Walmart FY2026 Q1 Earnings Release - Walmart (youtube).mp3",
+              "reasons": [
+                "short-id-in-path",
+                "multi-token-path-hints",
+                "rare-token-in-name",
+                "multi-map-term",
+                "fielded-bm25"
+              ],
+              "score": 2206.038
+            },
+            {
+              "duplicate_group_id": "sha256_180f81e854d9b298a92dc0d8666137e7995ff938eede6d50398e63e502c61947",
+              "evidence": [
+                "Format: MP2/3 (MPEG audio layer 2/3)",
+                "Duration seconds: 3915"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "walmart",
+                "20"
+              ],
+              "name": "Walmart FY2026 Q2 Earnings Release - Walmart (youtube).mp3",
+              "path": "Walmart/Walmart FY2026 Q2 Earnings Release - Walmart (youtube).mp3",
+              "reasons": [
+                "short-id-in-path",
+                "multi-token-path-hints",
+                "rare-token-in-name",
+                "multi-map-term",
+                "fielded-bm25"
+              ],
+              "score": 2206.038
+            },
+            {
+              "duplicate_group_id": "sha256_0b844c361c0e56b4053f5fbf99a40cee3575b3728333949be7e1da2a273a56d9",
+              "evidence": [],
+              "matched_intents": [],
+              "matched_terms": [
+                "20",
+                "store"
+              ],
+              "name": "2024-App-Store-Transparency-Report.pdf",
+              "path": "Documents/Capitol_Investments/Companies/AAPL - Apple Inc/1. Investor Relations/2024-App-Store-Transparency-Report.pdf",
+              "reasons": [
+                "short-id-in-path",
+                "multi-token-path-hints",
+                "rare-token-in-name",
+                "multi-map-term",
+                "fielded-bm25"
+              ],
+              "score": 2094.431
+            },
+            {
+              "duplicate_group_id": "sha256_a095a96a9a28c88f829e057c8669cb77425c88e6cc94d2a0b9c83981db6e58d2",
+              "evidence": [
+                "**Debrief: BlackRock Dinner @ Cut (Sept 12, 2024)**",
+                "**Debrief: BlackRock Dinner @ Cut (Sept 12, 2024)**",
+                "- John Doe (Head of Alt Investments, BlackRock APAC)"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "rate",
+                "20",
+                "overall",
+                "structure"
+              ],
+              "name": "Note_Client_Dinner_Success_Sep2024.txt",
+              "path": "Documents/Notes/Note_Client_Dinner_Success_Sep2024.txt",
+              "reasons": [
+                "short-id-in-path",
+                "multi-token-overlap",
+                "contextual-anchor",
+                "body-coverage",
+                "chunk-map",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 2081.01
+            },
+            {
+              "duplicate_group_id": "sha256_fbb69b891cdf391ef82d67d30cac9638047ab811aedb85f1b7befe33e4edd16f",
+              "evidence": [
+                "on based on actual prices charged, prices when sold separately, or estimated costs plus a profit margin",
+                "SECURITIES AND EXCHANGE COMMISSION",
+                "Commission File Number 001-37845"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "growth",
+                "rate",
+                "20",
+                "quarterly",
+                "has",
+                "its",
+                "company",
+                "overall",
+                "revenue",
+                "profit",
+                "margin",
+                "structure"
+              ],
+              "name": "MSFT_FY25Q3_10Q.docx",
+              "path": "Microsoft/MSFT_FY25Q3_10Q.docx",
+              "reasons": [
+                "multi-token-overlap",
+                "chunk-map",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 1589.723
+            },
+            {
+              "duplicate_group_id": "sha256_3827bb701daae70c05460b690019463c1f3020746fde67d200f8f3ef094dc245",
+              "evidence": [
+                "in cases based on a relative revenue methodology",
+                "SECURITIES AND EXCHANGE COMMISSION",
+                "Commission File Number 001-37845"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "growth",
+                "rate",
+                "20",
+                "quarterly",
+                "has",
+                "its",
+                "company",
+                "overall",
+                "revenue",
+                "profit",
+                "margin",
+                "structure"
+              ],
+              "name": "MSFT_FY25Q2_10Q.docx",
+              "path": "Microsoft/MSFT_FY25Q2_10Q.docx",
+              "reasons": [
+                "multi-token-overlap",
+                "chunk-map",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 1493.596
+            },
+            {
+              "duplicate_group_id": "sha256_fa4fe90a31dbf0a61daff31ec2900ca084cfc183a52ba6f91cc9e187319ba8dd",
+              "evidence": [
+                "Format: MP2/3 (MPEG audio layer 2/3)",
+                "Duration seconds: 3652"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "walmart",
+                "20"
+              ],
+              "name": "Walmart FYE2025 Q4 Earnings Release - Walmart (youtube).mp3",
+              "path": "Walmart/Walmart FYE2025 Q4 Earnings Release - Walmart (youtube).mp3",
+              "reasons": [
+                "short-id-in-path",
+                "multi-token-path-hints",
+                "rare-token-in-name",
+                "multi-map-term",
+                "fielded-bm25"
+              ],
+              "score": 2206.038
+            },
+            {
+              "duplicate_group_id": "sha256_9f11e40e4a510b35af50e9ae7ae13b103ee41b38f68cb2325f98093445a12155",
+              "evidence": [
+                "Format: MP2/3 (MPEG audio layer 2/3)",
+                "Duration seconds: 3885"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "walmart",
+                "20"
+              ],
+              "name": "Walmart Inc. FY2025 Q3 Earnings Release - Walmart (youtube).mp3",
+              "path": "Walmart/Walmart Inc. FY2025 Q3 Earnings Release - Walmart (youtube).mp3",
+              "reasons": [
+                "short-id-in-path",
+                "multi-token-path-hints",
+                "rare-token-in-name",
+                "multi-map-term",
+                "fielded-bm25"
+              ],
+              "score": 2173.672
+            }
+          ]
+        },
+        {
+          "duplicate_rank": 1,
+          "expected_paths": [
+            "Intel/0000050863-25-000109.pdf",
+            "Intel/2Q2025-Earnings-Call Prepared Remarks.pdf",
+            "Intel/Intel 25 Q2.mp3",
+            "Intel/Q2 Earnings Deck for upload.pdf",
+            "Intel/Q2'25_EarningsRelease_FINAL.pdf"
+          ],
+          "hash_rank": 1,
+          "id": "hippocamp_factual_retention-0005",
+          "query": "Intel's gross margin saw a significant sequential decline in Q2 2025. Beyond normal business fluctuations, were there any specific one-time factors that influenced this? After excluding these factors, how did the adjusted gross margin perform against the company's prior guidance?",
+          "rank": 1,
+          "scenario": "hippocamp_factual_retention",
+          "top_results": [
+            {
+              "duplicate_group_id": "sha256_ddcebaaf9fdf357d8d37f8d186ecd7834e1bdcc02203a632bb835f11b627ff95",
+              "evidence": [
+                "Format: QuickTime / MOV",
+                "Format: QuickTime / MOV",
+                "Duration seconds: 3721"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "intel",
+                "q2",
+                "time"
+              ],
+              "name": "Intel 25 Q2.mp3",
+              "path": "Intel/Intel 25 Q2.mp3",
+              "reasons": [
+                "short-id-in-path",
+                "multi-token-path-hints",
+                "multi-token-overlap",
+                "rare-token-in-name",
+                "chunk-map",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 4028.128
+            },
+            {
+              "duplicate_group_id": "sha256_6bc0e6bec04a383c6941aee47f18321540371a42f007605669fc238295de992d",
+              "evidence": [
+                "- # Apple (AAPL) - Coverage Initiation Notes",
+                "**Sector:** Technology Hardware, Storage & Peripherals",
+                "**Date Initiated:** 2025-10-21"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "2025",
+                "margin",
+                "significant",
+                "business",
+                "one",
+                "prior",
+                "gross",
+                "perform"
+              ],
+              "name": "AAPL_Coverage_Initiation_Notes.md",
+              "path": "Documents/Capitol_Investments/Companies/AAPL - Apple Inc/4. Analysis & Models/AAPL_Coverage_Initiation_Notes.md",
+              "reasons": [
+                "multi-token-overlap",
+                "compact-exact-term",
+                "contextual-anchor",
+                "body-coverage",
+                "chunk-map",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 3569.124
+            },
+            {
+              "duplicate_group_id": "sha256_3827bb701daae70c05460b690019463c1f3020746fde67d200f8f3ef094dc245",
+              "evidence": [
+                "imately $800 million in aggregate beyond recorded amounts are reasonably possible",
+                "SECURITIES AND EXCHANGE COMMISSION",
+                "Commission File Number 001-37845"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "2025",
+                "intel",
+                "gross",
+                "margin",
+                "significant",
+                "decline",
+                "q2",
+                "beyond",
+                "normal",
+                "business",
+                "fluctuations",
+                "were"
+              ],
+              "name": "MSFT_FY25Q2_10Q.docx",
+              "path": "Microsoft/MSFT_FY25Q2_10Q.docx",
+              "reasons": [
+                "short-id-in-path",
+                "multi-token-overlap",
+                "compact-exact-term",
+                "chunk-map",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 2993.111
+            },
+            {
+              "duplicate_group_id": "sha256_fbb69b891cdf391ef82d67d30cac9638047ab811aedb85f1b7befe33e4edd16f",
+              "evidence": [
+                "pate a significant increase or decrease to our income tax contingencies for these issues within the next 12 months",
+                "SECURITIES AND EXCHANGE COMMISSION",
+                "Commission File Number 001-37845"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "2025",
+                "intel",
+                "gross",
+                "margin",
+                "significant",
+                "decline",
+                "beyond",
+                "normal",
+                "business",
+                "fluctuations",
+                "were",
+                "specific"
+              ],
+              "name": "MSFT_FY25Q3_10Q.docx",
+              "path": "Microsoft/MSFT_FY25Q3_10Q.docx",
+              "reasons": [
+                "multi-token-overlap",
+                "compact-exact-term",
+                "chunk-map",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 2457.983
+            },
+            {
+              "duplicate_group_id": "sha256_42e3a41c482bcb5f5730719d4744d9cfa4ce6b2e449bf59e88806611dea325b4",
+              "evidence": [
+                "Format: MP2/3 (MPEG audio layer 2/3)",
+                "Duration seconds: 3620"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "2025",
+                "q2"
+              ],
+              "name": "META Meta Platforms Q2 2025 Earnings Conference Call - EARNMOAR (youtube).mp3",
+              "path": "Meta/META Meta Platforms Q2 2025 Earnings Conference Call - EARNMOAR (youtube).mp3",
+              "reasons": [
+                "short-id-in-path",
+                "short-id-in-path",
+                "query-bigram-in-path",
+                "multi-token-path-hints",
+                "doc-type-match",
+                "compact-exact-term",
+                "rare-token-in-name",
+                "evidence-phrase",
+                "fielded-bm25"
+              ],
+              "score": 2442.575
+            },
+            {
+              "duplicate_group_id": "sha256_68a80ff6e21be0d86a832aaebbf661cef59070f69c9878d09bfec79f4e89b325",
+              "evidence": [
+                "Format: MP2/3 (MPEG audio layer 2/3)",
+                "Duration seconds: 3494"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "2025",
+                "q2"
+              ],
+              "name": "MSFT Microsoft Q2 2025 Earnings Conference Call - EARNMOAR (youtube).mp3",
+              "path": "Microsoft/MSFT Microsoft Q2 2025 Earnings Conference Call - EARNMOAR (youtube).mp3",
+              "reasons": [
+                "short-id-in-path",
+                "short-id-in-path",
+                "query-bigram-in-path",
+                "multi-token-path-hints",
+                "compact-exact-term",
+                "rare-token-in-name",
+                "evidence-phrase",
+                "fielded-bm25"
+              ],
+              "score": 2272.575
+            },
+            {
+              "duplicate_group_id": "sha256_0123d9a272057ae21731b2329b9c15c63fabbd1f9b42abfbc8197a302e524cd1",
+              "evidence": [],
+              "matched_intents": [],
+              "matched_terms": [
+                "2025",
+                "intel",
+                "q2"
+              ],
+              "name": "2Q2025-Earnings-Call Prepared Remarks.pdf",
+              "path": "Intel/2Q2025-Earnings-Call Prepared Remarks.pdf",
+              "reasons": [
+                "short-id-in-path",
+                "short-id-in-path",
+                "multi-token-path-hints",
+                "multi-token-overlap",
+                "compact-exact-term",
+                "rare-token-in-path",
+                "rare-token-in-name",
+                "multi-map-term",
+                "fielded-bm25"
+              ],
+              "score": 2237.269
+            },
+            {
+              "duplicate_group_id": "sha256_a095a96a9a28c88f829e057c8669cb77425c88e6cc94d2a0b9c83981db6e58d2",
+              "evidence": [
+                "**Debrief: BlackRock Dinner @ Cut (Sept 12, 2024)**",
+                "- John Doe (Head of Alt Investments, BlackRock APAC)",
+                "- Sarah Lee (Portfolio Manager, BlackRock SG)"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "significant",
+                "specific",
+                "one"
+              ],
+              "name": "Note_Client_Dinner_Success_Sep2024.txt",
+              "path": "Documents/Notes/Note_Client_Dinner_Success_Sep2024.txt",
+              "reasons": [
+                "multi-token-overlap",
+                "contextual-anchor",
+                "body-coverage",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 2080.285
+            },
+            {
+              "duplicate_group_id": "sha256_8f69fd8772d21a5b3429800acbb35fc4a2274661f7f94a2b3e964f13a3db05a5",
+              "evidence": [
+                "Thoughts for 2025-2026 Skill Cycle:",
+                "Thoughts for 2025-2026 Skill Cycle:",
+                "- Dance cycle finishing up"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "2025",
+                "time",
+                "company",
+                "saw",
+                "one"
+              ],
+              "name": "Note_Considering_Cat.txt",
+              "path": "Documents/Notes/Note_Considering_Cat.txt",
+              "reasons": [
+                "multi-token-overlap",
+                "compact-exact-term",
+                "contextual-anchor",
+                "body-coverage",
+                "chunk-map",
+                "multi-map-term",
+                "fielded-bm25"
+              ],
+              "score": 2065.489
+            },
+            {
+              "duplicate_group_id": "sha256_777ed663455c01710aaf9235a74ad5044cc0ade639baeb9bda20889e0994b22f",
+              "evidence": [
+                "ign our segments with how we currently manage our business, most notably bringing the commercial components of Microsoft 365 together in the Productivity and Business Processes segment",
+                "SECURITIES AND EXCHANGE COMMISSION",
+                "Commission File Number 001-37845"
+              ],
+              "matched_intents": [],
+              "matched_terms": [
+                "2025",
+                "intel",
+                "margin",
+                "significant",
+                "business",
+                "were",
+                "specific",
+                "one",
+                "time",
+                "factors",
+                "these",
+                "perform"
+              ],
+              "name": "MSFT_FY25q4_10K.docx",
+              "path": "Microsoft/MSFT_FY25q4_10K.docx",
+              "reasons": [
+                "multi-token-overlap",
+                "compact-exact-term",
+                "chunk-map",
+                "multi-map-term",
+                "strong-map-term",
+                "fielded-bm25"
+              ],
+              "score": 2041.187
+            }
+          ]
+        }
+      ],
+      "metrics": {
+        "by_scenario": {
+          "hippocamp_factual_retention": {
+            "cases": 5,
+            "duplicate_or_exact_hit_at_10": 1.0,
+            "hash_or_exact_hit_at_10": 1.0,
+            "hit_at_1": 0.6,
+            "hit_at_10": 1.0,
+            "hit_at_5": 1.0,
+            "mrr": 0.75,
+            "set_recall_at_10": 0.8133,
+            "set_recall_at_5": 0.56
+          },
+          "hippocamp_profiling": {
+            "cases": 6,
+            "duplicate_or_exact_hit_at_10": 1.0,
+            "hash_or_exact_hit_at_10": 1.0,
+            "hit_at_1": 0.8333,
+            "hit_at_10": 1.0,
+            "hit_at_5": 0.8333,
+            "mrr": 0.8519,
+            "set_recall_at_10": 0.4444,
+            "set_recall_at_5": 0.5333
+          }
+        },
+        "cases": 11,
+        "duplicate_or_exact_hit_at_10": 1.0,
+        "duplicate_or_exact_hit_at_5": 0.9091,
+        "hash_or_exact_hit_at_10": 1.0,
+        "hash_or_exact_hit_at_5": 0.9091,
+        "hit_at_1": 0.7273,
+        "hit_at_10": 1.0,
+        "hit_at_3": 0.8182,
+        "hit_at_5": 0.9091,
+        "mrr": 0.8056,
+        "seconds": 0.413,
+        "set_precision_at_10": 0.4364,
+        "set_precision_at_5": 0.5273,
+        "set_recall_at_10": 0.6121,
+        "set_recall_at_5": 0.5455,
+        "top_k": 10
+      }
+    }
+  },
+  "root": "/private/var/folders/8w/_x12f_056yv_z1x45vr_f2cm0000gp/T/jikji-victoria-shared-eval-w7vwomjk/python/Victoria_Subset"
+}

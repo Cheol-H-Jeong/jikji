@@ -1,0 +1,462 @@
+[
+  {
+    "name": "prepare",
+    "command": [
+      "prepare",
+      "<SCENARIO_ROOT>",
+      "--json"
+    ],
+    "exit_code": 0,
+    "stdout": "{\n  \"root\": \"<SCENARIO_ROOT>\",\n  \"index_dir\": \"<SCENARIO_ROOT>/.jikji\",\n  \"agent_map\": \"<SCENARIO_ROOT>/.jikji/agent_map.md\",\n  \"files\": 2,\n  \"folders\": 2,\n  \"docs_parsed\": 0,\n  \"docs_reused\": 0,\n  \"docs_failed\": 0,\n  \"deleted\": 0\n}\n",
+    "stderr": "",
+    "stdout_json": {
+      "root": "<SCENARIO_ROOT>",
+      "index_dir": "<SCENARIO_ROOT>/.jikji",
+      "agent_map": "<SCENARIO_ROOT>/.jikji/agent_map.md",
+      "files": 2,
+      "folders": 2,
+      "docs_parsed": 0,
+      "docs_reused": 0,
+      "docs_failed": 0,
+      "deleted": 0
+    }
+  },
+  {
+    "name": "search_ascii",
+    "command": [
+      "search",
+      "<SCENARIO_ROOT>",
+      "direct-answer-771",
+      "--json"
+    ],
+    "exit_code": 0,
+    "stdout": "{\n  \"root\": \"<SCENARIO_ROOT>\",\n  \"query\": \"direct-answer-771\",\n  \"top_k\": 20,\n  \"index_status\": \"ready\",\n  \"foreground_prepared\": false,\n  \"background_refresh_started\": false,\n  \"candidates\": [\n    {\n      \"path\": \"docs/acme-contract.txt\",\n      \"name\": \"acme-contract.txt\",\n      \"score\": 2534.421,\n      \"reasons\": [\n        \"body-contains-query\",\n        \"multi-token-overlap\",\n        \"contextual-anchor\",\n        \"body-coverage\",\n        \"map-phrase\",\n        \"chunk-map\",\n        \"multi-map-term\",\n        \"strong-map-term\",\n        \"fielded-bm25\"\n      ],\n      \"matched_terms\": [\n        \"direct-answer-771\",\n        \"direct\",\n        \"answer\",\n        \"771\"\n      ],\n      \"matched_intents\": [],\n      \"duplicate_group_id\": \"sha256_d8518733fbfc1404ea57241271f0baeb95a97a243475202d605fae36f92a9462\",\n      \"evidence\": [\n        \"ACME renewal contract contains indemnity marker direct-answer-771\",\n        \"ACME renewal contract contains indemnity marker direct-answer-771\"\n      ]\n    }\n  ]\n}\n",
+    "stderr": "",
+    "stdout_json": {
+      "root": "<SCENARIO_ROOT>",
+      "query": "direct-answer-771",
+      "top_k": 20,
+      "index_status": "ready",
+      "foreground_prepared": false,
+      "background_refresh_started": false,
+      "candidates": [
+        {
+          "path": "docs/acme-contract.txt",
+          "name": "acme-contract.txt",
+          "score": 2534.421,
+          "reasons": [
+            "body-contains-query",
+            "multi-token-overlap",
+            "contextual-anchor",
+            "body-coverage",
+            "map-phrase",
+            "chunk-map",
+            "multi-map-term",
+            "strong-map-term",
+            "fielded-bm25"
+          ],
+          "matched_terms": [
+            "direct-answer-771",
+            "direct",
+            "answer",
+            "771"
+          ],
+          "matched_intents": [],
+          "duplicate_group_id": "sha256_d8518733fbfc1404ea57241271f0baeb95a97a243475202d605fae36f92a9462",
+          "evidence": [
+            "ACME renewal contract contains indemnity marker direct-answer-771",
+            "ACME renewal contract contains indemnity marker direct-answer-771"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "search_cjk",
+    "command": [
+      "search",
+      "<SCENARIO_ROOT>",
+      "서울 연구소",
+      "--json"
+    ],
+    "exit_code": 0,
+    "stdout": "{\n  \"root\": \"<SCENARIO_ROOT>\",\n  \"query\": \"서울 연구소\",\n  \"top_k\": 20,\n  \"index_status\": \"ready\",\n  \"foreground_prepared\": false,\n  \"background_refresh_started\": false,\n  \"candidates\": [\n    {\n      \"path\": \"자료/회의록.txt\",\n      \"name\": \"회의록.txt\",\n      \"score\": 2637.056,\n      \"reasons\": [\n        \"body-contains-query\",\n        \"multi-token-overlap\",\n        \"contextual-anchor\",\n        \"body-coverage\",\n        \"map-phrase\",\n        \"chunk-map\",\n        \"multi-map-term\",\n        \"strong-map-term\",\n        \"fielded-bm25\"\n      ],\n      \"matched_terms\": [\n        \"서울\",\n        \"연구소\",\n        \"연구\",\n        \"구소\"\n      ],\n      \"matched_intents\": [],\n      \"duplicate_group_id\": \"sha256_6c417508e099615239d9c401377f999f9f6602d931c4178d5e13dbf5e1b905ec\",\n      \"evidence\": [\n        \"서울 연구소 회의록 contains cjk-marker-902\",\n        \"서울 연구소 회의록 contains cjk-marker-902\"\n      ]\n    }\n  ]\n}\n",
+    "stderr": "",
+    "stdout_json": {
+      "root": "<SCENARIO_ROOT>",
+      "query": "서울 연구소",
+      "top_k": 20,
+      "index_status": "ready",
+      "foreground_prepared": false,
+      "background_refresh_started": false,
+      "candidates": [
+        {
+          "path": "자료/회의록.txt",
+          "name": "회의록.txt",
+          "score": 2637.056,
+          "reasons": [
+            "body-contains-query",
+            "multi-token-overlap",
+            "contextual-anchor",
+            "body-coverage",
+            "map-phrase",
+            "chunk-map",
+            "multi-map-term",
+            "strong-map-term",
+            "fielded-bm25"
+          ],
+          "matched_terms": [
+            "서울",
+            "연구소",
+            "연구",
+            "구소"
+          ],
+          "matched_intents": [],
+          "duplicate_group_id": "sha256_6c417508e099615239d9c401377f999f9f6602d931c4178d5e13dbf5e1b905ec",
+          "evidence": [
+            "서울 연구소 회의록 contains cjk-marker-902",
+            "서울 연구소 회의록 contains cjk-marker-902"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "find_direct",
+    "command": [
+      "find",
+      "<SCENARIO_ROOT>",
+      "ACME indemnity marker",
+      "--json"
+    ],
+    "exit_code": 0,
+    "stdout": "{\"mode\":\"find\",\"answer_pack_version\":1,\"root\":\"<SCENARIO_ROOT>\",\"query\":\"ACME indemnity marker\",\"query_type\":\"adaptive\",\"confidence\":\"high\",\"confidence_score\":0.8994,\"confidence_factors\":{\"score_margin\":0.9972,\"variant_agreement\":1.0,\"family_coherence\":0.5,\"evidence_coverage\":1.0,\"duplicate_or_anchor_signal\":1.0},\"recommended_action\":\"verify_top_candidates\",\"handoff_action\":\"direct_use\",\"handoff_policy\":{\"agent_budget\":\"zero_extra_discovery_calls\",\"use_payload_directly\":true,\"raw_fallback_allowed\":\"no\",\"verification\":\"return_top_path_or_inspect_original_top_1_only\"},\"retry_proof\":\"\",\"next_commands\":[],\"paths\":[\"docs/acme-contract.txt\",\"자료/회의록.txt\"],\"answer_paths\":[\"docs/acme-contract.txt\",\"자료/회의록.txt\"],\"supporting_paths\":[],\"requires_llm_rerank\":false,\"agent_should_not_rerank\":true,\"answerability\":\"answerable_from_payload\",\"tool_call_policy\":{\"stop_after_find\":true,\"allowed_followups\":[\"verify_top_1_path\",\"return_answer_paths_to_user\"],\"forbidden_tools\":[\"read_file\",\"search\",\"grep\",\"rg\",\"find\",\"fd\",\"ls\",\"cat\",\"tree\",\"glob\",\"skills_list\"],\"rerank_locked\":true,\"reason\":\"jikji_find_result_is_answerable_from_payload\",\"escape_hatch\":\"none_unless_handoff_action_allows_jikji_retry_or_raw_fallback_after_retry\"},\"allowed_agent_tool_calls\":0,\"allowed_llm_calls\":0,\"max_jikji_retries\":0,\"max_raw_fallback_commands\":0,\"max_verification_reads\":3,\"raw_fallback_allowed\":false,\"query_variants\":[\"ACME indemnity marker\",\"ACME\"],\"llm_search_plan\":{\"mode\":\"one_call_multi_search_judge\",\"calls_per_cycle\":1,\"judge\":\"choose_best_file_from_merged_candidate_slate\",\"rewrite_cycle\":\"none\",\"candidate_top_k\":20,\"token_accounting\":\"query_variants_plus_merged_candidate_slate\"},\"search_plan\":{\"mode\":\"deterministic_multi_search\",\"routes\":[{\"route\":\"lexical_file_map\",\"source\":\".jikji/file_cards.jsonl\",\"query_variants\":[\"ACME indemnity marker\",\"ACME\"],\"per_route_top_k\":60},{\"route\":\"graph_route\",\"source\":\".jikji/knowledge_graph.json\",\"query_variants\":[\"ACME indemnity marker\",\"ACME\"],\"per_route_top_k\":60},{\"route\":\"wiki_cache\",\"source\":\".jikji/wiki/\",\"query_variants\":[\"ACME indemnity marker\",\"ACME\"],\"per_route_top_k\":60},{\"route\":\"metadata\",\"source\":\".jikji/file_cards.jsonl\",\"query_variants\":[\"ACME indemnity marker\",\"ACME\"],\"per_route_top_k\":60}],\"merge\":\"dedupe_by_path_then_rank_by_discover_score\",\"candidate_top_k\":20},\"judge_candidate_slate\":[{\"rank\":1,\"path\":\"docs/acme-contract.txt\",\"score\":90675.776,\"routes\":[\"lexical_file_map\",\"graph_route\",\"wiki_cache\",\"metadata\"],\"queries\":[\"ACME indemnity marker\",\"ACME\"],\"evidence\":[\"ACME renewal contract contains indemnity marker direct-answer-771\",\"ACME renewal contract contains indemnity marker direct-answer-771\"],\"next_read\":{\"kind\":\"original\",\"path\":\"docs/acme-contract.txt\"}},{\"rank\":2,\"path\":\"자료/회의록.txt\",\"score\":250.788,\"routes\":[\"lexical_file_map\",\"graph_route\",\"wiki_cache\",\"metadata\"],\"queries\":[\"ACME indemnity marker\"],\"evidence\":[\"서울 연구소 회의록 contains cjk-marker-902\",\"서울 연구소 회의록 contains cjk-marker-902\"],\"next_read\":{\"kind\":\"original\",\"path\":\"자료/회의록.txt\"}}],\"evidence_pack\":[{\"path\":\"docs/acme-contract.txt\",\"why\":[\"short-id-in-path\",\"multi-token-overlap\",\"contextual-anchor\",\"body-coverage\",\"map-phrase\"],\"matched_terms\":[\"acme\",\"indemnity\",\"marker\"],\"evidence\":[\"ACME renewal contract contains indemnity marker direct-answer-771\",\"ACME renewal contract contains indemnity marker direct-answer-771\"],\"next_read\":{\"kind\":\"original\",\"path\":\"docs/acme-contract.txt\"}},{\"path\":\"자료/회의록.txt\",\"why\":[\"token-overlap\",\"contextual-anchor\",\"chunk-map\",\"fielded-bm25\"],\"matched_terms\":[\"marker\"],\"evidence\":[\"서울 연구소 회의록 contains cjk-marker-902\",\"서울 연구소 회의록 contains cjk-marker-902\"],\"next_read\":{\"kind\":\"original\",\"path\":\"자료/회의록.txt\"}}],\"candidates\":[{\"p\":\"docs/acme-contract.txt\",\"s\":90675.776,\"rank\":1,\"why\":[\"short-id-in-path\",\"multi-token-overlap\",\"contextual-anchor\",\"body-coverage\",\"map-phrase\"],\"terms\":[\"acme\",\"indemnity\",\"marker\"],\"queries\":[\"ACME indemnity marker\",\"ACME\"],\"ev\":\"ACME renewal contract contains indemnity marker direct-answer-771 | ACME renewal contract contains indemnity marker direct-answer-771\",\"next_read\":{\"kind\":\"original\",\"path\":\"docs/acme-contract.txt\"}},{\"p\":\"자료/회의록.txt\",\"s\":250.788,\"rank\":2,\"why\":[\"token-overlap\",\"contextual-anchor\",\"chunk-map\",\"fielded-bm25\"],\"terms\":[\"marker\"],\"queries\":[\"ACME indemnity marker\"],\"ev\":\"서울 연구소 회의록 contains cjk-marker-902 | 서울 연구소 회의록 contains cjk-marker-902\",\"next_read\":{\"kind\":\"original\",\"path\":\"자료/회의록.txt\"}}],\"command\":\"jikji find\",\"index_status\":\"ready\"}\n",
+    "stderr": "",
+    "stdout_json": {
+      "mode": "find",
+      "answer_pack_version": 1,
+      "root": "<SCENARIO_ROOT>",
+      "query": "ACME indemnity marker",
+      "query_type": "adaptive",
+      "confidence": "high",
+      "confidence_score": 0.8994,
+      "confidence_factors": {
+        "score_margin": 0.9972,
+        "variant_agreement": 1.0,
+        "family_coherence": 0.5,
+        "evidence_coverage": 1.0,
+        "duplicate_or_anchor_signal": 1.0
+      },
+      "recommended_action": "verify_top_candidates",
+      "handoff_action": "direct_use",
+      "handoff_policy": {
+        "agent_budget": "zero_extra_discovery_calls",
+        "use_payload_directly": true,
+        "raw_fallback_allowed": "no",
+        "verification": "return_top_path_or_inspect_original_top_1_only"
+      },
+      "retry_proof": "",
+      "next_commands": [],
+      "paths": [
+        "docs/acme-contract.txt",
+        "자료/회의록.txt"
+      ],
+      "answer_paths": [
+        "docs/acme-contract.txt",
+        "자료/회의록.txt"
+      ],
+      "supporting_paths": [],
+      "requires_llm_rerank": false,
+      "agent_should_not_rerank": true,
+      "answerability": "answerable_from_payload",
+      "tool_call_policy": {
+        "stop_after_find": true,
+        "allowed_followups": [
+          "verify_top_1_path",
+          "return_answer_paths_to_user"
+        ],
+        "forbidden_tools": [
+          "read_file",
+          "search",
+          "grep",
+          "rg",
+          "find",
+          "fd",
+          "ls",
+          "cat",
+          "tree",
+          "glob",
+          "skills_list"
+        ],
+        "rerank_locked": true,
+        "reason": "jikji_find_result_is_answerable_from_payload",
+        "escape_hatch": "none_unless_handoff_action_allows_jikji_retry_or_raw_fallback_after_retry"
+      },
+      "allowed_agent_tool_calls": 0,
+      "allowed_llm_calls": 0,
+      "max_jikji_retries": 0,
+      "max_raw_fallback_commands": 0,
+      "max_verification_reads": 3,
+      "raw_fallback_allowed": false,
+      "query_variants": [
+        "ACME indemnity marker",
+        "ACME"
+      ],
+      "llm_search_plan": {
+        "mode": "one_call_multi_search_judge",
+        "calls_per_cycle": 1,
+        "judge": "choose_best_file_from_merged_candidate_slate",
+        "rewrite_cycle": "none",
+        "candidate_top_k": 20,
+        "token_accounting": "query_variants_plus_merged_candidate_slate"
+      },
+      "search_plan": {
+        "mode": "deterministic_multi_search",
+        "routes": [
+          {
+            "route": "lexical_file_map",
+            "source": ".jikji/file_cards.jsonl",
+            "query_variants": [
+              "ACME indemnity marker",
+              "ACME"
+            ],
+            "per_route_top_k": 60
+          },
+          {
+            "route": "graph_route",
+            "source": ".jikji/knowledge_graph.json",
+            "query_variants": [
+              "ACME indemnity marker",
+              "ACME"
+            ],
+            "per_route_top_k": 60
+          },
+          {
+            "route": "wiki_cache",
+            "source": ".jikji/wiki/",
+            "query_variants": [
+              "ACME indemnity marker",
+              "ACME"
+            ],
+            "per_route_top_k": 60
+          },
+          {
+            "route": "metadata",
+            "source": ".jikji/file_cards.jsonl",
+            "query_variants": [
+              "ACME indemnity marker",
+              "ACME"
+            ],
+            "per_route_top_k": 60
+          }
+        ],
+        "merge": "dedupe_by_path_then_rank_by_discover_score",
+        "candidate_top_k": 20
+      },
+      "judge_candidate_slate": [
+        {
+          "rank": 1,
+          "path": "docs/acme-contract.txt",
+          "score": 90675.776,
+          "routes": [
+            "lexical_file_map",
+            "graph_route",
+            "wiki_cache",
+            "metadata"
+          ],
+          "queries": [
+            "ACME indemnity marker",
+            "ACME"
+          ],
+          "evidence": [
+            "ACME renewal contract contains indemnity marker direct-answer-771",
+            "ACME renewal contract contains indemnity marker direct-answer-771"
+          ],
+          "next_read": {
+            "kind": "original",
+            "path": "docs/acme-contract.txt"
+          }
+        },
+        {
+          "rank": 2,
+          "path": "자료/회의록.txt",
+          "score": 250.788,
+          "routes": [
+            "lexical_file_map",
+            "graph_route",
+            "wiki_cache",
+            "metadata"
+          ],
+          "queries": [
+            "ACME indemnity marker"
+          ],
+          "evidence": [
+            "서울 연구소 회의록 contains cjk-marker-902",
+            "서울 연구소 회의록 contains cjk-marker-902"
+          ],
+          "next_read": {
+            "kind": "original",
+            "path": "자료/회의록.txt"
+          }
+        }
+      ],
+      "evidence_pack": [
+        {
+          "path": "docs/acme-contract.txt",
+          "why": [
+            "short-id-in-path",
+            "multi-token-overlap",
+            "contextual-anchor",
+            "body-coverage",
+            "map-phrase"
+          ],
+          "matched_terms": [
+            "acme",
+            "indemnity",
+            "marker"
+          ],
+          "evidence": [
+            "ACME renewal contract contains indemnity marker direct-answer-771",
+            "ACME renewal contract contains indemnity marker direct-answer-771"
+          ],
+          "next_read": {
+            "kind": "original",
+            "path": "docs/acme-contract.txt"
+          }
+        },
+        {
+          "path": "자료/회의록.txt",
+          "why": [
+            "token-overlap",
+            "contextual-anchor",
+            "chunk-map",
+            "fielded-bm25"
+          ],
+          "matched_terms": [
+            "marker"
+          ],
+          "evidence": [
+            "서울 연구소 회의록 contains cjk-marker-902",
+            "서울 연구소 회의록 contains cjk-marker-902"
+          ],
+          "next_read": {
+            "kind": "original",
+            "path": "자료/회의록.txt"
+          }
+        }
+      ],
+      "candidates": [
+        {
+          "p": "docs/acme-contract.txt",
+          "s": 90675.776,
+          "rank": 1,
+          "why": [
+            "short-id-in-path",
+            "multi-token-overlap",
+            "contextual-anchor",
+            "body-coverage",
+            "map-phrase"
+          ],
+          "terms": [
+            "acme",
+            "indemnity",
+            "marker"
+          ],
+          "queries": [
+            "ACME indemnity marker",
+            "ACME"
+          ],
+          "ev": "ACME renewal contract contains indemnity marker direct-answer-771 | ACME renewal contract contains indemnity marker direct-answer-771",
+          "next_read": {
+            "kind": "original",
+            "path": "docs/acme-contract.txt"
+          }
+        },
+        {
+          "p": "자료/회의록.txt",
+          "s": 250.788,
+          "rank": 2,
+          "why": [
+            "token-overlap",
+            "contextual-anchor",
+            "chunk-map",
+            "fielded-bm25"
+          ],
+          "terms": [
+            "marker"
+          ],
+          "queries": [
+            "ACME indemnity marker"
+          ],
+          "ev": "서울 연구소 회의록 contains cjk-marker-902 | 서울 연구소 회의록 contains cjk-marker-902",
+          "next_read": {
+            "kind": "original",
+            "path": "자료/회의록.txt"
+          }
+        }
+      ],
+      "command": "jikji find",
+      "index_status": "ready"
+    }
+  },
+  {
+    "name": "doctor",
+    "command": [
+      "doctor",
+      "<SCENARIO_ROOT>",
+      "--json"
+    ],
+    "exit_code": 0,
+    "stdout": "{\n  \"root\": \"<SCENARIO_ROOT>\",\n  \"ok\": true,\n  \"warnings\": [],\n  \"errors\": [],\n  \"manifest\": {\n    \"schema_version\": 1,\n    \"search_index_schema_version\": 3,\n    \"files\": 2,\n    \"folders\": 3,\n    \"documents\": 0,\n    \"parse_errors\": 0,\n    \"media_index\": {\n      \"enabled\": false,\n      \"max_mb\": 25.0,\n      \"media_files\": 0,\n      \"note\": \"image/audio/video OCR-ASR is opt-in; document/text files are indexed by default within parser size limits\",\n      \"status\": \"no_media_files\"\n    }\n  },\n  \"image_support\": {\n    \"metadata_indexing\": true,\n    \"ocr_active\": true,\n    \"ocr_available\": true,\n    \"ocr_activated\": false,\n    \"tesseract_path\": \"/opt/homebrew/bin/tesseract\",\n    \"indexed_image_documents\": 0\n  },\n  \"media_support\": {\n    \"enabled\": false,\n    \"status\": \"no_media_files\",\n    \"max_mb\": 25.0,\n    \"media_files\": 0,\n    \"image_ocr_available\": true,\n    \"audio_video_transcription_available\": false,\n    \"opt_in_flag\": \"--enable-media-index\"\n  }\n}\n",
+    "stderr": "",
+    "stdout_json": {
+      "root": "<SCENARIO_ROOT>",
+      "ok": true,
+      "warnings": [],
+      "errors": [],
+      "manifest": {
+        "schema_version": 1,
+        "search_index_schema_version": 3,
+        "files": 2,
+        "folders": 3,
+        "documents": 0,
+        "parse_errors": 0,
+        "media_index": {
+          "enabled": false,
+          "max_mb": 25.0,
+          "media_files": 0,
+          "note": "image/audio/video OCR-ASR is opt-in; document/text files are indexed by default within parser size limits",
+          "status": "no_media_files"
+        }
+      },
+      "image_support": {
+        "metadata_indexing": true,
+        "ocr_active": true,
+        "ocr_available": true,
+        "ocr_activated": false,
+        "tesseract_path": "/opt/homebrew/bin/tesseract",
+        "indexed_image_documents": 0
+      },
+      "media_support": {
+        "enabled": false,
+        "status": "no_media_files",
+        "max_mb": 25.0,
+        "media_files": 0,
+        "image_ocr_available": true,
+        "audio_video_transcription_available": false,
+        "opt_in_flag": "--enable-media-index"
+      }
+    }
+  },
+  {
+    "name": "map",
+    "command": [
+      "map",
+      "<SCENARIO_ROOT>"
+    ],
+    "exit_code": 0,
+    "stdout": "# Jikji Agent Map\n\n상세 탐색 지도와 파일/문서 인덱스는 아래 경로에 있습니다.\n\n- `<SCENARIO_ROOT>/.jikji/agent_map.md`\n- `.jikji/file_index.jsonl`\n- `.jikji/folder_index.jsonl`\n- `.jikji/document_index.jsonl`\n- `.jikji/file_cards.jsonl`\n- `.jikji/chunk_map.jsonl`\n- `.jikji/duplicate_map.jsonl`\n- `.jikji/autorag_manifest.json`\n- `.jikji/wiki/index.md`\n- `.jikji/knowledge_graph.json`\n- `.jikji/graph_routes.jsonl`\n- `.jikji/doc_text/`\n\n",
+    "stderr": "",
+    "stdout_json": null
+  }
+]

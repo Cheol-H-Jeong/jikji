@@ -1,0 +1,19 @@
+{
+  "author": "",
+  "created": "<TIMESTAMP>",
+  "exif": {},
+  "file_id": "sha256:809bee8bea8668bd25efbb3b9ebe5dab9d5c78fb40e29adcd6980a4d260425b9",
+  "modified": "<TIMESTAMP>",
+  "office": {},
+  "page_count": null,
+  "parser": {
+    "parse_status": "archive_listing",
+    "summary": "[archive: bundle.zip — 1개 파일] nested/archive_lookup_marker_9123.txt",
+    "text_cache_path": ".jikji/doc_text/sha256_809bee8bea8668bd25efbb3b9ebe5dab9d5c78fb40e29adcd6980a4d260425b9.txt"
+  },
+  "path": "bundle.zip",
+  "schema_version": 1,
+  "source": "jikji",
+  "subject": "",
+  "title": ""
+}

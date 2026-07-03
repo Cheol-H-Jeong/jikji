@@ -1,0 +1,285 @@
+{
+  "edges": [
+    {
+      "dst": "source:41e828754675169c",
+      "kind": "folder_contains_source",
+      "src": "folder:80cff8957468db52",
+      "weight": 1.0
+    },
+    {
+      "dst": "source:62a96dde88fc830c",
+      "kind": "folder_contains_source",
+      "src": "folder:bb362a46a483f3f8",
+      "weight": 1.0
+    },
+    {
+      "dst": "folder:3a52ce780950d4d9",
+      "kind": "contains_folder",
+      "src": "root",
+      "weight": 1.0
+    },
+    {
+      "dst": "folder:80cff8957468db52",
+      "kind": "contains_folder",
+      "src": "root",
+      "weight": 1.0
+    },
+    {
+      "dst": "folder:bb362a46a483f3f8",
+      "kind": "contains_folder",
+      "src": "root",
+      "weight": 1.0
+    },
+    {
+      "dst": "source:41e828754675169c",
+      "kind": "contains_source",
+      "src": "root",
+      "weight": 1.0
+    },
+    {
+      "dst": "source:62a96dde88fc830c",
+      "kind": "contains_source",
+      "src": "root",
+      "weight": 1.0
+    },
+    {
+      "dst": "duplicate:sha256_3e760dcb9dee1ad3eb86172d8a2699633019b6963a294e3b1c5514087afa502a",
+      "kind": "member_of_duplicate_group",
+      "src": "source:41e828754675169c",
+      "weight": 0.8
+    },
+    {
+      "dst": "term:acme",
+      "kind": "mentions",
+      "src": "source:41e828754675169c",
+      "weight": 0.75
+    },
+    {
+      "dst": "term:acme-renewal.txt",
+      "kind": "mentions",
+      "src": "source:41e828754675169c",
+      "weight": 0.9688
+    },
+    {
+      "dst": "term:clause",
+      "kind": "mentions",
+      "src": "source:41e828754675169c",
+      "weight": 0.8438
+    },
+    {
+      "dst": "term:direct",
+      "kind": "mentions",
+      "src": "source:41e828754675169c",
+      "weight": 0.8125
+    },
+    {
+      "dst": "term:direct-pack-445",
+      "kind": "mentions",
+      "src": "source:41e828754675169c",
+      "weight": 0.9375
+    },
+    {
+      "dst": "term:indemnity",
+      "kind": "mentions",
+      "src": "source:41e828754675169c",
+      "weight": 0.9062
+    },
+    {
+      "dst": "term:pack",
+      "kind": "mentions",
+      "src": "source:41e828754675169c",
+      "weight": 0.7188
+    },
+    {
+      "dst": "term:renewal",
+      "kind": "mentions",
+      "src": "source:41e828754675169c",
+      "weight": 0.875
+    },
+    {
+      "dst": "term:unique",
+      "kind": "mentions",
+      "src": "source:41e828754675169c",
+      "weight": 0.7812
+    },
+    {
+      "dst": "duplicate:sha256_e11b9d9763dbcc461fc6aea37579d5b2319f9d56818586c2705c3f07d46e0f89",
+      "kind": "member_of_duplicate_group",
+      "src": "source:62a96dde88fc830c",
+      "weight": 0.8
+    },
+    {
+      "dst": "term:format",
+      "kind": "mentions",
+      "src": "source:62a96dde88fc830c",
+      "weight": 0.9375
+    },
+    {
+      "dst": "term:image",
+      "kind": "mentions",
+      "src": "source:62a96dde88fc830c",
+      "weight": 0.9062
+    },
+    {
+      "dst": "term:jpeg",
+      "kind": "mentions",
+      "src": "source:62a96dde88fc830c",
+      "weight": 0.8438
+    },
+    {
+      "dst": "term:photo",
+      "kind": "mentions",
+      "src": "source:62a96dde88fc830c",
+      "weight": 0.875
+    },
+    {
+      "dst": "term:photo.jpg",
+      "kind": "mentions",
+      "src": "source:62a96dde88fc830c",
+      "weight": 0.9688
+    }
+  ],
+  "nodes": [
+    {
+      "files": 2,
+      "folders": 3,
+      "id": "root",
+      "kind": "corpus",
+      "label": "<SCENARIO_ROOT>"
+    },
+    {
+      "id": "duplicate:sha256_3e760dcb9dee1ad3eb86172d8a2699633019b6963a294e3b1c5514087afa502a",
+      "kind": "duplicate_group",
+      "label": "sha256_3e760dcb9dee1ad3eb86172d8a2699633019b6963a294e3b1c5514087afa502a"
+    },
+    {
+      "id": "duplicate:sha256_e11b9d9763dbcc461fc6aea37579d5b2319f9d56818586c2705c3f07d46e0f89",
+      "kind": "duplicate_group",
+      "label": "sha256_e11b9d9763dbcc461fc6aea37579d5b2319f9d56818586c2705c3f07d46e0f89"
+    },
+    {
+      "file_count": 0,
+      "id": "folder:3a52ce780950d4d9",
+      "kind": "folder",
+      "label": ".",
+      "roles": []
+    },
+    {
+      "file_count": 1,
+      "id": "folder:80cff8957468db52",
+      "kind": "folder",
+      "label": "contracts",
+      "roles": []
+    },
+    {
+      "file_count": 1,
+      "id": "folder:bb362a46a483f3f8",
+      "kind": "folder",
+      "label": "media",
+      "roles": []
+    },
+    {
+      "ext": ".txt",
+      "id": "source:41e828754675169c",
+      "kind": "source",
+      "label": "contracts/acme-renewal.txt",
+      "parse_status": "native_text",
+      "path": "contracts/acme-renewal.txt",
+      "preview": "unique renewal indemnity clause direct-pack-445 unique renewal indemnity clause direct-pack-445",
+      "text_cache_path": "",
+      "wiki_path": ".jikji/wiki/sources/acme-renewal-41e828754675.md"
+    },
+    {
+      "ext": ".jpg",
+      "id": "source:62a96dde88fc830c",
+      "kind": "source",
+      "label": "media/photo.jpg",
+      "parse_status": "success",
+      "path": "media/photo.jpg",
+      "preview": "Format: JPEG Format: JPEG",
+      "text_cache_path": ".jikji/doc_text/sha256_e11b9d9763dbcc461fc6aea37579d5b2319f9d56818586c2705c3f07d46e0f89.txt",
+      "wiki_path": ".jikji/wiki/sources/photo-62a96dde88fc.md"
+    },
+    {
+      "id": "term:acme",
+      "kind": "term",
+      "label": "acme"
+    },
+    {
+      "id": "term:acme-renewal.txt",
+      "kind": "term",
+      "label": "acme-renewal.txt"
+    },
+    {
+      "id": "term:clause",
+      "kind": "term",
+      "label": "clause"
+    },
+    {
+      "id": "term:direct",
+      "kind": "term",
+      "label": "direct"
+    },
+    {
+      "id": "term:direct-pack-445",
+      "kind": "term",
+      "label": "direct-pack-445"
+    },
+    {
+      "id": "term:format",
+      "kind": "term",
+      "label": "format"
+    },
+    {
+      "id": "term:image",
+      "kind": "term",
+      "label": "image"
+    },
+    {
+      "id": "term:indemnity",
+      "kind": "term",
+      "label": "indemnity"
+    },
+    {
+      "id": "term:jpeg",
+      "kind": "term",
+      "label": "jpeg"
+    },
+    {
+      "id": "term:pack",
+      "kind": "term",
+      "label": "pack"
+    },
+    {
+      "id": "term:photo",
+      "kind": "term",
+      "label": "photo"
+    },
+    {
+      "id": "term:photo.jpg",
+      "kind": "term",
+      "label": "photo.jpg"
+    },
+    {
+      "id": "term:renewal",
+      "kind": "term",
+      "label": "renewal"
+    },
+    {
+      "id": "term:unique",
+      "kind": "term",
+      "label": "unique"
+    }
+  ],
+  "root": "<SCENARIO_ROOT>",
+  "schema_version": 1,
+  "source": "jikji deterministic llm-wiki compiler",
+  "stats": {
+    "edges": 23,
+    "folders_linked": 2,
+    "intents": 0,
+    "nodes": 22,
+    "sources": 2,
+    "terms": 14
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "author": "",
+  "created": "<TIMESTAMP>",
+  "exif": {},
+  "file_id": "sha256:e11b9d9763dbcc461fc6aea37579d5b2319f9d56818586c2705c3f07d46e0f89",
+  "modified": "<TIMESTAMP>",
+  "office": {},
+  "page_count": null,
+  "parser": {
+    "parse_status": "success",
+    "summary": "# Image: photo.jpg Format: JPEG",
+    "text_cache_path": ".jikji/doc_text/sha256_e11b9d9763dbcc461fc6aea37579d5b2319f9d56818586c2705c3f07d46e0f89.txt"
+  },
+  "path": "media/photo.jpg",
+  "schema_version": 1,
+  "source": "jikji",
+  "subject": "",
+  "title": ""
+}

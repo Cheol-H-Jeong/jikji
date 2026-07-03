@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/NomaDamas/jikji/blob/main/LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-65f2ad.svg"></a>
-  <img alt="Python 3.11+" src="https://img.shields.io/badge/Python-3.11%2B-7dd9ff.svg">
+  <img alt="Rust CLI" src="https://img.shields.io/badge/Rust-CLI-7dd9ff.svg">
   <img alt="Safety: non destructive" src="https://img.shields.io/badge/Safety-Non--destructive-64e69f.svg">
 </p>
 
@@ -40,6 +40,11 @@ filesystem.
 
 Jikji does not move, rename, delete, or reorganize user files. It creates
 generated maps and caches under `.jikji/` plus `.jikji_agent_map.md`.
+
+This repository is currently a monorepo during the Rust port. The Rust
+workspace under `crates/` is the active CLI implementation, while the Python
+package under `python/jikji/` remains as the reference implementation and
+parity-test source until the port is fully retired.
 
 The public agent command is:
 
@@ -95,13 +100,18 @@ GitHub 저장소 https://github.com/NomaDamas/jikji 에서 Jikji를 설치하고
 ```bash
 git clone https://github.com/nomadamas/jikji.git
 cd jikji
-python3 -m venv .venv
-.venv/bin/pip install -e .
+cargo install --path crates/jikji-cli
 
-.venv/bin/jikji agent-skill-install --agent all --json
-.venv/bin/jikji prepare ~/Documents --json
-.venv/bin/jikji find ~/Documents "contract pdf from last spring" --json
+jikji agent-skill-install --agent all --json
+jikji prepare ~/Documents --json
+jikji find ~/Documents "contract pdf from last spring" --json
 ```
+
+You can also install a published binary from the GitHub Releases page and place
+the `jikji` executable on `PATH`. crates.io publishing uses trusted publishing
+from the `main` publish workflow; token-based publishing is only a manual
+fallback for maintainers. Release and crates.io maintainer setup is documented
+in `docs/release-publishing.md`.
 
 Korean example:
 
@@ -123,6 +133,10 @@ jikji doctor ROOT --json
 jikji map ROOT
 jikji clean ROOT --dry-run --json
 ```
+
+`prepare` writes the Jikji routing block in `AGENTS.md`, `CLAUDE.md`, and
+`.cursorrules` by default. Use `jikji prepare ROOT --no-agent-rules` to skip
+those block updates for a root.
 
 ## Why Agents Need It
 
@@ -209,31 +223,64 @@ AGENTS.md / CLAUDE.md / .cursorrules  routing block pointing agents to `jikji fi
 .jikji/graph_routes.jsonl   low-token route rows
 ```
 
+## Repository Layout
+
+This repository is intentionally structured as a Rust/Python monorepo:
+
+```text
+crates/                    Rust workspace crates and the shipped CLI
+python/jikji/              Python reference, benchmark, and media package
+tests/parity/              Cross-stack contract tests
+tests/golden/              Checked-in Python golden fixtures for Rust parity
+tools/parity/              Python-vs-Rust parity and benchmark harnesses
+skills/                    Local-agent skill assets
+docs/                      Product, release, and benchmark documentation
+```
+
+The Rust CLI is the product distribution surface. The Python package remains a
+first-class workspace member for reference behavior, benchmark compatibility,
+golden fixture capture, and optional media/OCR-ASR support.
+
 Generated artifacts can be regenerated or removed with `jikji clean`. The routing
 block in `AGENTS.md` / `CLAUDE.md` / `.cursorrules` is updated in place on each
 prepare and can be skipped with `jikji prepare ROOT --no-agent-rules`; `jikji
 clean` removes the block while preserving any user-authored content.
 
+The Rust CLI command surface includes `prepare`, `refresh`, `clean`, `map`,
+`doctor`, `find`, `search`, `brief`, `discover`, `graph`, `gui`,
+`agent-skill-install`, agent-specific skill installers, `skill-export`, and the
+hidden `post-install-prepare` worker command. Eval and benchmark fixture
+commands, `hippocamp-fetch`, `hermes-bench`, `hermes-compare`, and
+`benchmark-value-report` are Python-only benchmark compatibility commands.
+They are present as explicit compatibility commands because benchmark parity
+must use the same Python evaluator for Python Jikji and Rust Jikji.
+
 ## Media Text
 
 PDF, HWP/HWPX, Office, text, subtitles, HTML, JSON/YAML, and archives are indexed
 within size and timeout limits. Image, audio, and video content OCR/ASR is opt-in
+through the Python media bridge so the default Rust binary remains lightweight
+and Python-free for normal prepare/search/find. The split Rust crates can also be
+reused directly: `jikji-parser` for deterministic parsers, `jikji-index` for
+sidecar artifact generation, `jikji-search` for local search/discovery, and
+`jikji-agent` for local-agent integrations. `jikji-bench` is internal and is not
+published.
 because it can use CPU/RAM:
 
 ```bash
 pip install "jikji[media]"
-jikji prepare ROOT --enable-media-index --media-index-max-mb 25 --parse-timeout 600
+jikji prepare ROOT --enable-media-index --media-index-max-mb 25
 ```
 
 ## Development
 
 ```bash
 python3 -m venv .venv
-.venv/bin/pip install -e .
+.venv/bin/pip install -e python/jikji
 .venv/bin/pip install pytest ruff
-.venv/bin/ruff check src tests
-.venv/bin/pytest -q
-.venv/bin/python -m compileall -q src tests
+.venv/bin/ruff check python/jikji/src python/jikji/tests tests/parity tools/parity
+.venv/bin/pytest python/jikji/tests tests/parity -q
+.venv/bin/python -m compileall -q python/jikji/src python/jikji/tests tests/parity tools/parity
 ```
 
 ## License

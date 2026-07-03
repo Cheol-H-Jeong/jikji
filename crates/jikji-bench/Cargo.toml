@@ -1,0 +1,22 @@
+[package]
+name = "jikji-bench"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Evaluation and benchmark helper scaffolding for Jikji."
+publish = false
+
+[dependencies]
+jikji-core.workspace = true
+jikji-index.workspace = true
+jikji-search.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

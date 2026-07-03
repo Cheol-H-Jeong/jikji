@@ -1,0 +1,170 @@
+{
+  "edges": [
+    {
+      "dst": "source:83348d283c1ba0b3",
+      "kind": "folder_contains_source",
+      "src": "folder:3a52ce780950d4d9",
+      "weight": 1.0
+    },
+    {
+      "dst": "folder:3a52ce780950d4d9",
+      "kind": "contains_folder",
+      "src": "root",
+      "weight": 1.0
+    },
+    {
+      "dst": "source:83348d283c1ba0b3",
+      "kind": "contains_source",
+      "src": "root",
+      "weight": 1.0
+    },
+    {
+      "dst": "duplicate:sha256_4f6c74a2a332d416305c60491ac406f53e766e4642773ea5ed759ec812c96158",
+      "kind": "member_of_duplicate_group",
+      "src": "source:83348d283c1ba0b3",
+      "weight": 0.8
+    },
+    {
+      "dst": "term:index",
+      "kind": "mentions",
+      "src": "source:83348d283c1ba0b3",
+      "weight": 0.8125
+    },
+    {
+      "dst": "term:notes",
+      "kind": "mentions",
+      "src": "source:83348d283c1ba0b3",
+      "weight": 0.7812
+    },
+    {
+      "dst": "term:notes.txt",
+      "kind": "mentions",
+      "src": "source:83348d283c1ba0b3",
+      "weight": 0.9062
+    },
+    {
+      "dst": "term:stable",
+      "kind": "mentions",
+      "src": "source:83348d283c1ba0b3",
+      "weight": 0.875
+    },
+    {
+      "dst": "term:stale",
+      "kind": "mentions",
+      "src": "source:83348d283c1ba0b3",
+      "weight": 0.75
+    },
+    {
+      "dst": "term:stale-index",
+      "kind": "mentions",
+      "src": "source:83348d283c1ba0b3",
+      "weight": 0.9375
+    },
+    {
+      "dst": "term:stale-old-101",
+      "kind": "mentions",
+      "src": "source:83348d283c1ba0b3",
+      "weight": 0.9688
+    },
+    {
+      "dst": "term:target",
+      "kind": "mentions",
+      "src": "source:83348d283c1ba0b3",
+      "weight": 0.8438
+    },
+    {
+      "dst": "term:token",
+      "kind": "mentions",
+      "src": "source:83348d283c1ba0b3",
+      "weight": 0.7188
+    }
+  ],
+  "nodes": [
+    {
+      "files": 1,
+      "folders": 1,
+      "id": "root",
+      "kind": "corpus",
+      "label": "<SCENARIO_ROOT>"
+    },
+    {
+      "id": "duplicate:sha256_4f6c74a2a332d416305c60491ac406f53e766e4642773ea5ed759ec812c96158",
+      "kind": "duplicate_group",
+      "label": "sha256_4f6c74a2a332d416305c60491ac406f53e766e4642773ea5ed759ec812c96158"
+    },
+    {
+      "file_count": 1,
+      "id": "folder:3a52ce780950d4d9",
+      "kind": "folder",
+      "label": ".",
+      "roles": []
+    },
+    {
+      "ext": ".txt",
+      "id": "source:83348d283c1ba0b3",
+      "kind": "source",
+      "label": "notes.txt",
+      "parse_status": "native_text",
+      "path": "notes.txt",
+      "preview": "stable stale-index target token stale-old-101 stable stale-index target token stale-old-101",
+      "text_cache_path": "",
+      "wiki_path": ".jikji/wiki/sources/notes-83348d283c1b.md"
+    },
+    {
+      "id": "term:index",
+      "kind": "term",
+      "label": "index"
+    },
+    {
+      "id": "term:notes",
+      "kind": "term",
+      "label": "notes"
+    },
+    {
+      "id": "term:notes.txt",
+      "kind": "term",
+      "label": "notes.txt"
+    },
+    {
+      "id": "term:stable",
+      "kind": "term",
+      "label": "stable"
+    },
+    {
+      "id": "term:stale",
+      "kind": "term",
+      "label": "stale"
+    },
+    {
+      "id": "term:stale-index",
+      "kind": "term",
+      "label": "stale-index"
+    },
+    {
+      "id": "term:stale-old-101",
+      "kind": "term",
+      "label": "stale-old-101"
+    },
+    {
+      "id": "term:target",
+      "kind": "term",
+      "label": "target"
+    },
+    {
+      "id": "term:token",
+      "kind": "term",
+      "label": "token"
+    }
+  ],
+  "root": "<SCENARIO_ROOT>",
+  "schema_version": 1,
+  "source": "jikji deterministic llm-wiki compiler",
+  "stats": {
+    "edges": 13,
+    "folders_linked": 1,
+    "intents": 0,
+    "nodes": 13,
+    "sources": 1,
+    "terms": 9
+  }
+}

@@ -1,0 +1,946 @@
+{
+  "edges": [
+    {
+      "dst": "source:3c5b5e259db640b8",
+      "kind": "folder_contains_source",
+      "src": "folder:3a52ce780950d4d9",
+      "weight": 1.0
+    },
+    {
+      "dst": "source:5e32e7e2cbf64cda",
+      "kind": "folder_contains_source",
+      "src": "folder:3a52ce780950d4d9",
+      "weight": 1.0
+    },
+    {
+      "dst": "source:5e7f783b2ce88dc3",
+      "kind": "folder_contains_source",
+      "src": "folder:3a52ce780950d4d9",
+      "weight": 1.0
+    },
+    {
+      "dst": "source:7eb1564a02ab9ac5",
+      "kind": "folder_contains_source",
+      "src": "folder:3a52ce780950d4d9",
+      "weight": 1.0
+    },
+    {
+      "dst": "source:d7167cfeecba55fa",
+      "kind": "folder_contains_source",
+      "src": "folder:3a52ce780950d4d9",
+      "weight": 1.0
+    },
+    {
+      "dst": "source:e8fdb0f7ae45eca2",
+      "kind": "folder_contains_source",
+      "src": "folder:3a52ce780950d4d9",
+      "weight": 1.0
+    },
+    {
+      "dst": "folder:3a52ce780950d4d9",
+      "kind": "contains_folder",
+      "src": "root",
+      "weight": 1.0
+    },
+    {
+      "dst": "source:3c5b5e259db640b8",
+      "kind": "contains_source",
+      "src": "root",
+      "weight": 1.0
+    },
+    {
+      "dst": "source:5e32e7e2cbf64cda",
+      "kind": "contains_source",
+      "src": "root",
+      "weight": 1.0
+    },
+    {
+      "dst": "source:5e7f783b2ce88dc3",
+      "kind": "contains_source",
+      "src": "root",
+      "weight": 1.0
+    },
+    {
+      "dst": "source:7eb1564a02ab9ac5",
+      "kind": "contains_source",
+      "src": "root",
+      "weight": 1.0
+    },
+    {
+      "dst": "source:d7167cfeecba55fa",
+      "kind": "contains_source",
+      "src": "root",
+      "weight": 1.0
+    },
+    {
+      "dst": "source:e8fdb0f7ae45eca2",
+      "kind": "contains_source",
+      "src": "root",
+      "weight": 1.0
+    },
+    {
+      "dst": "duplicate:sha256_a3bc8f7eac528bcd867165fa1f23afcdf3c74035a37036dda58407ad5fb57f19",
+      "kind": "member_of_duplicate_group",
+      "src": "source:3c5b5e259db640b8",
+      "weight": 0.8
+    },
+    {
+      "dst": "term:body",
+      "kind": "mentions",
+      "src": "source:3c5b5e259db640b8",
+      "weight": 0.5938
+    },
+    {
+      "dst": "term:calendar",
+      "kind": "mentions",
+      "src": "source:3c5b5e259db640b8",
+      "weight": 0.8438
+    },
+    {
+      "dst": "term:calendar.ics",
+      "kind": "mentions",
+      "src": "source:3c5b5e259db640b8",
+      "weight": 0.9375
+    },
+    {
+      "dst": "term:description",
+      "kind": "mentions",
+      "src": "source:3c5b5e259db640b8",
+      "weight": 0.9062
+    },
+    {
+      "dst": "term:design",
+      "kind": "mentions",
+      "src": "source:3c5b5e259db640b8",
+      "weight": 0.75
+    },
+    {
+      "dst": "term:dtstart",
+      "kind": "mentions",
+      "src": "source:3c5b5e259db640b8",
+      "weight": 0.8125
+    },
+    {
+      "dst": "term:location",
+      "kind": "mentions",
+      "src": "source:3c5b5e259db640b8",
+      "weight": 0.875
+    },
+    {
+      "dst": "term:marker",
+      "kind": "mentions",
+      "src": "source:3c5b5e259db640b8",
+      "weight": 0.625
+    },
+    {
+      "dst": "term:seoul",
+      "kind": "mentions",
+      "src": "source:3c5b5e259db640b8",
+      "weight": 0.6875
+    },
+    {
+      "dst": "term:summary",
+      "kind": "mentions",
+      "src": "source:3c5b5e259db640b8",
+      "weight": 0.7812
+    },
+    {
+      "dst": "term:sync",
+      "kind": "mentions",
+      "src": "source:3c5b5e259db640b8",
+      "weight": 0.6562
+    },
+    {
+      "dst": "term:uniquecalendar991",
+      "kind": "mentions",
+      "src": "source:3c5b5e259db640b8",
+      "weight": 0.9688
+    },
+    {
+      "dst": "term:vevent",
+      "kind": "mentions",
+      "src": "source:3c5b5e259db640b8",
+      "weight": 0.7188
+    },
+    {
+      "dst": "duplicate:sha256_fe5d0ea0d858bc99e3f750dfe8b4acdc9cc638cb97c3e55bc9fa214333400ec5",
+      "kind": "member_of_duplicate_group",
+      "src": "source:5e32e7e2cbf64cda",
+      "weight": 0.8
+    },
+    {
+      "dst": "term:color",
+      "kind": "mentions",
+      "src": "source:5e32e7e2cbf64cda",
+      "weight": 0.8125
+    },
+    {
+      "dst": "term:dimensions",
+      "kind": "mentions",
+      "src": "source:5e32e7e2cbf64cda",
+      "weight": 0.9688
+    },
+    {
+      "dst": "term:format",
+      "kind": "mentions",
+      "src": "source:5e32e7e2cbf64cda",
+      "weight": 0.9062
+    },
+    {
+      "dst": "term:image",
+      "kind": "mentions",
+      "src": "source:5e32e7e2cbf64cda",
+      "weight": 0.7812
+    },
+    {
+      "dst": "term:mode",
+      "kind": "mentions",
+      "src": "source:5e32e7e2cbf64cda",
+      "weight": 0.75
+    },
+    {
+      "dst": "term:pixels",
+      "kind": "mentions",
+      "src": "source:5e32e7e2cbf64cda",
+      "weight": 0.875
+    },
+    {
+      "dst": "term:visual",
+      "kind": "mentions",
+      "src": "source:5e32e7e2cbf64cda",
+      "weight": 0.8438
+    },
+    {
+      "dst": "term:visual.png",
+      "kind": "mentions",
+      "src": "source:5e32e7e2cbf64cda",
+      "weight": 0.9375
+    },
+    {
+      "dst": "duplicate:sha256_809bee8bea8668bd25efbb3b9ebe5dab9d5c78fb40e29adcd6980a4d260425b9",
+      "kind": "member_of_duplicate_group",
+      "src": "source:5e7f783b2ce88dc3",
+      "weight": 0.8
+    },
+    {
+      "dst": "term:archive",
+      "kind": "mentions",
+      "src": "source:5e7f783b2ce88dc3",
+      "weight": 0.9375
+    },
+    {
+      "dst": "term:bundle",
+      "kind": "mentions",
+      "src": "source:5e7f783b2ce88dc3",
+      "weight": 0.9062
+    },
+    {
+      "dst": "term:bundle.zip",
+      "kind": "mentions",
+      "src": "source:5e7f783b2ce88dc3",
+      "weight": 0.9688
+    },
+    {
+      "dst": "term:lookup",
+      "kind": "mentions",
+      "src": "source:5e7f783b2ce88dc3",
+      "weight": 0.875
+    },
+    {
+      "dst": "term:marker",
+      "kind": "mentions",
+      "src": "source:5e7f783b2ce88dc3",
+      "weight": 0.8125
+    },
+    {
+      "dst": "term:nested",
+      "kind": "mentions",
+      "src": "source:5e7f783b2ce88dc3",
+      "weight": 0.8438
+    },
+    {
+      "dst": "duplicate:sha256_e239552e4ba8389acea4d6b4d076222a81b4caedc7ed16f4106b0f6479c75318",
+      "kind": "member_of_duplicate_group",
+      "src": "source:7eb1564a02ab9ac5",
+      "weight": 0.8
+    },
+    {
+      "dst": "term:body",
+      "kind": "mentions",
+      "src": "source:7eb1564a02ab9ac5",
+      "weight": 0.625
+    },
+    {
+      "dst": "term:columns",
+      "kind": "mentions",
+      "src": "source:7eb1564a02ab9ac5",
+      "weight": 0.8125
+    },
+    {
+      "dst": "term:database",
+      "kind": "mentions",
+      "src": "source:7eb1564a02ab9ac5",
+      "weight": 0.8438
+    },
+    {
+      "dst": "term:inside",
+      "kind": "mentions",
+      "src": "source:7eb1564a02ab9ac5",
+      "weight": 0.7812
+    },
+    {
+      "dst": "term:notes",
+      "kind": "mentions",
+      "src": "source:7eb1564a02ab9ac5",
+      "weight": 0.6875
+    },
+    {
+      "dst": "term:notes.sqlite",
+      "kind": "mentions",
+      "src": "source:7eb1564a02ab9ac5",
+      "weight": 0.9062
+    },
+    {
+      "dst": "term:research",
+      "kind": "mentions",
+      "src": "source:7eb1564a02ab9ac5",
+      "weight": 0.875
+    },
+    {
+      "dst": "term:sqlite",
+      "kind": "mentions",
+      "src": "source:7eb1564a02ab9ac5",
+      "weight": 0.75
+    },
+    {
+      "dst": "term:sqlitebodytoken",
+      "kind": "mentions",
+      "src": "source:7eb1564a02ab9ac5",
+      "weight": 0.9375
+    },
+    {
+      "dst": "term:sqlitebodytoken-3301",
+      "kind": "mentions",
+      "src": "source:7eb1564a02ab9ac5",
+      "weight": 0.9688
+    },
+    {
+      "dst": "term:table",
+      "kind": "mentions",
+      "src": "source:7eb1564a02ab9ac5",
+      "weight": 0.7188
+    },
+    {
+      "dst": "term:title",
+      "kind": "mentions",
+      "src": "source:7eb1564a02ab9ac5",
+      "weight": 0.6562
+    },
+    {
+      "dst": "duplicate:sha256_68d0a22dc9edc43c50f73de9049bd5a0a9dc5de6a29d51eeda74e919d050cf1d",
+      "kind": "member_of_duplicate_group",
+      "src": "source:d7167cfeecba55fa",
+      "weight": 0.8
+    },
+    {
+      "dst": "term:alpha",
+      "kind": "mentions",
+      "src": "source:d7167cfeecba55fa",
+      "weight": 0.625
+    },
+    {
+      "dst": "term:email",
+      "kind": "mentions",
+      "src": "source:d7167cfeecba55fa",
+      "weight": 0.5625
+    },
+    {
+      "dst": "term:emailtoken",
+      "kind": "mentions",
+      "src": "source:d7167cfeecba55fa",
+      "weight": 0.9062
+    },
+    {
+      "dst": "term:emailtoken-7742",
+      "kind": "mentions",
+      "src": "source:d7167cfeecba55fa",
+      "weight": 0.9688
+    },
+    {
+      "dst": "term:example",
+      "kind": "mentions",
+      "src": "source:d7167cfeecba55fa",
+      "weight": 0.7188
+    },
+    {
+      "dst": "term:example.com",
+      "kind": "mentions",
+      "src": "source:d7167cfeecba55fa",
+      "weight": 0.9375
+    },
+    {
+      "dst": "term:from",
+      "kind": "mentions",
+      "src": "source:d7167cfeecba55fa",
+      "weight": 0.5312
+    },
+    {
+      "dst": "term:handoff",
+      "kind": "mentions",
+      "src": "source:d7167cfeecba55fa",
+      "weight": 0.8125
+    },
+    {
+      "dst": "term:launch",
+      "kind": "mentions",
+      "src": "source:d7167cfeecba55fa",
+      "weight": 0.6875
+    },
+    {
+      "dst": "term:mail",
+      "kind": "mentions",
+      "src": "source:d7167cfeecba55fa",
+      "weight": 0.5938
+    },
+    {
+      "dst": "term:mail.eml",
+      "kind": "mentions",
+      "src": "source:d7167cfeecba55fa",
+      "weight": 0.875
+    },
+    {
+      "dst": "term:project",
+      "kind": "mentions",
+      "src": "source:d7167cfeecba55fa",
+      "weight": 0.7812
+    },
+    {
+      "dst": "term:receiver",
+      "kind": "mentions",
+      "src": "source:d7167cfeecba55fa",
+      "weight": 0.8438
+    },
+    {
+      "dst": "term:sender",
+      "kind": "mentions",
+      "src": "source:d7167cfeecba55fa",
+      "weight": 0.6562
+    },
+    {
+      "dst": "term:subject",
+      "kind": "mentions",
+      "src": "source:d7167cfeecba55fa",
+      "weight": 0.75
+    },
+    {
+      "dst": "duplicate:sha256_f0dda7b469d0d5b6b1acebd5c6e08bb98183c6a0cc7da3721f0a537e009c2592",
+      "kind": "member_of_duplicate_group",
+      "src": "source:e8fdb0f7ae45eca2",
+      "weight": 0.8
+    },
+    {
+      "dst": "term:appears",
+      "kind": "mentions",
+      "src": "source:e8fdb0f7ae45eca2",
+      "weight": 0.8125
+    },
+    {
+      "dst": "term:book",
+      "kind": "mentions",
+      "src": "source:e8fdb0f7ae45eca2",
+      "weight": 0.7188
+    },
+    {
+      "dst": "term:book.epub",
+      "kind": "mentions",
+      "src": "source:e8fdb0f7ae45eca2",
+      "weight": 0.9062
+    },
+    {
+      "dst": "term:chapter1",
+      "kind": "mentions",
+      "src": "source:e8fdb0f7ae45eca2",
+      "weight": 0.8438
+    },
+    {
+      "dst": "term:chapter1.xhtml",
+      "kind": "mentions",
+      "src": "source:e8fdb0f7ae45eca2",
+      "weight": 0.9688
+    },
+    {
+      "dst": "term:epub",
+      "kind": "mentions",
+      "src": "source:e8fdb0f7ae45eca2",
+      "weight": 0.6875
+    },
+    {
+      "dst": "term:epubtoken",
+      "kind": "mentions",
+      "src": "source:e8fdb0f7ae45eca2",
+      "weight": 0.875
+    },
+    {
+      "dst": "term:epubtoken-8802",
+      "kind": "mentions",
+      "src": "source:e8fdb0f7ae45eca2",
+      "weight": 0.9375
+    },
+    {
+      "dst": "term:here",
+      "kind": "mentions",
+      "src": "source:e8fdb0f7ae45eca2",
+      "weight": 0.6562
+    },
+    {
+      "dst": "term:oebps",
+      "kind": "mentions",
+      "src": "source:e8fdb0f7ae45eca2",
+      "weight": 0.7812
+    },
+    {
+      "dst": "term:xhtml",
+      "kind": "mentions",
+      "src": "source:e8fdb0f7ae45eca2",
+      "weight": 0.75
+    }
+  ],
+  "nodes": [
+    {
+      "files": 6,
+      "folders": 1,
+      "id": "root",
+      "kind": "corpus",
+      "label": "<SCENARIO_ROOT>"
+    },
+    {
+      "id": "duplicate:sha256_68d0a22dc9edc43c50f73de9049bd5a0a9dc5de6a29d51eeda74e919d050cf1d",
+      "kind": "duplicate_group",
+      "label": "sha256_68d0a22dc9edc43c50f73de9049bd5a0a9dc5de6a29d51eeda74e919d050cf1d"
+    },
+    {
+      "id": "duplicate:sha256_809bee8bea8668bd25efbb3b9ebe5dab9d5c78fb40e29adcd6980a4d260425b9",
+      "kind": "duplicate_group",
+      "label": "sha256_809bee8bea8668bd25efbb3b9ebe5dab9d5c78fb40e29adcd6980a4d260425b9"
+    },
+    {
+      "id": "duplicate:sha256_a3bc8f7eac528bcd867165fa1f23afcdf3c74035a37036dda58407ad5fb57f19",
+      "kind": "duplicate_group",
+      "label": "sha256_a3bc8f7eac528bcd867165fa1f23afcdf3c74035a37036dda58407ad5fb57f19"
+    },
+    {
+      "id": "duplicate:sha256_e239552e4ba8389acea4d6b4d076222a81b4caedc7ed16f4106b0f6479c75318",
+      "kind": "duplicate_group",
+      "label": "sha256_e239552e4ba8389acea4d6b4d076222a81b4caedc7ed16f4106b0f6479c75318"
+    },
+    {
+      "id": "duplicate:sha256_f0dda7b469d0d5b6b1acebd5c6e08bb98183c6a0cc7da3721f0a537e009c2592",
+      "kind": "duplicate_group",
+      "label": "sha256_f0dda7b469d0d5b6b1acebd5c6e08bb98183c6a0cc7da3721f0a537e009c2592"
+    },
+    {
+      "id": "duplicate:sha256_fe5d0ea0d858bc99e3f750dfe8b4acdc9cc638cb97c3e55bc9fa214333400ec5",
+      "kind": "duplicate_group",
+      "label": "sha256_fe5d0ea0d858bc99e3f750dfe8b4acdc9cc638cb97c3e55bc9fa214333400ec5"
+    },
+    {
+      "file_count": 6,
+      "id": "folder:3a52ce780950d4d9",
+      "kind": "folder",
+      "label": ".",
+      "roles": []
+    },
+    {
+      "ext": ".ics",
+      "id": "source:3c5b5e259db640b8",
+      "kind": "source",
+      "label": "calendar.ics",
+      "parse_status": "success",
+      "path": "calendar.ics",
+      "preview": "SUMMARY: Design sync uniquecalendar991 DTSTART: 20260526T090000Z DESCRIPTION: Calendar body marker SUMMARY: Design sync uniquecalendar991",
+      "text_cache_path": ".jikji/doc_text/sha256_a3bc8f7eac528bcd867165fa1f23afcdf3c74035a37036dda58407ad5fb57f19.txt",
+      "wiki_path": ".jikji/wiki/sources/calendar-3c5b5e259db6.md"
+    },
+    {
+      "ext": ".png",
+      "id": "source:5e32e7e2cbf64cda",
+      "kind": "source",
+      "label": "visual.png",
+      "parse_status": "success",
+      "path": "visual.png",
+      "preview": "Dimensions: 13x21 pixels Dimensions: 13x21 pixels",
+      "text_cache_path": ".jikji/doc_text/sha256_fe5d0ea0d858bc99e3f750dfe8b4acdc9cc638cb97c3e55bc9fa214333400ec5.txt",
+      "wiki_path": ".jikji/wiki/sources/visual-5e32e7e2cbf6.md"
+    },
+    {
+      "ext": ".zip",
+      "id": "source:5e7f783b2ce88dc3",
+      "kind": "source",
+      "label": "bundle.zip",
+      "parse_status": "archive_listing",
+      "path": "bundle.zip",
+      "preview": "nested/archive_lookup_marker_9123 nested/archive_lookup_marker_9123",
+      "text_cache_path": ".jikji/doc_text/sha256_809bee8bea8668bd25efbb3b9ebe5dab9d5c78fb40e29adcd6980a4d260425b9.txt",
+      "wiki_path": ".jikji/wiki/sources/bundle-5e7f783b2ce8.md"
+    },
+    {
+      "ext": ".sqlite",
+      "id": "source:7eb1564a02ab9ac5",
+      "kind": "source",
+      "label": "notes.sqlite",
+      "parse_status": "success",
+      "path": "notes.sqlite",
+      "preview": "Columns: id, title, body 1 | Research | sqlitebodytoken-3301 inside row Columns: id, title, body",
+      "text_cache_path": ".jikji/doc_text/sha256_e239552e4ba8389acea4d6b4d076222a81b4caedc7ed16f4106b0f6479c75318.txt",
+      "wiki_path": ".jikji/wiki/sources/notes-7eb1564a02ab.md"
+    },
+    {
+      "ext": ".eml",
+      "id": "source:d7167cfeecba55fa",
+      "kind": "source",
+      "label": "mail.eml",
+      "parse_status": "success",
+      "path": "mail.eml",
+      "preview": "Subject: Alpha Project Handoff From: sender@example To: receiver@example The launch code marker is emailtoken-7742 Subject: Alpha Project Handoff",
+      "text_cache_path": ".jikji/doc_text/sha256_68d0a22dc9edc43c50f73de9049bd5a0a9dc5de6a29d51eeda74e919d050cf1d.txt",
+      "wiki_path": ".jikji/wiki/sources/mail-d7167cfeecba.md"
+    },
+    {
+      "ext": ".epub",
+      "id": "source:e8fdb0f7ae45eca2",
+      "kind": "source",
+      "label": "book.epub",
+      "parse_status": "success",
+      "path": "book.epub",
+      "preview": "epubtoken-8802 appears here epubtoken-8802 appears here",
+      "text_cache_path": ".jikji/doc_text/sha256_f0dda7b469d0d5b6b1acebd5c6e08bb98183c6a0cc7da3721f0a537e009c2592.txt",
+      "wiki_path": ".jikji/wiki/sources/book-e8fdb0f7ae45.md"
+    },
+    {
+      "id": "term:alpha",
+      "kind": "term",
+      "label": "alpha"
+    },
+    {
+      "id": "term:appears",
+      "kind": "term",
+      "label": "appears"
+    },
+    {
+      "id": "term:archive",
+      "kind": "term",
+      "label": "archive"
+    },
+    {
+      "id": "term:body",
+      "kind": "term",
+      "label": "body"
+    },
+    {
+      "id": "term:book",
+      "kind": "term",
+      "label": "book"
+    },
+    {
+      "id": "term:book.epub",
+      "kind": "term",
+      "label": "book.epub"
+    },
+    {
+      "id": "term:bundle",
+      "kind": "term",
+      "label": "bundle"
+    },
+    {
+      "id": "term:bundle.zip",
+      "kind": "term",
+      "label": "bundle.zip"
+    },
+    {
+      "id": "term:calendar",
+      "kind": "term",
+      "label": "calendar"
+    },
+    {
+      "id": "term:calendar.ics",
+      "kind": "term",
+      "label": "calendar.ics"
+    },
+    {
+      "id": "term:chapter1",
+      "kind": "term",
+      "label": "chapter1"
+    },
+    {
+      "id": "term:chapter1.xhtml",
+      "kind": "term",
+      "label": "chapter1.xhtml"
+    },
+    {
+      "id": "term:color",
+      "kind": "term",
+      "label": "color"
+    },
+    {
+      "id": "term:columns",
+      "kind": "term",
+      "label": "columns"
+    },
+    {
+      "id": "term:database",
+      "kind": "term",
+      "label": "database"
+    },
+    {
+      "id": "term:description",
+      "kind": "term",
+      "label": "description"
+    },
+    {
+      "id": "term:design",
+      "kind": "term",
+      "label": "design"
+    },
+    {
+      "id": "term:dimensions",
+      "kind": "term",
+      "label": "dimensions"
+    },
+    {
+      "id": "term:dtstart",
+      "kind": "term",
+      "label": "dtstart"
+    },
+    {
+      "id": "term:email",
+      "kind": "term",
+      "label": "email"
+    },
+    {
+      "id": "term:emailtoken",
+      "kind": "term",
+      "label": "emailtoken"
+    },
+    {
+      "id": "term:emailtoken-7742",
+      "kind": "term",
+      "label": "emailtoken-7742"
+    },
+    {
+      "id": "term:epub",
+      "kind": "term",
+      "label": "epub"
+    },
+    {
+      "id": "term:epubtoken",
+      "kind": "term",
+      "label": "epubtoken"
+    },
+    {
+      "id": "term:epubtoken-8802",
+      "kind": "term",
+      "label": "epubtoken-8802"
+    },
+    {
+      "id": "term:example",
+      "kind": "term",
+      "label": "example"
+    },
+    {
+      "id": "term:example.com",
+      "kind": "term",
+      "label": "example.com"
+    },
+    {
+      "id": "term:format",
+      "kind": "term",
+      "label": "format"
+    },
+    {
+      "id": "term:from",
+      "kind": "term",
+      "label": "from"
+    },
+    {
+      "id": "term:handoff",
+      "kind": "term",
+      "label": "handoff"
+    },
+    {
+      "id": "term:here",
+      "kind": "term",
+      "label": "here"
+    },
+    {
+      "id": "term:image",
+      "kind": "term",
+      "label": "image"
+    },
+    {
+      "id": "term:inside",
+      "kind": "term",
+      "label": "inside"
+    },
+    {
+      "id": "term:launch",
+      "kind": "term",
+      "label": "launch"
+    },
+    {
+      "id": "term:location",
+      "kind": "term",
+      "label": "location"
+    },
+    {
+      "id": "term:lookup",
+      "kind": "term",
+      "label": "lookup"
+    },
+    {
+      "id": "term:mail",
+      "kind": "term",
+      "label": "mail"
+    },
+    {
+      "id": "term:mail.eml",
+      "kind": "term",
+      "label": "mail.eml"
+    },
+    {
+      "id": "term:marker",
+      "kind": "term",
+      "label": "marker"
+    },
+    {
+      "id": "term:mode",
+      "kind": "term",
+      "label": "mode"
+    },
+    {
+      "id": "term:nested",
+      "kind": "term",
+      "label": "nested"
+    },
+    {
+      "id": "term:notes",
+      "kind": "term",
+      "label": "notes"
+    },
+    {
+      "id": "term:notes.sqlite",
+      "kind": "term",
+      "label": "notes.sqlite"
+    },
+    {
+      "id": "term:oebps",
+      "kind": "term",
+      "label": "oebps"
+    },
+    {
+      "id": "term:pixels",
+      "kind": "term",
+      "label": "pixels"
+    },
+    {
+      "id": "term:project",
+      "kind": "term",
+      "label": "project"
+    },
+    {
+      "id": "term:receiver",
+      "kind": "term",
+      "label": "receiver"
+    },
+    {
+      "id": "term:research",
+      "kind": "term",
+      "label": "research"
+    },
+    {
+      "id": "term:sender",
+      "kind": "term",
+      "label": "sender"
+    },
+    {
+      "id": "term:seoul",
+      "kind": "term",
+      "label": "seoul"
+    },
+    {
+      "id": "term:sqlite",
+      "kind": "term",
+      "label": "sqlite"
+    },
+    {
+      "id": "term:sqlitebodytoken",
+      "kind": "term",
+      "label": "sqlitebodytoken"
+    },
+    {
+      "id": "term:sqlitebodytoken-3301",
+      "kind": "term",
+      "label": "sqlitebodytoken-3301"
+    },
+    {
+      "id": "term:subject",
+      "kind": "term",
+      "label": "subject"
+    },
+    {
+      "id": "term:summary",
+      "kind": "term",
+      "label": "summary"
+    },
+    {
+      "id": "term:sync",
+      "kind": "term",
+      "label": "sync"
+    },
+    {
+      "id": "term:table",
+      "kind": "term",
+      "label": "table"
+    },
+    {
+      "id": "term:title",
+      "kind": "term",
+      "label": "title"
+    },
+    {
+      "id": "term:uniquecalendar991",
+      "kind": "term",
+      "label": "uniquecalendar991"
+    },
+    {
+      "id": "term:vevent",
+      "kind": "term",
+      "label": "vevent"
+    },
+    {
+      "id": "term:visual",
+      "kind": "term",
+      "label": "visual"
+    },
+    {
+      "id": "term:visual.png",
+      "kind": "term",
+      "label": "visual.png"
+    },
+    {
+      "id": "term:xhtml",
+      "kind": "term",
+      "label": "xhtml"
+    }
+  ],
+  "root": "<SCENARIO_ROOT>",
+  "schema_version": 1,
+  "source": "jikji deterministic llm-wiki compiler",
+  "stats": {
+    "edges": 84,
+    "folders_linked": 1,
+    "intents": 0,
+    "nodes": 77,
+    "sources": 6,
+    "terms": 63
+  }
+}
