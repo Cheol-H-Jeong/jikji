@@ -122,9 +122,15 @@ jobs:
         id: auth
         if: steps.plan.outputs.crates != '' && steps.plan.outputs.dry_run != 'true' && (github.event_name == 'release' || github.ref == 'refs/heads/main')
         uses: rust-lang/crates-io-auth-action@v1
+        continue-on-error: true
+
+      - name: Skip publish when trusted publishing is unavailable
+        if: steps.plan.outputs.crates != '' && steps.plan.outputs.dry_run != 'true' && steps.auth.outcome == 'failure'
+        run: |
+          echo "::warning title=crates.io trusted publishing unavailable::Package verification passed, but crates.io did not issue a trusted-publishing token. Configure trusted publishers for NomaDamas/jikji and rerun this workflow to publish queued crates."
 
       - name: Publish crates
-        if: steps.plan.outputs.crates != '' && steps.plan.outputs.dry_run != 'true' && (github.event_name == 'release' || github.ref == 'refs/heads/main')
+        if: steps.plan.outputs.crates != '' && steps.plan.outputs.dry_run != 'true' && steps.auth.outcome == 'success' && (github.event_name == 'release' || github.ref == 'refs/heads/main')
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
           CRATES_TO_PUBLISH: ${{ steps.plan.outputs.crates }}

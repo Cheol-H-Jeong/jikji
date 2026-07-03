@@ -36,10 +36,13 @@ bash scripts/release/build-artifacts.sh --dry-run
 automatically after pushes to `main`, and it also supports GitHub Release
 publishing plus manual package verification through `workflow_dispatch`. It
 grants `id-token: write`, uses `rust-lang/crates-io-auth-action@v1`, and passes
-the temporary trusted-publishing token to `cargo publish`. The workflow verifies
-the workspace package tarballs with real `cargo package` verification before
-publishing. Release publishing must run from a clean checkout; `--allow-dirty`
-is only for local package-shape inspection while a change is still under review.
+the temporary trusted-publishing token to `cargo publish` when crates.io issues
+one. The workflow verifies the workspace package tarballs with real
+`cargo package` verification before publishing. If crates.io has not yet been
+configured to trust this repository, the workflow records a warning and exits
+after package verification instead of failing the `main` branch. Release
+publishing must run from a clean checkout; `--allow-dirty` is only for local
+package-shape inspection while a change is still under review.
 
 Before publishing, the workflow checks crates.io for each package/version pair.
 Versions that already exist are skipped so ordinary `main` pushes after a
