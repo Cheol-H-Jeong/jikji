@@ -7,9 +7,10 @@ secret.
 ## CI
 
 `.github/workflows/ci.yml` runs on pull requests and pushes to `main` across
-Ubuntu, macOS, and Windows. It checks formatting, clippy, workspace tests
-excluding the internal `jikji-parity` crate, Python golden fixture capture,
-Rust golden parity, `cargo doc` smoke, and a real CLI command smoke.
+Ubuntu, macOS, and Windows. It checks formatting, clippy, `cargo test
+--workspace --all-features`, non-Windows Python parity contract tests
+(`python -m pytest python/jikji/tests tests/parity`), a Windows Python
+compatibility smoke, `cargo doc` smoke, and a cross-OS CLI command smoke.
 
 ## GitHub Release Artifacts
 

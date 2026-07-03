@@ -1,8 +1,8 @@
 {
-  "dataset": "/Users/jeffrey/Projects/FileOrgBench/data/hippocamp/Victoria/Subset/Victoria_Subset",
-  "annotation": "/Users/jeffrey/Projects/FileOrgBench/data/hippocamp/Victoria/Subset/Victoria_Subset.json",
+  "dataset": "<hippocamp-victoria-subset>/Victoria_Subset",
+  "annotation": "<hippocamp-victoria-subset>/Victoria_Subset.json",
   "eval_code": "python_jikji.hippocamp.run_benchmark",
-  "rust_under_test": "/Users/jeffrey/Projects-dev/jikji-rust/target/release/jikji",
+  "rust_under_test": "target/release/jikji",
   "cases": 11,
   "top_k": 10,
   "metrics": {
@@ -92,7 +92,7 @@
     }
   },
   "reports": {
-    "python": "/Users/jeffrey/Projects-dev/jikji-rust/docs/victoria-python-rust-eval-report.python-report.json",
-    "rust": "/Users/jeffrey/Projects-dev/jikji-rust/docs/victoria-python-rust-eval-report.rust-report.json"
+    "python": "docs/victoria-python-rust-eval-report.python-report.json",
+    "rust": "docs/victoria-python-rust-eval-report.rust-report.json"
   }
 }

@@ -7,7 +7,7 @@ Evidence file: `.omo/evidence/rust-port-workplan/task-08-parity-benchmark.txt`
 ## Scope
 
 The final parity harness compares the Python reference at
-`/Users/jeffrey/Projects-dev/jikji` with the Rust release binary
+`<repo>` with the Rust release binary
 `target/release/jikji` on:
 
 - checked-in golden fixture scenarios under `tests/golden`

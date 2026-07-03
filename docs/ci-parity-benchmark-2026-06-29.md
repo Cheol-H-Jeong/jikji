@@ -18,7 +18,7 @@ Command:
 
 ```bash
 python3 tools/parity/run_rust_vs_python.py \
-  --python-repo /Users/jeffrey/Projects-dev/jikji \
+  --python-repo <repo> \
   --rust-bin target/release/jikji \
   --fixtures tests/golden \
   --out .omo/evidence/rust-port-workplan/task-08-parity-benchmark.txt
@@ -45,7 +45,7 @@ and ranking checks pass.
 Dataset source:
 
 ```text
-/Users/jeffrey/Projects/FileOrgBench/data/hippocamp/Victoria/Subset
+<hippocamp-victoria-subset>
 ```
 
 The initial benchmark copied `Victoria_Subset` to `/tmp/jikji-hippo-victoria-rust`,
@@ -95,10 +95,10 @@ Command:
 
 ```bash
 python3 tools/parity/compare_victoria_python_eval.py \
-  --python-repo /Users/jeffrey/Projects-dev/jikji \
-  --rust-bin /Users/jeffrey/Projects-dev/jikji-rust/target/release/jikji \
-  --dataset /Users/jeffrey/Projects/FileOrgBench/data/hippocamp/Victoria/Subset/Victoria_Subset \
-  --annotation /Users/jeffrey/Projects/FileOrgBench/data/hippocamp/Victoria/Subset/Victoria_Subset.json \
+  --python-repo <repo> \
+  --rust-bin target/release/jikji \
+  --dataset <hippocamp-victoria-subset>/Victoria_Subset \
+  --annotation <hippocamp-victoria-subset>/Victoria_Subset.json \
   --out docs/victoria-python-rust-eval-report.json
 ```
 
