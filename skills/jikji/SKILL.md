@@ -59,12 +59,18 @@ first deterministic result is not sufficient.
   `jikji discover /explicit/root "natural language clue" --top-k 20 --json`
   Use `jikji find … --first` only when the task is definitely a single-file path lookup.
   Use `jikji brief … --compact --json` when extra evidence/wiki/cache hints are needed.
-- For JSON `discover` / `brief`, accept `paths[]` or `candidates[].p` as the working answer. Open at
-  most the top 1–3 candidates, or `candidates[].wiki`/`cache`, only to verify.
-- `grep`/`rg`/`ls`/`find` are permitted **only** as a last resort, and **only
-  after** Jikji returned an empty or clearly-wrong candidate list.
+- For JSON `discover` / `brief`, a non-empty plausible `paths[]` or
+  `candidates[].p` list is a **successful Jikji result**. Stop the discovery
+  loop immediately: do not call `search_files`, `grep`, `rg`, `ls`, `find`,
+  `fd`, `tree`, or another broad file-search tool for the same purpose.
+- Open at most the top 1–3 candidates, or `candidates[].wiki`/`cache`, only to
+  verify. Preserve paths exactly as returned.
+- Raw broad search is permitted **only** after Jikji returns an empty,
+  low-confidence, or clearly-wrong candidate list and sharper Jikji query
+  variants also fail.
 - If you catch yourself about to run a raw search command before calling Jikji,
-  stop and call `jikji brief`/`jikji search` instead.
+  stop and call `jikji discover`/`jikji brief`/`jikji search` instead. If Jikji
+  already returned plausible paths, stop searching and continue the task.
 
 ## Safety contract
 
@@ -108,13 +114,24 @@ Interpretation:
 - `wiki` points to a compact LLM Wiki source page; `cache` points to parser text when available.
 - Preserve paths exactly as returned.
 
+Success criteria for agent loops:
+
+- `discover.paths[]` non-empty with `search_loop_guard.stop_search: true` means
+  Jikji succeeded; immediately use those paths.
+- `brief.paths[]` or `brief.candidates[].p` non-empty and plausible means Jikji
+  succeeded; immediately use those paths.
+- `find --first` returning a path means Jikji succeeded; immediately use that
+  path.
+- Only empty, low-confidence, or visibly irrelevant results justify another
+  Jikji query; raw fallback comes last.
+
 Use non-compact `brief` only when the compact graph route is insufficient.
 
 ## Direct handoff rule
 
-If the candidate list is plausible, do **not** perform a new broad `find`, `ls`,
-`rg`, or manual filesystem crawl. Use Jikji's ranked paths directly and verify
-only the top candidates when needed.
+If the candidate list is plausible, do **not** perform a new broad `search_files`,
+`find`, `ls`, `rg`, or manual filesystem crawl. Use Jikji's ranked paths directly
+and verify only the top candidates when needed.
 
 This is the intended speed benefit: Jikji has already done the repeated file-map
 work before the agent receives the task.

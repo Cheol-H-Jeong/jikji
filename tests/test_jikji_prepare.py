@@ -194,6 +194,10 @@ def test_discover_cli_classifies_and_returns_candidates(tmp_path, capsys):
     assert payload["confidence_factors"]["family_coherence"] >= 0
     assert "sports/tennis_lessons.txt" in payload["paths"]
     assert payload["query_variants"]
+    assert payload["search_loop_guard"]["success"] is True
+    assert payload["search_loop_guard"]["stop_search"] is True
+    assert payload["search_loop_guard"]["suppress_followup_search_files"] is True
+    assert payload["search_loop_guard"]["fallback_allowed"] is False
 
 
 def test_discover_promotes_explicit_path_anchor(tmp_path):
@@ -215,6 +219,8 @@ def test_discover_promotes_explicit_path_anchor(tmp_path):
         top_k=5,
     )
     assert payload["paths"][0] == "contracts/IGC-Non-Disclosure-Agreement-LSE-Sample.pdf"
+    assert payload["search_loop_guard"]["stop_search"] is True
+    assert payload["search_loop_guard"]["suppress_followup_search_files"] is True
 
 
 def test_graph_cli_status_query_and_explain(tmp_path, capsys):
@@ -773,6 +779,8 @@ def test_hermes_jikji_prompt_is_agent_brief_first(tmp_path):
     assert '"schema_version": 1' in prompt
     assert "Route order" in prompt
     assert "preserve relative paths exactly" in prompt
+    assert "search_loop_guard" in prompt
+    assert "stop discovery and do not call search_files" in prompt
 
 
 def test_hermes_jikji_fast_prompt_is_map_first_no_browse(tmp_path):
@@ -785,7 +793,7 @@ def test_hermes_jikji_fast_prompt_is_map_first_no_browse(tmp_path):
     assert _mode_family("map-first") == "jikji-fast"
     assert _mode_family("jikji-pass-through") == "jikji-fast"
     assert "JIKJI MAP-FIRST FAST PATH" in prompt
-    assert "Do not browse, list, grep, cat, or inspect any filesystem path." in prompt
+    assert "call search_files after Jikji returns candidates" in prompt
     assert "Copy every candidate path into the JSON paths array exactly in the same order" in prompt
     assert "Actual brief payload follows" not in prompt
     assert "Do not invent, summarize, or replace candidates" in prompt
