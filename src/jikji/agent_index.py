@@ -189,6 +189,125 @@ _MAP_NOISE_RE = re.compile(
     re.IGNORECASE,
 )
 _COPY_SUFFIX_RE = re.compile(r"(?:\s*\(\d+\)|\s*-\s*copy|\s+copy|_copy|\s*사본)$", re.IGNORECASE)
+_CLOUD_PATH_MARKERS = (
+    "google drive",
+    "googledrive",
+    "gdrive",
+    "google-drive",
+    "onedrive",
+    "one drive",
+    "dropbox",
+    "icloud",
+    "box drive",
+    "boxdrive",
+    "pcloud",
+    "mega",
+    "nextcloud",
+    "owncloud",
+)
+_REMOTE_FS_TYPES = {
+    "9p",
+    "afpfs",
+    "cifs",
+    "davfs",
+    "fuse.rclone",
+    "fuse.sshfs",
+    "fuseblk",
+    "fusectl",
+    "fusedav",
+    "nfs",
+    "nfs4",
+    "smb3",
+    "smbfs",
+    "sshfs",
+    "webdav",
+}
+
+
+def _read_mountinfo() -> list[tuple[Path, str]]:
+    mounts: list[tuple[Path, str]] = []
+    try:
+        raw = Path("/proc/self/mountinfo").read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return mounts
+    for line in raw.splitlines():
+        if " - " not in line:
+            continue
+        left, right = line.split(" - ", 1)
+        fields = left.split()
+        fs_fields = right.split()
+        if len(fields) < 5 or not fs_fields:
+            continue
+        mount_point = fields[4].replace("\\040", " ")
+        mounts.append((Path(mount_point), fs_fields[0].casefold()))
+    return mounts
+
+
+def _mount_for_path(path: Path) -> tuple[Path, str] | None:
+    resolved = Path(path).expanduser().resolve()
+    best: tuple[Path, str] | None = None
+    for mount_point, fs_type in _read_mountinfo():
+        try:
+            resolved.relative_to(mount_point)
+        except ValueError:
+            continue
+        if best is None or len(mount_point.parts) > len(best[0].parts):
+            best = (mount_point, fs_type)
+    return best
+
+
+def _looks_like_cloud_path(path: Path) -> bool:
+    folded = str(path).casefold()
+    return any(marker in folded for marker in _CLOUD_PATH_MARKERS)
+
+
+def _is_cloud_mounted_root(root: Path, config: Config) -> tuple[bool, str]:
+    mode = str(getattr(config, "cloud_mount", "auto") or "auto").casefold()
+    if mode in {"always", "true", "yes", "1"}:
+        return True, "forced"
+    if mode in {"never", "false", "no", "0"}:
+        return False, "disabled"
+    mount = _mount_for_path(root)
+    if mount is not None:
+        mount_point, fs_type = mount
+        if fs_type in _REMOTE_FS_TYPES:
+            return True, f"remote_fs:{fs_type}"
+        if _looks_like_cloud_path(mount_point):
+            return True, f"cloud_path:{mount_point}"
+    if _looks_like_cloud_path(root):
+        return True, "cloud_path"
+    return False, "local"
+
+
+def _normalise_rel_folder(value: str) -> str:
+    rel = Path(str(value or "").strip()).as_posix().strip("/")
+    return "." if rel in {"", "."} else rel
+
+
+def _approved_content_folders(config: Config) -> tuple[str, ...]:
+    out: list[str] = []
+    seen: set[str] = set()
+    for value in getattr(config, "cloud_content_folders", []) or []:
+        rel = _normalise_rel_folder(str(value))
+        if rel not in seen:
+            seen.add(rel)
+            out.append(rel)
+    return tuple(out)
+
+
+def _path_in_approved_content_folder(rel_path: str, approved: tuple[str, ...]) -> bool:
+    if not approved:
+        return False
+    rel = Path(rel_path).as_posix().strip("/")
+    parent = Path(rel).parent.as_posix()
+    if parent == "":
+        parent = "."
+    for folder in approved:
+        if folder == ".":
+            return True
+        if rel == folder or rel.startswith(folder + "/") or parent == folder or parent.startswith(folder + "/"):
+            return True
+    return False
 
 
 def _now_iso() -> str:
@@ -603,6 +722,8 @@ def _read_map_text(root: Path, row: dict, *, max_chars: int = 96_000) -> str:
                         break
         except OSError:
             pass
+    elif str(row.get("parse_status") or "") == "cloud_metadata_only":
+        pass
     elif str(row.get("ext") or "").lower() in TEXT_LIKE_EXTENSIONS:
         try:
             parts.append((root / str(row.get("path") or "")).read_text(encoding="utf-8", errors="ignore")[:max_chars])
@@ -1065,6 +1186,8 @@ def _build_agent_index_unlocked(
     chunk_chars = int(getattr(config, "agent_doc_text_chunk_chars", _DEFAULT_CHUNK_CHARS) or _DEFAULT_CHUNK_CHARS)
     parse_timeout = float(getattr(config, "parse_timeout_s", 5.0) or 5.0)
     max_hash_bytes = int(getattr(config, "max_hash_bytes", 512 * 1024 * 1024) or 0)
+    cloud_index_enabled, cloud_index_reason = _is_cloud_mounted_root(root, config)
+    approved_cloud_content = _approved_content_folders(config)
 
     for idx, path in enumerate(files, 1):
         check()
@@ -1091,6 +1214,7 @@ def _build_agent_index_unlocked(
         )
         ext = entry.ext.lower()
         parser_required = _parser_required(path, ext)
+        content_index_allowed = (not cloud_index_enabled) or _path_in_approved_content_folder(rel_path, approved_cloud_content)
         text_cache_path = prev.get("text_cache_path", "") if unchanged else ""
         doc_meta_path = prev.get("doc_meta_path", "") if unchanged else ""
         content_hash = prev.get("sha256", "") if unchanged else ""
@@ -1100,7 +1224,13 @@ def _build_agent_index_unlocked(
 
         if parser_required:
             parsed_text_sample = ""
-            if unchanged and text_cache_path and (root / text_cache_path).exists():
+            if not content_index_allowed:
+                parse_status = "cloud_metadata_only"
+                text_cache_path = ""
+                doc_meta_path = ""
+                keywords = _tokens_from_text(entry.name)
+                summary = ""
+            elif unchanged and text_cache_path and (root / text_cache_path).exists():
                 result.docs_reused += 1
             elif not _hash_allowed(path, max_hash_bytes):
                 parse_status = "hash_oversize"
@@ -1170,10 +1300,10 @@ def _build_agent_index_unlocked(
                         content_hash = ""
         elif ext in TEXT_LIKE_EXTENSIONS:
             keywords = _tokens_from_text(entry.name)
-            parse_status = "native_text"
+            parse_status = "cloud_metadata_only" if cloud_index_enabled else "native_text"
         else:
             keywords = _tokens_from_text(entry.name)
-            parse_status = "not_required"
+            parse_status = "cloud_metadata_only" if cloud_index_enabled else "not_required"
 
         if not content_hash and not unchanged:
             # Hash every new/changed file so moves can be correlated later.
@@ -1292,6 +1422,13 @@ def _build_agent_index_unlocked(
         "retired_cleanup_paths": RETIRED_GENERATED_PATHS,
         "parser_required_extensions": sorted(DOCUMENT_CACHE_EXTENSIONS),
         "native_text_extensions": sorted(TEXT_LIKE_EXTENSIONS),
+        "cloud_index": {
+            "detected": cloud_index_enabled,
+            "reason": cloud_index_reason,
+            "default_mode": "metadata_only" if cloud_index_enabled else "content_index",
+            "approved_content_folders": list(approved_cloud_content),
+            "note": "Mounted cloud drives use filename/path/metadata indexing by default; pass --cloud-content-folder for explicit per-folder content indexing.",
+        },
         "media_index": {
             "enabled": media_index_enabled,
             "status": "enabled_bounded" if media_index_enabled else ("metadata_only_opt_in_available" if media_file_count else "no_media_files"),

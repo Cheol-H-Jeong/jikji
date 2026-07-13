@@ -44,3 +44,7 @@ class Config:
     agent_doc_text_chunk_chars: int = 1_000_000
     enable_media_index: bool = False
     media_index_max_mb: float = 25.0
+    # Cloud-mounted roots are slow/failure-prone; default to metadata-only
+    # indexing unless the user explicitly approves content indexing for folders.
+    cloud_mount: str = "auto"  # auto | always | never
+    cloud_content_folders: list[str] = field(default_factory=list)

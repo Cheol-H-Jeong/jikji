@@ -116,6 +116,52 @@ def test_prepare_records_media_opt_in_policy(tmp_path):
     assert manifest["media_index"]["max_mb"] == 1.0
 
 
+
+def test_cloud_mount_defaults_to_metadata_only_indexing(tmp_path):
+    cloud_root = tmp_path / "Google Drive"
+    cloud_root.mkdir()
+    doc = cloud_root / "contract.pdf"
+    doc.write_text("expensive cloud body should not be parsed", encoding="utf-8")
+
+    result = build_agent_index(cloud_root, Config())
+
+    assert result.docs_parsed == 0
+    rows = _jsonl(cloud_root / ".jikji" / "file_index.jsonl")
+    assert rows[0]["path"] == "contract.pdf"
+    assert rows[0]["parse_status"] == "cloud_metadata_only"
+    assert rows[0]["text_cache_path"] == ""
+    assert rows[0]["keywords"] == ["contract", "pdf"]
+    assert not _jsonl(cloud_root / ".jikji" / "document_index.jsonl")[0]["file_id"]
+    manifest = json.loads((cloud_root / ".jikji" / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["cloud_index"]["detected"] is True
+    assert manifest["cloud_index"]["default_mode"] == "metadata_only"
+    assert manifest["cloud_index"]["approved_content_folders"] == []
+
+
+def test_cloud_mount_content_indexing_is_per_folder_opt_in(tmp_path):
+    cloud_root = tmp_path / "Google Drive"
+    approved = cloud_root / "approved"
+    skipped = cloud_root / "skipped"
+    approved.mkdir(parents=True)
+    skipped.mkdir()
+    approved_doc = approved / "approved.rtf"
+    skipped_doc = skipped / "skipped.rtf"
+    approved_doc.write_text(r"{\rtf1\ansi approved cloud body}", encoding="utf-8")
+    skipped_doc.write_text(r"{\rtf1\ansi skipped cloud body}", encoding="utf-8")
+
+    result = build_agent_index(cloud_root, Config(cloud_content_folders=["approved"]))
+
+    assert result.docs_parsed == 1
+    rows = {row["path"]: row for row in _jsonl(cloud_root / ".jikji" / "file_index.jsonl")}
+    assert rows["approved/approved.rtf"]["parse_status"] == "success"
+    assert rows["approved/approved.rtf"]["text_cache_path"]
+    assert rows["skipped/skipped.rtf"]["parse_status"] == "cloud_metadata_only"
+    assert rows["skipped/skipped.rtf"]["text_cache_path"] == ""
+    doc_rows = {row["path"]: row for row in _jsonl(cloud_root / ".jikji" / "document_index.jsonl")}
+    assert doc_rows["approved/approved.rtf"]["file_id"].startswith("sha256:")
+    assert doc_rows["skipped/skipped.rtf"]["file_id"] == ""
+    manifest = json.loads((cloud_root / ".jikji" / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["cloud_index"]["approved_content_folders"] == ["approved"]
 def test_compact_brief_uses_graph_routes_and_is_smaller(tmp_path, capsys):
     from jikji.__main__ import main
 

@@ -69,6 +69,8 @@ def _config_from_args(args) -> Config:
     cfg.max_hash_bytes = args.max_hash_bytes
     cfg.enable_media_index = bool(getattr(args, "enable_media_index", False))
     cfg.media_index_max_mb = float(getattr(args, "media_index_max_mb", 25.0) or 25.0)
+    cfg.cloud_mount = str(getattr(args, "cloud_mount", "auto") or "auto")
+    cfg.cloud_content_folders = list(getattr(args, "cloud_content_folder", []) or [])
     if args.exclude:
         cfg.ignore_patterns.extend(args.exclude)
     return cfg
@@ -78,6 +80,14 @@ def cmd_prepare(args) -> int:
     root = Path(args.path).expanduser().resolve()
     cfg = _config_from_args(args)
     result = build_agent_index(root, cfg)
+    cloud_index = {}
+    try:
+        manifest = json.loads((result.index_dir / "manifest.json").read_text(encoding="utf-8")) if result.index_dir else {}
+        cloud_index = manifest.get("cloud_index") if isinstance(manifest, dict) else {}
+        if not isinstance(cloud_index, dict):
+            cloud_index = {}
+    except (OSError, json.JSONDecodeError):
+        cloud_index = {}
     if args.json:
         print(json.dumps({
             "root": str(root),
@@ -89,12 +99,20 @@ def cmd_prepare(args) -> int:
             "docs_reused": result.docs_reused,
             "docs_failed": result.docs_failed,
             "deleted": result.deleted,
+            "cloud_index": cloud_index,
         }, ensure_ascii=False, indent=2))
     else:
         print(f"Jikji prepared: {root}")
         print(f"- files={result.files} folders={result.folders} deleted={result.deleted}")
         print(f"- docs parsed/reused/failed={result.docs_parsed}/{result.docs_reused}/{result.docs_failed}")
         print(f"- map={result.agent_map}")
+        if cloud_index.get("detected"):
+            approved = cloud_index.get("approved_content_folders") or []
+            print("- cloud mount detected: filename/path/metadata-only indexing by default")
+            if approved:
+                print(f"- cloud content folders approved: {', '.join(str(x) for x in approved)}")
+            else:
+                print("- content indexing skipped; rerun with --cloud-content-folder REL for an approved folder")
     return 0
 
 
@@ -1731,6 +1749,8 @@ def main(argv: list[str] | None = None) -> int:
         p.add_argument("--doc-text-chunk-chars", type=int, default=1_000_000)
         p.add_argument("--enable-media-index", action="store_true", help="opt in to bounded local OCR/ASR for image/audio/video; may use CPU/RAM")
         p.add_argument("--media-index-max-mb", type=float, default=25.0, help="skip media OCR/ASR for files larger than this size")
+        p.add_argument("--cloud-mount", choices=("auto", "always", "never"), default="auto", help="cloud-drive policy detection; cloud mounts default to metadata-only indexing")
+        p.add_argument("--cloud-content-folder", action="append", default=[], metavar="REL", help="explicitly approve content indexing for this folder on a cloud mount; repeatable")
         p.add_argument("--json", action="store_true")
 
     p_prepare = sub.add_parser("prepare", help="create/update .jikji without moving files")
