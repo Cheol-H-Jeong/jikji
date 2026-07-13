@@ -129,13 +129,20 @@ def build_compact_agent_brief_payload(
         "index": index_status,
         "prepared": foreground_prepared,
         "refreshing": background_refresh_started,
-        "policy": "Use candidates[].p first. Read candidates[].wiki/cache only if ambiguous. Open original only for final verification. Do not browse whole filesystem first.",
+        "policy": "Use candidates[].p first. If candidates are plausible, stop discovery and do not call search_files or broad grep/find/listing. Read candidates[].wiki/cache only if ambiguous. Open original only for final verification. Do not browse whole filesystem first.",
         "artifacts": {
             "graph_routes": str(root / AGENT_DIR_NAME / "graph_routes.jsonl"),
             "knowledge_graph": str(root / AGENT_DIR_NAME / "knowledge_graph.json"),
             "wiki_index": str(root / AGENT_DIR_NAME / "wiki" / "index.md"),
         },
         "candidates": compact_candidates,
+        "search_loop_guard": {
+            "success": bool(compact_candidates),
+            "stop_search": bool(compact_candidates),
+            "suppress_followup_search_files": bool(compact_candidates),
+            "fallback_allowed": not bool(compact_candidates),
+            "next_step": "use_candidates_p_directly" if compact_candidates else "run_sharper_jikji_query_before_raw_fallback",
+        },
     }
 def build_agent_brief_payload(
     root: Path,
@@ -208,11 +215,19 @@ def build_agent_brief_payload(
         "foreground_prepared": foreground_prepared,
         "background_refresh_started": background_refresh_started,
         "agent_policy": [
-            "Use candidate paths first; avoid broad filesystem browsing when a candidate is plausible.",
+            "Use candidate paths first; a plausible non-empty candidate list is a successful Jikji result.",
+            "After a successful Jikji result, stop discovery and do not call search_files, grep/find, or broad directory listing for the same purpose.",
             "Return relative paths exactly as listed under candidates.path.",
             "Read original files only for final verification or when evidence is insufficient.",
             "Never move, rename, delete, or reorganize source files.",
         ],
+        "search_loop_guard": {
+            "success": bool(enriched),
+            "stop_search": bool(enriched),
+            "suppress_followup_search_files": bool(enriched),
+            "fallback_allowed": not bool(enriched),
+            "next_step": "use_candidate_paths_directly" if enriched else "run_sharper_jikji_query_before_raw_fallback",
+        },
         "route_order": [
             "1. Trust this brief's candidates when evidence/reasons match the user request.",
             "2. If ambiguous, run repeat_ranked_search with a sharper query or larger top-k.",

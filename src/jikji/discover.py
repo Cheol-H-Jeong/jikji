@@ -256,6 +256,42 @@ def _recommended_action(query_type: str, confidence: str) -> str:
     return "verify_top_candidates"
 
 
+def _search_loop_guard(query_type: str, confidence: str, candidates: list[dict[str, Any]]) -> dict[str, Any]:
+    """Return machine-readable guidance that prevents redundant raw search loops."""
+    if not candidates:
+        return {
+            "jikji_result": "empty",
+            "success": False,
+            "stop_search": False,
+            "fallback_allowed": True,
+            "suppress_followup_search_files": False,
+            "next_step": "rewrite_query_with_jikji_before_raw_search",
+        }
+    if confidence == "low":
+        return {
+            "jikji_result": "weak_candidates",
+            "success": False,
+            "stop_search": False,
+            "fallback_allowed": True,
+            "suppress_followup_search_files": False,
+            "next_step": "run_sharper_jikji_query_variants_before_raw_search",
+        }
+    if query_type == "single_file" and confidence in {"medium", "medium_high", "high"}:
+        next_step = "use_top_path_after_light_verification"
+    elif query_type == "evidence_set":
+        next_step = "use_ranked_paths_as_evidence_set"
+    else:
+        next_step = "verify_top_candidates_only"
+    return {
+        "jikji_result": "valid_candidates",
+        "success": True,
+        "stop_search": True,
+        "fallback_allowed": False,
+        "suppress_followup_search_files": True,
+        "next_step": next_step,
+    }
+
+
 def discover(root: Path, query: str, *, top_k: int = 20, per_query_k: int | None = None) -> dict[str, Any]:
     root = Path(root).expanduser().resolve()
     query_type = classify_query(query)
@@ -265,6 +301,7 @@ def discover(root: Path, query: str, *, top_k: int = 20, per_query_k: int | None
     confidence_factors = _confidence_factors(query_type, candidates, variants)
     confidence_score = _confidence_score(query_type, confidence_factors)
     confidence = _confidence(query_type, candidates, confidence_factors, confidence_score)
+    search_loop_guard = _search_loop_guard(query_type, confidence, candidates)
     paths = [str(item.get("path") or "") for item in candidates if item.get("path")]
     compact_candidates = [
         {
@@ -287,6 +324,7 @@ def discover(root: Path, query: str, *, top_k: int = 20, per_query_k: int | None
         "confidence_score": confidence_score,
         "confidence_factors": confidence_factors,
         "recommended_action": _recommended_action(query_type, confidence),
+        "search_loop_guard": search_loop_guard,
         "paths": paths,
         "query_variants": variants,
         "candidates": compact_candidates,
