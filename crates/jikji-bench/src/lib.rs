@@ -1,14 +1,24 @@
 #![forbid(unsafe_code)]
 
+pub mod benchmark_two_call;
+pub mod benchmark_value;
+pub mod hermes_compare;
+
 mod dataset;
 mod eval;
 mod io;
 mod metrics;
 mod models;
+pub mod public_datasets;
 mod run;
 
+pub use benchmark_two_call::{build_two_call_value_report, write_two_call_value_report};
+pub use benchmark_value::{
+    Pricing, build_accuracy_first_value_report, estimate_cost, write_accuracy_first_value_report,
+};
 pub use dataset::{import_fixture_dataset, public_dataset_contract};
 pub use eval::{analyze_eval, generate_eval_set};
+pub use hermes_compare::{CompareOptions, ReportError, compare_benchmark_reports};
 pub use models::{
     BenchmarkReport, BenchmarkScenario, EvalAnalyzeResult, EvalCase, EvalGenerateResult,
     EvalRunResult, ImportOptions, RunOptions,

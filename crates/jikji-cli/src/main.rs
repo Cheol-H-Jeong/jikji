@@ -7,8 +7,9 @@ use jikji_index::{doctor, read_map};
 
 use crate::args::{Cli, Command};
 use crate::bench_commands::{
-    run_bench_analyze, run_bench_iterate, run_bench_run, run_eval, run_eval_generate,
-    run_hippocamp_import, run_public_import, run_public_suite,
+    run_bench_analyze, run_bench_iterate, run_bench_run, run_benchmark_value_report, run_eval,
+    run_eval_generate, run_hermes_bench, run_hermes_compare, run_hippocamp_import,
+    run_public_import, run_public_suite,
 };
 use crate::output::print_json;
 use crate::prepare_commands::{run_clean, run_prepare};
@@ -85,15 +86,9 @@ fn run(cli: Cli) -> jikji_core::Result<ExitCode> {
         Command::HardbenchSuite(args) => run_public_suite("hardbench", args),
         Command::HippocampSuite(args) => run_public_suite("hippocamp", args),
         Command::PostInstallPrepare(args) => post_install_commands::run_post_install_prepare(args),
-        Command::HermesBench(_) => Err(jikji_core::JikjiError::UnimplementedCommand(
-            "hermes-bench is Python-only in the Rust port; use the Python Jikji CLI for external Hermes automation",
-        )),
-        Command::HermesCompare(_) => Err(jikji_core::JikjiError::UnimplementedCommand(
-            "hermes-compare is Python-only in the Rust port because it gates external Hermes report artifacts",
-        )),
-        Command::BenchmarkValueReport(_) => Err(jikji_core::JikjiError::UnimplementedCommand(
-            "benchmark-value-report is Python-only in the Rust port because it aggregates historical Hermes cost artifacts",
-        )),
+        Command::HermesBench(args) => run_hermes_bench(args),
+        Command::HermesCompare(args) => run_hermes_compare(args),
+        Command::BenchmarkValueReport(args) => run_benchmark_value_report(args),
     }
 }
 

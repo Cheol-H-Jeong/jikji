@@ -71,8 +71,6 @@ pub enum JikjiError {
         #[source]
         source: serde_json::Error,
     },
-    #[error("Jikji command is not implemented in the Rust scaffold yet: {0}")]
-    UnimplementedCommand(&'static str),
 }
 
 pub type Result<T> = std::result::Result<T, JikjiError>;

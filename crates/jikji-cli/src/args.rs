@@ -118,10 +118,10 @@ pub(crate) enum Command {
     HippocampSuite(PublicSuiteArgs),
     #[command(hide = true, about = "Run queued post-install prepares.")]
     PostInstallPrepare(PostInstallPrepareArgs),
-    #[command(about = "Python-only Hermes benchmark compatibility command.")]
+    #[command(about = "Run Hermes retrieval benchmarks with the native Rust runner.")]
     HermesBench(HermesBenchArgs),
-    #[command(about = "Python-only Hermes report comparison compatibility command.")]
+    #[command(about = "Compare saved Hermes benchmark reports.")]
     HermesCompare(HermesCompareArgs),
-    #[command(about = "Python-only benchmark value report compatibility command.")]
+    #[command(about = "Build benchmark value and cost reports.")]
     BenchmarkValueReport(BenchmarkValueReportArgs),
 }

@@ -12,6 +12,7 @@ bzip2 = "0.4"
 encoding_rs = "0.8"
 flate2 = "1"
 jikji-core.workspace = true
+jikji-media-bridge.workspace = true
 mailparse = "0.16"
 regex = "1"
 rusqlite = { version = "0.32", features = ["bundled"] }

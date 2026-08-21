@@ -1,109 +1,116 @@
 use std::fs;
-use std::io::Write;
-use std::path::PathBuf;
-use std::time::Duration;
+use std::path::Path;
 
 use jikji_media_bridge::{
-    BridgeRuntime, MediaBridgeConfig, MediaBridgeRequest, MediaBridgeStatus, MediaKind,
+    BridgeAvailability, BridgeRuntime, MediaBridgeRequest, MediaBridgeStatus, MediaKind,
 };
 use tempfile::tempdir;
 
-fn python3() -> PathBuf {
-    std::env::var_os("PYTHON")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("python3"))
-}
-
 #[test]
-fn media_bridge_reports_metadata_only_when_disabled_by_default() {
-    let config = MediaBridgeConfig::default();
-    let request = MediaBridgeRequest::new(PathBuf::from("sample.png"), MediaKind::Image);
+fn image_metadata_is_extracted_without_python() {
+    let tmp = tempdir().expect("tempdir");
+    let path = tmp.path().join("sample.png");
+    write_png(&path, 31, 47);
 
-    let outcome = BridgeRuntime::new(config).extract(&request);
+    let runtime = BridgeRuntime::new();
+    let outcome = runtime.extract(&MediaBridgeRequest::new(path, MediaKind::Image));
 
+    assert_eq!(runtime.availability(), BridgeAvailability::Native);
     assert_eq!(outcome.status, MediaBridgeStatus::MetadataOnly);
-    assert_eq!(outcome.text, "");
+    assert_eq!(
+        outcome.metadata.get("engine").map(String::as_str),
+        Some("rust-native")
+    );
+    assert_eq!(
+        outcome.metadata.get("width").map(String::as_str),
+        Some("31")
+    );
+    assert_eq!(
+        outcome.metadata.get("height").map(String::as_str),
+        Some("47")
+    );
     assert!(!outcome.python_required_by_default);
 }
 
 #[test]
-fn fake_python_bridge_success_returns_text_and_metadata() {
+fn wav_metadata_is_extracted_without_asr_runtime() {
     let tmp = tempdir().expect("tempdir");
-    let script = tmp.path().join("bridge.py");
-    fs::write(
-        &script,
-        "import json\nprint(json.dumps({'text': 'ocr-token-1234', 'metadata': {'engine': 'fake'}}))\n",
-    )
-    .expect("write script");
-    let request = MediaBridgeRequest::new(tmp.path().join("image.png"), MediaKind::Image);
-    let config = MediaBridgeConfig::enabled_script(python3(), script, Duration::from_secs(5));
+    let path = tmp.path().join("sample.wav");
+    write_wav(&path, 8_000, 1, 16, 16_000);
 
-    let outcome = BridgeRuntime::new(config).extract(&request);
+    let outcome = BridgeRuntime::new().extract(&MediaBridgeRequest::new(path, MediaKind::Audio));
 
-    assert_eq!(outcome.status, MediaBridgeStatus::Success);
-    assert_eq!(outcome.text, "ocr-token-1234");
-    assert_eq!(outcome.metadata.get("engine"), Some(&"fake".to_owned()));
-}
-
-#[test]
-fn fake_python_bridge_failure_is_reported_without_panic() {
-    let tmp = tempdir().expect("tempdir");
-    let script = tmp.path().join("bridge_fail.py");
-    fs::write(
-        &script,
-        "import sys\nsys.stderr.write('backend missing')\nsys.exit(7)\n",
-    )
-    .expect("write script");
-    let request = MediaBridgeRequest::new(tmp.path().join("audio.wav"), MediaKind::Audio);
-    let config = MediaBridgeConfig::enabled_script(python3(), script, Duration::from_secs(5));
-
-    let outcome = BridgeRuntime::new(config).extract(&request);
-
-    assert_eq!(outcome.status, MediaBridgeStatus::Failed);
-    assert!(outcome.error.contains("backend missing"));
-}
-
-#[test]
-fn missing_python_bridge_is_unavailable_without_panic() {
-    let request = MediaBridgeRequest::new(PathBuf::from("clip.mp4"), MediaKind::Video);
-    let config = MediaBridgeConfig::enabled_script(
-        PathBuf::from("/missing/python"),
-        PathBuf::from("bridge.py"),
-        Duration::from_secs(1),
+    assert_eq!(outcome.status, MediaBridgeStatus::MetadataOnly);
+    assert_eq!(outcome.text, "");
+    assert_eq!(
+        outcome.metadata.get("channels").map(String::as_str),
+        Some("1")
     );
+    assert_eq!(
+        outcome.metadata.get("sample_rate_hz").map(String::as_str),
+        Some("8000")
+    );
+    assert_eq!(
+        outcome.metadata.get("bits_per_sample").map(String::as_str),
+        Some("16")
+    );
+    assert_eq!(
+        outcome.metadata.get("duration_ms").map(String::as_str),
+        Some("1000")
+    );
+}
 
-    let outcome = BridgeRuntime::new(config).extract(&request);
+#[test]
+fn missing_media_is_unavailable_without_panic() {
+    let outcome = BridgeRuntime::new().extract(&MediaBridgeRequest::new(
+        Path::new("/missing/jikji-media.mp4").to_path_buf(),
+        MediaKind::Video,
+    ));
 
     assert_eq!(outcome.status, MediaBridgeStatus::Unavailable);
-    assert!(outcome.error.contains("/missing/python"));
+    assert!(outcome.error.contains("No such file") || outcome.error.contains("not found"));
 }
 
 #[test]
-fn env_configured_missing_python_reports_unavailable_status() {
-    let request = MediaBridgeRequest::new(PathBuf::from("clip.mp4"), MediaKind::Video);
-    let config = MediaBridgeConfig::enabled_script(
-        PathBuf::from("/missing/jikji-env-python"),
-        PathBuf::from("bridge.py"),
-        Duration::from_secs(1),
-    );
-
-    let outcome = BridgeRuntime::new(config).extract(&request);
-
-    assert_eq!(outcome.status, MediaBridgeStatus::Unavailable);
-    assert!(outcome.error.contains("/missing/jikji-env-python"));
-}
-
-#[test]
-fn bridge_timeout_is_controlled_without_hanging() {
+fn malformed_media_remains_metadata_only() {
     let tmp = tempdir().expect("tempdir");
-    let script = tmp.path().join("bridge_sleep.py");
-    let mut file = fs::File::create(&script).expect("create script");
-    file.write_all(b"import time\ntime.sleep(10)\n")
-        .expect("write");
-    let request = MediaBridgeRequest::new(tmp.path().join("video.mp4"), MediaKind::Video);
-    let config = MediaBridgeConfig::enabled_script(python3(), script, Duration::from_millis(100));
+    let path = tmp.path().join("broken.jpg");
+    fs::write(&path, b"not-a-jpeg").expect("write fixture");
 
-    let outcome = BridgeRuntime::new(config).extract(&request);
+    let outcome = BridgeRuntime::new().extract(&MediaBridgeRequest::new(path, MediaKind::Image));
 
-    assert_eq!(outcome.status, MediaBridgeStatus::Timeout);
+    assert_eq!(outcome.status, MediaBridgeStatus::MetadataOnly);
+    assert_eq!(
+        outcome.metadata.get("format").map(String::as_str),
+        Some("jpg")
+    );
+    assert!(!outcome.metadata.contains_key("width"));
+}
+
+fn write_png(path: &Path, width: u32, height: u32) {
+    let mut bytes = Vec::from(&b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"[..]);
+    bytes.extend(width.to_be_bytes());
+    bytes.extend(height.to_be_bytes());
+    bytes.extend(b"\x08\x02\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00IEND\xaeB`\x82");
+    fs::write(path, bytes).expect("write png");
+}
+
+fn write_wav(path: &Path, sample_rate: u32, channels: u16, bits: u16, data_bytes: u32) {
+    let byte_rate = sample_rate * u32::from(channels) * u32::from(bits) / 8;
+    let block_align = channels * bits / 8;
+    let mut bytes = Vec::new();
+    bytes.extend(b"RIFF");
+    bytes.extend((36 + data_bytes).to_le_bytes());
+    bytes.extend(b"WAVEfmt ");
+    bytes.extend(16_u32.to_le_bytes());
+    bytes.extend(1_u16.to_le_bytes());
+    bytes.extend(channels.to_le_bytes());
+    bytes.extend(sample_rate.to_le_bytes());
+    bytes.extend(byte_rate.to_le_bytes());
+    bytes.extend(block_align.to_le_bytes());
+    bytes.extend(bits.to_le_bytes());
+    bytes.extend(b"data");
+    bytes.extend(data_bytes.to_le_bytes());
+    bytes.resize(bytes.len() + data_bytes as usize, 0);
+    fs::write(path, bytes).expect("write wav");
 }

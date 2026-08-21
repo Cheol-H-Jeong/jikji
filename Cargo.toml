@@ -4,10 +4,12 @@ members = [
     "crates/jikji-bench",
     "crates/jikji-cli",
     "crates/jikji-core",
+    "crates/jikji-hermes-bench",
     "crates/jikji-index",
     "crates/jikji-media-bridge",
     "crates/jikji-parser",
     "crates/jikji-parity",
+    "crates/jikji-public-datasets",
     "crates/jikji-search",
 ]
 resolver = "3"
@@ -30,9 +32,12 @@ thiserror = "2.0.17"
 tempfile = "3"
 jikji-agent = { path = "crates/jikji-agent", version = "0.1.1" }
 jikji-core = { path = "crates/jikji-core", version = "0.1.1" }
+jikji-bench = { path = "crates/jikji-bench", version = "0.1.1" }
+jikji-hermes-bench = { path = "crates/jikji-hermes-bench", version = "0.1.1" }
 jikji-index = { path = "crates/jikji-index", version = "0.1.1" }
 jikji-media-bridge = { path = "crates/jikji-media-bridge", version = "0.1.1" }
 jikji-parser = { path = "crates/jikji-parser", version = "0.1.1" }
+jikji-public-datasets = { path = "crates/jikji-public-datasets", version = "0.1.1" }
 jikji-search = { path = "crates/jikji-search", version = "0.1.1" }
 
 [workspace.lints.rust]

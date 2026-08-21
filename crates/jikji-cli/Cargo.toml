@@ -15,9 +15,12 @@ path = "src/main.rs"
 clap.workspace = true
 getrandom.workspace = true
 jikji-agent.workspace = true
+jikji-bench.workspace = true
 jikji-core.workspace = true
+jikji-hermes-bench.workspace = true
 jikji-index.workspace = true
 jikji-search.workspace = true
+jikji-public-datasets.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 

@@ -4,9 +4,7 @@ use std::thread;
 use std::time::Duration;
 
 use jikji_core::PrepareOptions;
-use jikji_media_bridge::{
-    BridgeRuntime, MediaBridgeConfig, MediaBridgeOutcome, MediaBridgeRequest, MediaKind,
-};
+use jikji_media_bridge::{BridgeRuntime, MediaBridgeOutcome, MediaBridgeRequest, MediaKind};
 use jikji_parser::{ParsedDocument, ParserRegistry};
 
 pub(crate) const MEDIA_EXTENSIONS: &[&str] = &[
@@ -32,9 +30,7 @@ pub(crate) struct SourceDocument<'a> {
 impl DocumentCacheRuntime {
     pub(crate) fn new() -> Self {
         Self {
-            bridge: BridgeRuntime::new(MediaBridgeConfig::enabled_from_env(Duration::from_secs(
-                30,
-            ))),
+            bridge: BridgeRuntime::new(),
         }
     }
 

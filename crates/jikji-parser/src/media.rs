@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use jikji_media_bridge::{MediaKind, extract_metadata};
 
 use crate::{DocumentParser, ParseStatus, ParsedDocument, ParserInput};
 
@@ -30,10 +30,8 @@ impl DocumentParser for MediaMetadataParser {
             .unwrap_or_default()
             .to_ascii_lowercase();
         let kind = media_kind(extension.as_str());
-        let mut metadata = BTreeMap::new();
-        metadata.insert("kind".to_owned(), kind.to_owned());
-        metadata.insert("bytes".to_owned(), input.bytes.len().to_string());
-        let text = media_text(input, extension.as_str(), kind);
+        let metadata = extract_metadata(input.path, input.bytes, kind);
+        let text = media_text(input, extension.as_str(), kind, &metadata);
         let status = if text.is_empty() {
             ParseStatus::MetadataOnly
         } else {
@@ -45,25 +43,26 @@ impl DocumentParser for MediaMetadataParser {
     }
 }
 
-fn media_kind(extension: &str) -> &'static str {
+fn media_kind(extension: &str) -> MediaKind {
     if IMAGE_EXTENSIONS.contains(&extension) {
-        "image"
+        MediaKind::Image
     } else if AUDIO_EXTENSIONS.contains(&extension) {
-        "audio"
+        MediaKind::Audio
     } else {
-        "video"
+        MediaKind::Video
     }
 }
 
-fn media_text(input: ParserInput<'_>, extension: &str, kind: &str) -> String {
-    if kind == "image" && extension == "png" {
-        return png_text(input);
+fn media_text(
+    input: ParserInput<'_>,
+    extension: &str,
+    kind: MediaKind,
+    metadata: &std::collections::BTreeMap<String, String>,
+) -> String {
+    if kind != MediaKind::Image {
+        return String::new();
     }
-    String::new()
-}
-
-fn png_text(input: ParserInput<'_>) -> String {
-    let Some(dimensions) = png_dimensions(input.bytes) else {
+    let (Some(width), Some(height)) = (metadata.get("width"), metadata.get("height")) else {
         return String::new();
     };
     let name = input
@@ -72,23 +71,7 @@ fn png_text(input: ParserInput<'_>) -> String {
         .and_then(|name| name.to_str())
         .unwrap_or("image");
     format!(
-        "# Image: {name}\nFormat: PNG\nDimensions: {}x{} pixels",
-        dimensions.width, dimensions.height
+        "# Image: {name}\nFormat: {}\nDimensions: {width}x{height} pixels",
+        extension.to_ascii_uppercase()
     )
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct ImageDimensions {
-    width: u32,
-    height: u32,
-}
-
-fn png_dimensions(bytes: &[u8]) -> Option<ImageDimensions> {
-    let header = bytes.get(..24)?;
-    if header.get(..8)? != b"\x89PNG\r\n\x1a\n" || header.get(12..16)? != b"IHDR" {
-        return None;
-    }
-    let width = u32::from_be_bytes(header.get(16..20)?.try_into().ok()?);
-    let height = u32::from_be_bytes(header.get(20..24)?.try_into().ok()?);
-    Some(ImageDimensions { width, height })
 }

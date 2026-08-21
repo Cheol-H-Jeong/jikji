@@ -75,12 +75,13 @@ fn task6_public_agent_and_benchmark_commands_match_contract() {
             path_str(&temp.path().join("beir")),
             "--cases".to_owned(),
             "1".to_owned(),
+            "--no-fetch".to_owned(),
             "--json".to_owned(),
         ],
     ] {
-        let output = run_fail(args);
+        let output = run_ok(args);
         assert!(
-            String::from_utf8_lossy(&output.stderr).contains("Python-only"),
+            output.status.success(),
             "stderr={}",
             String::from_utf8_lossy(&output.stderr)
         );
@@ -133,4 +134,38 @@ fn task6_gui_download_rejects_traversal() {
     let traversal = gui.get("/download?path=../outside.txt");
 
     assert_rejected(&traversal);
+}
+
+#[test]
+fn task6_gui_open_and_reveal_protect_paths_and_token() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let root = temp.path().join("root");
+    fs::create_dir(&root).expect("root");
+    fs::write(root.join("ACME_contract.txt"), "ACME payment contract").expect("fixture");
+    json_cmd(["prepare", path_str(&root).as_str(), "--json"]);
+
+    let gui = GuiChild::start(&root);
+    assert_rejected(&gui.post("/open?path=ACME_contract.txt"));
+    assert_rejected(&gui.post(&format!(
+        "/open?path=../outside.txt&token={}",
+        gui.manage_token()
+    )));
+    assert_rejected(&gui.post(&format!(
+        "/reveal?path=missing.txt&token={}",
+        gui.manage_token()
+    )));
+
+    let open = gui.post(&format!(
+        "/open?path=ACME_contract.txt&token={}",
+        gui.manage_token()
+    ));
+    assert!(open.starts_with("HTTP/1.1 200 OK"), "{open}");
+    assert!(open.contains("ACME_contract.txt"), "{open}");
+
+    let reveal = gui.post(&format!(
+        "/reveal?path=ACME_contract.txt&token={}",
+        gui.manage_token()
+    ));
+    assert!(reveal.starts_with("HTTP/1.1 200 OK"), "{reveal}");
+    assert!(reveal.contains(root.to_string_lossy().as_ref()), "{reveal}");
 }

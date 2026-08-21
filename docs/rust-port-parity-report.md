@@ -47,12 +47,21 @@ Generated artifact policy:
   are implementation-specific, so parity compares semantic source stems and
   counts rather than exact filename hashes.
 
-## Rationale
+## Current ownership
 
-The Python implementation remains the reference for public CLI JSON envelopes,
-ranking order, required artifact presence, non-empty parser cache generation,
-and documented generated artifact schemas. Implementation-specific Markdown
-wording, validated generated JSON prose, exact parser cache text bytes, and wiki
-source slug hash suffixes are recorded as intentional non-parity only after the
-contract checks pass because they are not user-facing contracts in
-`docs/schema.md` or `AGENTS.md`.
+The shipped Rust workspace is now the primary implementation for prepare,
+search/find/discover, agent installation, GUI routing, local evaluation,
+Hermes execution/report comparison, value reports, BEIR/HippoCamp import, and
+native media metadata extraction. Rust CLI paths no longer spawn Python or
+return `Python-only` compatibility errors.
+
+The Python package remains a reference and parity oracle while consumers
+migrate. Generated Markdown prose, parser cache bytes, and wiki hash suffixes
+remain intentionally implementation-specific under the policy above.
+
+Native OCR/ASR is not bundled: image/audio/video indexing records Rust-native
+metadata, but text extraction from pixels or speech still requires adding a
+model/runtime. EDiTh, PublicData, WorkspaceBench, and HardBench have native
+fixture materializers in `jikji-bench`; their public network download/suite CLI
+adapters are rejected explicitly rather than silently using Python or fabricated
+data.

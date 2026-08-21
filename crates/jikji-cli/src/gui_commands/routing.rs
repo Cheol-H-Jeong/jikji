@@ -1,5 +1,11 @@
+#[cfg(all(unix, not(target_os = "macos")))]
+use std::env;
+use std::ffi::OsStr;
 use std::fs;
+#[cfg(all(unix, not(target_os = "macos")))]
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
 use std::sync::{Arc, RwLock};
 
 use jikji_core::PrepareOptions;
@@ -61,6 +67,8 @@ pub(crate) fn route_request(
             with_root(state, |root| discover_response(root, &request.query))
         }
         ("GET", "/download") => with_root(state, |root| download_response(root, &request.query)),
+        ("POST", "/open") => management_response(state, &request.query, open_response),
+        ("POST", "/reveal") => management_response(state, &request.query, reveal_response),
         ("POST", "/api/refresh") => management_response(state, &request.query, refresh_response),
         ("POST", "/api/root") => management_response(state, &request.query, root_switch_response),
         _ => HttpResponse::json(404, json!({"error": "not found"})),
@@ -167,6 +175,95 @@ fn download_response(root: &Path, query: &str) -> HttpResponse {
     }
 }
 
+fn open_response(state: &GuiState, query: &str) -> HttpResponse {
+    with_root(state, |root| {
+        let path = match action_path(root, query) {
+            Ok(path) => path,
+            Err(response) => return response,
+        };
+        match open_local_path(&path) {
+            Ok(()) => HttpResponse::json(200, json!({"ok": true, "path": path})),
+            Err(error) => HttpResponse::json(500, json!({"error": error})),
+        }
+    })
+}
+
+fn reveal_response(state: &GuiState, query: &str) -> HttpResponse {
+    with_root(state, |root| {
+        let path = match action_path(root, query) {
+            Ok(path) => path,
+            Err(response) => return response,
+        };
+        let reveal_path = if path.is_dir() {
+            path.clone()
+        } else {
+            path.parent().unwrap_or(root).to_path_buf()
+        };
+        match open_local_path(&reveal_path) {
+            Ok(()) => HttpResponse::json(200, json!({"ok": true, "path": reveal_path})),
+            Err(error) => HttpResponse::json(500, json!({"error": error})),
+        }
+    })
+}
+
+fn action_path(root: &Path, query: &str) -> std::result::Result<PathBuf, HttpResponse> {
+    let Some(path_value) = query_value(query, "path") else {
+        return Err(HttpResponse::json(403, json!({"error": "missing path"})));
+    };
+    resolve_root_path(root, &path_value)
+}
+
+#[cfg(target_os = "macos")]
+fn open_local_path(path: &Path) -> std::result::Result<(), String> {
+    spawn_opener("open", std::iter::once(path.as_os_str()))
+}
+
+#[cfg(windows)]
+fn open_local_path(path: &Path) -> std::result::Result<(), String> {
+    spawn_opener("explorer.exe", std::iter::once(path.as_os_str()))
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn open_local_path(path: &Path) -> std::result::Result<(), String> {
+    if executable_on_path("xdg-open").is_some() {
+        return spawn_opener("xdg-open", std::iter::once(path.as_os_str()));
+    }
+    if executable_on_path("gio").is_some() {
+        return spawn_opener("gio", [OsStr::new("open"), path.as_os_str()]);
+    }
+    Err("No desktop opener found (expected xdg-open or gio)".to_owned())
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn executable_on_path(name: &str) -> Option<PathBuf> {
+    env::var_os("PATH").and_then(|path| executable_in_path(name, &path))
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn executable_in_path(name: &str, path: &OsStr) -> Option<PathBuf> {
+    env::split_paths(path)
+        .map(|directory| directory.join(name))
+        .find(|candidate| {
+            candidate.metadata().is_ok_and(|metadata| {
+                metadata.is_file() && metadata.permissions().mode() & 0o111 != 0
+            })
+        })
+}
+
+fn spawn_opener<'a>(
+    program: &str,
+    args: impl IntoIterator<Item = &'a OsStr>,
+) -> std::result::Result<(), String> {
+    Command::new(program)
+        .args(args)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .map(|_| ())
+        .map_err(|source| source.to_string())
+}
+
 fn refresh_response(state: &GuiState, _query: &str) -> HttpResponse {
     with_root(state, |root| {
         match prepare(root, &PrepareOptions::default()) {
@@ -233,4 +330,36 @@ fn read_json(path: PathBuf) -> Value {
         .ok()
         .and_then(|text| serde_json::from_str(&text).ok())
         .unwrap_or_else(|| json!({}))
+}
+
+#[cfg(all(test, unix, not(target_os = "macos")))]
+mod tests {
+    use std::fs;
+    use std::os::unix::fs::PermissionsExt;
+
+    use super::executable_in_path;
+
+    #[test]
+    fn executable_lookup_skips_non_executable_candidates() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let first = temp.path().join("first");
+        let second = temp.path().join("second");
+        fs::create_dir(&first).expect("first dir");
+        fs::create_dir(&second).expect("second dir");
+
+        let blocked = first.join("xdg-open");
+        fs::write(&blocked, "not executable").expect("blocked fixture");
+        fs::set_permissions(&blocked, fs::Permissions::from_mode(0o644)).expect("blocked mode");
+
+        let executable = second.join("xdg-open");
+        fs::write(&executable, "#!/bin/sh\n").expect("executable fixture");
+        fs::set_permissions(&executable, fs::Permissions::from_mode(0o755))
+            .expect("executable mode");
+
+        let search_path = std::env::join_paths([&first, &second]).expect("search path");
+        assert_eq!(
+            executable_in_path("xdg-open", &search_path),
+            Some(executable)
+        );
+    }
 }
