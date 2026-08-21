@@ -347,7 +347,6 @@ def test_tool_call_policy_blocks_followups_only_when_answerable():
     assert fallback["stop_after_find"] is False
     assert fallback["forbidden_tools"] == []
     assert "raw_fallback_after_retry" in fallback["allowed_followups"]
-2: @ours
 
 
 def test_discover_promotes_explicit_path_anchor(tmp_path):
