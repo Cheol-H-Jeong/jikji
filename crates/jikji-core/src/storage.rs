@@ -1,7 +1,9 @@
+use std::collections::HashSet;
 use std::env;
 use std::fs;
 use std::io::{Error, ErrorKind};
 use std::path::{Path, PathBuf};
+use std::sync::{LazyLock, Mutex};
 
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
 use serde_json::Value;
@@ -9,6 +11,9 @@ use serde_json::Value;
 use crate::{JIKJI_DIR, Result, io_error, json_error};
 
 const DATABASE_SCHEMA_VERSION: i64 = 1;
+
+static INITIALIZED_DATABASES: LazyLock<Mutex<HashSet<PathBuf>>> =
+    LazyLock::new(|| Mutex::new(HashSet::new()));
 
 pub fn canonical_root(root: &Path) -> Result<PathBuf> {
     root.canonicalize().map_err(|source| io_error(root, source))
@@ -52,12 +57,18 @@ pub fn open_database() -> Result<Connection> {
         .busy_timeout(std::time::Duration::from_secs(30))
         .map_err(|source| sqlite_error(&path, source))?;
     connection
-        .pragma_update(None, "journal_mode", "WAL")
-        .map_err(|source| sqlite_error(&path, source))?;
-    connection
         .pragma_update(None, "foreign_keys", "ON")
         .map_err(|source| sqlite_error(&path, source))?;
-    initialize(&connection, &path)?;
+    let initialized = &INITIALIZED_DATABASES;
+    let mut initialized = initialized
+        .lock()
+        .map_err(|_| io_error(&path, Error::other("database initialization lock poisoned")))?;
+    if initialized.insert(path.clone()) {
+        connection
+            .pragma_update(None, "journal_mode", "WAL")
+            .map_err(|source| sqlite_error(&path, source))?;
+        initialize(&connection, &path)?;
+    }
     Ok(connection)
 }
 
