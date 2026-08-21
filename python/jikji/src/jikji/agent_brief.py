@@ -140,6 +140,7 @@ def build_compact_agent_brief_payload(
             "wiki_index": str(root / AGENT_DIR_NAME / "wiki" / "index.md"),
         },
         "candidates": compact_candidates,
+        **handoff_contract,
         "search_loop_guard": {
             "success": bool(compact_candidates),
             "stop_search": bool(compact_candidates),
