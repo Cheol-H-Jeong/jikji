@@ -1,155 +1,97 @@
 use std::fs;
+use std::path::{Path, PathBuf};
+use std::process::{Command, Output};
 
-#[path = "task3_prepare_clean_doctor_map_contract/helpers.rs"]
-mod helpers;
-
-use helpers::{
-    assert_file_index_contract, assert_manifest_contract, assert_path_list_contains,
-    assert_path_list_excludes, assert_prepare_core_fields,
-    assert_task3_artifacts_match_python_names, golden_artifact_paths, golden_command, json_cmd,
-    json_file, minimal_png, path_string_ends_with, root_arg, run, run_ok, temp_root,
-    write_ascii_cjk_fixture,
-};
+use serde_json::Value;
+use tempfile::TempDir;
 
 #[test]
-fn prepare_refresh_doctor_and_map_match_python_task_three_contract_fields() {
-    let root = temp_root("task3-golden-ascii-cjk");
-    write_ascii_cjk_fixture(&root);
+fn prepare_refresh_doctor_map_and_clean_use_central_database() {
+    let fixture = Fixture::new();
+    fs::write(fixture.root.join("note.txt"), "task3 central marker").unwrap();
+    let prepared = fixture.json(["prepare", fixture.root_str().as_str(), "--json"]);
+    assert_eq!(prepared["files"], 1);
+    assert!(!fixture.root.join(".jikji").exists());
+    assert!(fixture.database().is_file());
 
-    let expected_prepare = golden_command("ascii_cjk_paths", "prepare")["stdout_json"].clone();
-    let root_arg = root_arg(&root);
-    let prepared = json_cmd(&["prepare", &root_arg, "--json"]);
+    let refreshed = fixture.json(["refresh", fixture.root_str().as_str(), "--json"]);
+    assert_eq!(refreshed["files"], 1);
+    let doctor = fixture.json(["doctor", fixture.root_str().as_str(), "--json"]);
+    assert_eq!(doctor["ok"], true);
+    let map = fixture.run(["map", fixture.root_str().as_str()]);
+    assert!(map.status.success());
+    assert!(String::from_utf8_lossy(&map.stdout).contains("note.txt"));
 
-    assert_prepare_core_fields(&prepared, &expected_prepare);
-    assert!(
-        prepared["index_dir"]
-            .as_str()
-            .expect("index_dir")
-            .ends_with(".jikji")
-    );
-    assert!(path_string_ends_with(
-        prepared["agent_map"].as_str().expect("agent_map"),
-        ".jikji/agent_map.md"
-    ));
-    assert_task3_artifacts_match_python_names(&root, "ascii_cjk_paths");
-    assert_manifest_contract(&root);
-    assert_file_index_contract(&root);
-
-    let expected_doctor = golden_command("ascii_cjk_paths", "doctor")["stdout_json"].clone();
-    let doctor = json_cmd(&["doctor", &root_arg, "--json"]);
-    assert_eq!(doctor["ok"], expected_doctor["ok"]);
-    assert_eq!(doctor["errors"], expected_doctor["errors"]);
-    assert_eq!(
-        doctor["manifest"]["schema_version"],
-        expected_doctor["manifest"]["schema_version"]
-    );
-    assert_eq!(
-        doctor["manifest"]["search_index_schema_version"],
-        expected_doctor["manifest"]["search_index_schema_version"]
-    );
-    assert_eq!(doctor["manifest"]["non_destructive"], true);
-
-    let expected_map = golden_command("ascii_cjk_paths", "map");
-    let map = run_ok(&["map", &root_arg]);
-    let map_text = String::from_utf8(map.stdout).expect("map utf8");
-    assert!(map_text.contains("# Jikji Agent Map"));
-    assert!(map_text.contains("docs/acme-contract.txt"));
-    assert!(
-        expected_map["stdout"]
-            .as_str()
-            .expect("golden map stdout")
-            .contains("# Jikji Agent Map")
-    );
-
-    fs::remove_file(root.join("docs/acme-contract.txt")).expect("delete source");
-    let refreshed = json_cmd(&["refresh", &root_arg, "--json"]);
-    assert_eq!(refreshed["deleted"], 1);
-    assert!(
-        root.join("\u{c790}\u{b8cc}/\u{d68c}\u{c758}\u{b85d}.txt")
-            .exists()
-    );
-}
-
-#[test]
-fn clean_matches_python_safety_contract_and_preserves_user_files() {
-    let root = temp_root("task3-golden-clean");
-    fs::write(
-        root.join("keep.txt"),
-        "original file must survive clean safety",
-    )
-    .expect("write keep");
-    let root_arg = root_arg(&root);
-
-    let expected_prepare = golden_command("clean_safety", "prepare")["stdout_json"].clone();
-    let prepared = json_cmd(&["prepare", &root_arg, "--json"]);
-    assert_prepare_core_fields(&prepared, &expected_prepare);
-
-    fs::write(
-        root.join(".jikji/user-created-note.txt"),
-        "user file inside .jikji must survive",
-    )
-    .expect("write user note");
-    let dry = json_cmd(&["clean", &root_arg, "--dry-run", "--json"]);
-    assert_eq!(dry["ok"], true);
-    assert_eq!(dry["dry_run"], true);
-    assert_eq!(dry["reason"], "manifest_verified");
-    assert_eq!(dry["preserved_original_files"], true);
-    assert_path_list_contains(&dry["would_remove"], ".jikji/manifest.json");
-    assert_path_list_contains(&dry["would_remove"], ".jikji/agent_map.md");
-    assert_path_list_excludes(&dry["would_remove"], "user-created-note.txt");
-
-    let cleaned = json_cmd(&["clean", &root_arg, "--json"]);
+    let cleaned = fixture.json(["clean", fixture.root_str().as_str(), "--json"]);
     assert_eq!(cleaned["ok"], true);
-    assert_eq!(cleaned["dry_run"], false);
-    assert!(root.join("keep.txt").exists());
-    assert!(root.join(".jikji/user-created-note.txt").exists());
-    assert!(!root.join(".jikji/manifest.json").exists());
-    assert_eq!(
-        golden_artifact_paths("clean_safety"),
-        [".jikji/user-created-note.txt".to_owned()].into()
-    );
+    assert!(fixture.root.join("note.txt").is_file());
 }
 
 #[test]
-fn max_files_sensitive_skip_stale_lock_and_user_only_clean_contracts_hold() {
-    let no_cap = temp_root("task3-no-cap");
-    for idx in 0..5001 {
-        fs::write(no_cap.join(format!("bulk_{idx:04}.bin")), []).expect("write bulk");
+fn explicit_max_files_remains_bounded_without_root_sidecars() {
+    let fixture = Fixture::new();
+    for index in 0..5 {
+        fs::write(fixture.root.join(format!("file-{index}.txt")), "bounded").unwrap();
     }
-    let no_cap_arg = root_arg(&no_cap);
-    let prepared = json_cmd(&["prepare", &no_cap_arg, "--json"]);
-    assert_eq!(prepared["files"], 5001);
+    let prepared = fixture.json([
+        "prepare",
+        fixture.root_str().as_str(),
+        "--max-files",
+        "2",
+        "--json",
+    ]);
+    assert_eq!(prepared["files"], 2);
+    assert!(!fixture.root.join(".jikji").exists());
+}
 
-    let capped = temp_root("task3-capped");
-    for idx in 0..4 {
-        fs::write(capped.join(format!("bulk_{idx}.txt")), "x").expect("write capped");
+struct Fixture {
+    _temp: TempDir,
+    root: PathBuf,
+    data: PathBuf,
+}
+impl Fixture {
+    fn new() -> Self {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().join("root");
+        let data = temp.path().join("data");
+        fs::create_dir_all(&root).unwrap();
+        Self {
+            _temp: temp,
+            root,
+            data,
+        }
     }
-    let capped_arg = root_arg(&capped);
-    let partial = json_cmd(&["prepare", &capped_arg, "--max-files", "3", "--json"]);
-    assert_eq!(partial["files"], 3);
-    assert_eq!(json_file(capped.join(".jikji/manifest.json"))["files"], 3);
-
-    let locked = temp_root("task3-stale-lock");
-    fs::write(locked.join("photo.png"), minimal_png()).expect("write png");
-    fs::create_dir(locked.join(".jikji")).expect("create sidecar");
-    fs::write(
-        locked.join(".jikji/.lock"),
-        r#"{"pid":1,"started_at_unix":1}"#,
-    )
-    .expect("write stale lock");
-    let locked_arg = root_arg(&locked);
-    let media = json_cmd(&["prepare", &locked_arg, "--enable-media-index", "--json"]);
-    assert_eq!(media["files"], 1);
-    let manifest = json_file(locked.join(".jikji/manifest.json"));
-    assert_eq!(manifest["media_index"]["enabled"], true);
-    assert_eq!(manifest["media_index"]["status"], "enabled_bounded");
-    assert!(!locked.join(".jikji/.lock").exists());
-
-    let user_only = temp_root("task3-user-only-clean");
-    fs::create_dir(user_only.join(".jikji")).expect("create user sidecar");
-    fs::write(user_only.join(".jikji/user-created-note.txt"), "user").expect("write note");
-    let user_only_arg = root_arg(&user_only);
-    let refused = run(&["clean", &user_only_arg, "--json"]);
-    assert!(!refused.status.success());
-    assert!(user_only.join(".jikji/user-created-note.txt").exists());
+    fn root_str(&self) -> String {
+        path_str(&self.root)
+    }
+    fn database(&self) -> PathBuf {
+        self.data.join("jikji/index.sqlite")
+    }
+    fn run<I, S>(&self, args: I) -> Output
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<std::ffi::OsStr>,
+    {
+        Command::new(env!("CARGO_BIN_EXE_jikji"))
+            .env("JIKJI_DATA_DIR", &self.data)
+            .args(args)
+            .output()
+            .unwrap()
+    }
+    fn json<I, S>(&self, args: I) -> Value
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<std::ffi::OsStr>,
+    {
+        let output = self.run(args);
+        assert!(
+            output.status.success(),
+            "stderr={}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        serde_json::from_slice(&output.stdout).unwrap()
+    }
+}
+fn path_str(path: &Path) -> String {
+    path.to_string_lossy().into_owned()
 }

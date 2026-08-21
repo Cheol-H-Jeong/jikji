@@ -1,4 +1,5 @@
 use std::fs;
+use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::sync::OnceLock;
@@ -82,10 +83,12 @@ pub(crate) fn run_json(args: &[&str]) -> Value {
 }
 
 pub(crate) fn run(args: &[&str]) -> Output {
-    Command::new(rust_bin())
-        .args(args)
-        .output()
-        .expect("run rust jikji")
+    let mut command = Command::new(rust_bin());
+    command.args(args);
+    if let Some(root) = args.get(1) {
+        command.env("JIKJI_DATA_DIR", data_dir_for(root));
+    }
+    command.output().expect("run rust jikji")
 }
 
 pub(crate) fn temp_root(label: &str) -> TempRoot {
@@ -103,6 +106,16 @@ pub(crate) fn temp_root(label: &str) -> TempRoot {
 
 pub(crate) fn root_arg(root: &Path) -> String {
     root.display().to_string()
+}
+
+pub(crate) fn database_path(root: &Path) -> PathBuf {
+    data_dir_for(root.to_string_lossy().as_ref()).join("jikji/index.sqlite")
+}
+
+fn data_dir_for(root: &str) -> PathBuf {
+    let mut hasher = DefaultHasher::new();
+    root.hash(&mut hasher);
+    std::env::temp_dir().join(format!("jikji-parity-db-{:016x}", hasher.finish()))
 }
 
 pub(crate) fn write_ascii_cjk_fixture(root: &Path) {

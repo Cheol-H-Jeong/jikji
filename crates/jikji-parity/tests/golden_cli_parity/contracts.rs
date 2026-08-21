@@ -1,7 +1,7 @@
 use std::fs;
 
 use super::fixture::{
-    assert_golden_manifest, golden_command, root_arg, run, run_json, temp_root,
+    assert_golden_manifest, database_path, golden_command, root_arg, run, run_json, temp_root,
     write_answer_pack_fixture, write_ascii_cjk_fixture,
 };
 
@@ -114,14 +114,12 @@ fn rust_brief_and_graph_contracts_are_available_on_golden_fixture() {
     assert_eq!(brief["schema_version"], 1);
     assert_eq!(brief["index_status"], "ready");
     assert_eq!(brief["candidates"][0]["path"], "docs/acme-contract.txt");
-    assert!(brief["artifacts"]["search_index"]
-        .as_str()
-        .expect("search artifact")
-        .ends_with(".jikji/search_index.sqlite"));
+    assert_eq!(brief["artifacts"]["storage"], "central_sqlite");
+    assert!(brief["artifacts"]["database"].as_str().is_some());
 
     let graph_status = run_json(&["graph", &root_arg, "status", "--json"]);
-    assert_eq!(graph_status["prepared"], true);
-    assert!(graph_status["stats"]["nodes"].as_u64().expect("nodes") > 0);
+    assert_eq!(graph_status["available"], true);
+    assert!(graph_status["nodes"].as_u64().expect("nodes") > 0);
     let graph_query = run_json(&["graph", &root_arg, "query", "direct-answer-771", "--json"]);
     assert_eq!(
         graph_query["candidates"][0]["path"],
@@ -161,16 +159,12 @@ fn corrupted_sqlite_search_index_is_a_controlled_malformed_input_failure() {
     fs::write(root.join("note.txt"), "ACME agreement").expect("write note");
     let root_arg = root_arg(&root);
     run_json(&["prepare", &root_arg, "--json"]);
-    fs::write(
-        root.join(".jikji/search_index.sqlite"),
-        b"not a sqlite database",
-    )
-    .expect("corrupt sqlite");
+    fs::write(database_path(&root), b"not a sqlite database").expect("corrupt sqlite");
 
     let output = run(&["find", &root_arg, "ACME", "--json"]);
     assert!(!output.status.success());
-    assert!(output.stdout.is_empty());
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("search_index.sqlite"));
-    assert!(!stderr.contains("rm -rf"));
+    let response: serde_json::Value = serde_json::from_slice(&output.stdout).expect("failure json");
+    assert_eq!(response["handoff_action"], "jikji_retry");
+    assert_eq!(response["max_jikji_retries"], 1);
+    assert!(!String::from_utf8_lossy(&output.stderr).contains("rm -rf"));
 }

@@ -304,10 +304,12 @@ pub(crate) fn run_public_import(
         }
         "edith" => {
             require_fetch(label, args.no_fetch)?;
-            let mut options = EdithDownloadOptions::default();
-            options.max_cases = args.cases;
-            options.max_docs = args.cases.saturating_mul(8).max(1);
-            options.download_docs = !args.no_docs;
+            let mut options = EdithDownloadOptions {
+                max_cases: args.cases,
+                max_docs: args.cases.saturating_mul(8).max(1),
+                download_docs: !args.no_docs,
+                ..EdithDownloadOptions::default()
+            };
             if let Some(base_url) = args.base_url {
                 options.base_url = base_url;
             }
@@ -321,10 +323,12 @@ pub(crate) fn run_public_import(
         }
         "publicdata" => {
             require_fetch(label, args.no_fetch)?;
-            let mut options = PublicDataDownloadOptions::default();
-            options.target_docs = args.cases.max(3);
-            options.max_cases = args.cases.max(1);
-            options.max_id = args.cases.saturating_mul(50).max(3);
+            let mut options = PublicDataDownloadOptions {
+                target_docs: args.cases.max(3),
+                max_cases: args.cases.max(1),
+                max_id: args.cases.saturating_mul(50).max(3),
+                ..PublicDataDownloadOptions::default()
+            };
             if let Some(base_url) = args.base_url {
                 let base = base_url.trim_end_matches('/');
                 options.view_url = format!("{base}/view/{{id}}");
@@ -523,9 +527,11 @@ pub(crate) fn run_public_suite(
     )?;
     let (root, eval_set, build) = match label {
         "edith" => {
-            let mut options = EdithDownloadOptions::default();
-            options.max_cases = args.cases;
-            options.max_docs = args.cases.saturating_mul(8).max(1);
+            let mut options = EdithDownloadOptions {
+                max_cases: args.cases,
+                max_docs: args.cases.saturating_mul(8).max(1),
+                ..EdithDownloadOptions::default()
+            };
             if let Some(base_url) = args.base_url {
                 options.base_url = base_url;
             }
@@ -539,10 +545,12 @@ pub(crate) fn run_public_suite(
             )
         }
         "publicdata" => {
-            let mut options = PublicDataDownloadOptions::default();
-            options.target_docs = args.cases.max(3);
-            options.max_cases = args.cases.max(1);
-            options.max_id = args.cases.saturating_mul(50).max(3);
+            let mut options = PublicDataDownloadOptions {
+                target_docs: args.cases.max(3),
+                max_cases: args.cases.max(1),
+                max_id: args.cases.saturating_mul(50).max(3),
+                ..PublicDataDownloadOptions::default()
+            };
             if let Some(base_url) = args.base_url {
                 let base = base_url.trim_end_matches('/');
                 options.view_url = format!("{base}/view/{{id}}");
