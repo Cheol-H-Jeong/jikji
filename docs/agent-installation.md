@@ -116,18 +116,20 @@ queued roots in the foreground.
 
 ## Runtime Notes
 
-The default Rust CLI does not require Python for `prepare`, `find`, `search`,
-`doctor`, `map`, or GUI status/search. Eval generation, public benchmark
-fixture commands, local benchmark smoke helpers, `hippocamp-fetch`,
-`hermes-bench`, `hermes-compare`, and `benchmark-value-report` are Python-only
-benchmark compatibility surfaces. They report Python-only status because
-benchmark parity must use the same Python evaluator for both Python Jikji and
-Rust Jikji. Image/audio/video OCR-ASR remains an explicit opt-in through the
-Python media bridge.
+The default installed `jikji` command is the Rust binary from `cargo install`
+or the GitHub release archive. `prepare`, `find`, `search`, `doctor`, `map`,
+GUI, eval/benchmark commands, Hermes reports, public dataset adapters, and
+native OCR/ASR engine execution do not invoke Python.
 
-Downstream tools can reuse split crates directly instead of shelling out:
-`jikji-parser`, `jikji-index`, `jikji-search`, and `jikji-agent`. The
-`jikji-bench` crate is internal and is not published.
+The Python package under `python/jikji/` remains a reference/parity and legacy
+development package. Its `project.scripts` entry is an explicit alternative
+only when a user installs that Python package; it is not used by the Rust
+binary or Rust release artifacts. Python source files are therefore retained
+for reference tests and parity evaluation, not as the shipped default path.
+
+Downstream tools can reuse split Rust crates directly instead of shelling out:
+`jikji-parser`, `jikji-index`, `jikji-search`, and `jikji-agent`. The benchmark
+and public-data Rust crates are workspace components used by `jikji-cli`.
 
 ## Benchmark Language
 

@@ -49,19 +49,42 @@ Generated artifact policy:
 
 ## Current ownership
 
-The shipped Rust workspace is now the primary implementation for prepare,
+The shipped Rust workspace is the primary implementation for prepare,
 search/find/discover, agent installation, GUI routing, local evaluation,
-Hermes execution/report comparison, value reports, BEIR/HippoCamp import, and
-native media metadata extraction. Rust CLI paths no longer spawn Python or
-return `Python-only` compatibility errors.
+Hermes execution/report comparison, value reports, BEIR/HippoCamp/EDiTh/
+PublicData/WorkspaceBench/HardBench adapters, and native media metadata plus
+configured Rust OCR/ASR engine execution. Rust CLI paths do not spawn Python.
 
-The Python package remains a reference and parity oracle while consumers
-migrate. Generated Markdown prose, parser cache bytes, and wiki hash suffixes
-remain intentionally implementation-specific under the policy above.
+The Python package remains a reference and parity oracle. Generated Markdown
+prose, parser cache bytes, and wiki hash suffixes remain intentionally
+implementation-specific under the parity policy above. Native media text
+extraction requires an explicitly configured Rust-executed OCR/ASR engine;
+without one, the safe default is metadata-only.
 
-Native OCR/ASR is not bundled: image/audio/video indexing records Rust-native
-metadata, but text extraction from pixels or speech still requires adding a
-model/runtime. EDiTh, PublicData, WorkspaceBench, and HardBench have native
-fixture materializers in `jikji-bench`; their public network download/suite CLI
-adapters are rejected explicitly rather than silently using Python or fabricated
-data.
+## Python source disposition
+
+The installed/released `jikji` entry point is `crates/jikji-cli/src/main.rs`.
+The Python tree is retained for reference behavior, golden/parity evaluation,
+and legacy development only; the Rust binary does not import or execute it.
+
+| Python file | Retained role | Rust replacement |
+| --- | --- | --- |
+| `__main__.py` | legacy/reference CLI | `jikji-cli` |
+| `config.py`, `models.py`, `version.py` | reference data contracts | `jikji-core`, workspace package metadata |
+| `scanner.py`, `metadata.py`, `agent_index.py`, `search_index.py` | reference prepare/index behavior | `jikji-index`, `jikji-search` |
+| `discover.py`, `answer_pack.py`, `agent_brief.py`, `graph_query.py` | reference search/handoff contracts | `jikji-search` |
+| `llm_wiki.py` | reference generated graph/wiki behavior | `jikji-index`, `jikji-search` graph modules |
+| `gui.py` | reference GUI contract | `jikji-cli::gui_commands` |
+| `agent_skill_install.py` | reference installer contract | `jikji-agent`, `jikji-cli::agent_commands` |
+| `eval.py`, `holdout_eval.py`, `improvement_loop.py` | parity/evaluator oracle | `jikji-bench` |
+| `hermes_bench.py`, `hermes_compare.py`, `hermes_answer_pack.py` | parity fixtures and historical report comparison | `jikji-hermes-bench`, `jikji-bench::hermes_compare` |
+| `benchmark_value.py`, `benchmark_two_call.py` | historical value-report oracle | `jikji-bench::benchmark_value`, `benchmark_two_call` |
+| `beir.py`, `hippocamp.py` | dataset parity/reference adapters | `jikji-public-datasets`, `jikji-cli` |
+| `edith.py`, `publicdata_bench.py`, `workspacebench.py`, `hardbench.py` | public benchmark parity/reference adapters | `jikji-bench::public_sources`, `public_adapters`, `jikji-cli` |
+| `__init__.py` | Python package namespace only | no runtime equivalent required |
+
+`python/jikji/pyproject.toml` still exposes a separately installed legacy
+Python console script for reference developers. Cargo installation and GitHub
+release artifacts install the Rust `jikji` binary; installing the Python
+reference package is an explicit alternative and can shadow any same-named
+binary earlier on `PATH`.

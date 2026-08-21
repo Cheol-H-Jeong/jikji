@@ -237,39 +237,35 @@ skills/                    Local-agent skill assets
 docs/                      Product, release, and benchmark documentation
 ```
 
-The Rust CLI is the product distribution surface. The Python package remains a
-first-class workspace member for reference behavior, benchmark compatibility,
-golden fixture capture, and optional media/OCR-ASR support.
+The Rust CLI is the product distribution surface. The Python package remains
+available for reference behavior, parity fixture capture, and legacy development.
 
 Generated artifacts can be regenerated or removed with `jikji clean`. The routing
 block in `AGENTS.md` / `CLAUDE.md` / `.cursorrules` is updated in place on each
 prepare and can be skipped with `jikji prepare ROOT --no-agent-rules`; `jikji
 clean` removes the block while preserving any user-authored content.
 
-The Rust CLI command surface includes `prepare`, `refresh`, `clean`, `map`,
-`doctor`, `find`, `search`, `brief`, `discover`, `graph`, `gui`,
-`agent-skill-install`, agent-specific skill installers, `skill-export`, and the
-hidden `post-install-prepare` worker command. Eval and benchmark fixture
-commands, `hippocamp-fetch`, `hermes-bench`, `hermes-compare`, and
-`benchmark-value-report` are Python-only benchmark compatibility commands.
-They are present as explicit compatibility commands because benchmark parity
-must use the same Python evaluator for Python Jikji and Rust Jikji.
+The shipped Rust CLI command surface includes `prepare`, `refresh`, `clean`, `map`,
+`doctor`, `find`, `search`, `brief`, `discover`, `graph`, `gui`, agent skill
+installers, eval/benchmark commands, Hermes reports, public dataset adapters,
+and native media metadata/OCR/ASR engine execution. These paths do not invoke
+the Python package. The Python `project.scripts` command is a separately installed
+reference alternative, not the release binary.
 
 ## Media Text
 
-PDF, HWP/HWPX, Office, text, subtitles, HTML, JSON/YAML, and archives are indexed
-within size and timeout limits. Image, audio, and video content OCR/ASR is opt-in
-through the Python media bridge so the default Rust binary remains lightweight
-and Python-free for normal prepare/search/find. The split Rust crates can also be
-reused directly: `jikji-parser` for deterministic parsers, `jikji-index` for
-sidecar artifact generation, `jikji-search` for local search/discovery, and
-`jikji-agent` for local-agent integrations. `jikji-bench` is internal and is not
-published.
-because it can use CPU/RAM:
+PDF, HWP/HWPX, Office, text, subtitles, HTML, JSON/YAML, and coding files are
+indexed within size and timeout limits. Image, audio, and video text extraction
+is opt-in through explicitly configured Rust OCR/ASR engines; without one, the
+Rust binary records metadata only. The split Rust crates can also be reused
+directly: `jikji-parser`, `jikji-index`, `jikji-search`, and `jikji-agent`.
+
+For Python reference development and parity tests only:
 
 ```bash
-pip install "jikji[media]"
-jikji prepare ROOT --enable-media-index --media-index-max-mb 25
+python3 -m venv .venv
+.venv/bin/pip install -e python/jikji
+.venv/bin/pip install pytest ruff
 ```
 
 ## Development

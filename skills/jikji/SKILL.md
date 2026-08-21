@@ -35,9 +35,9 @@ jikji --help
 ```
 
 Then use the installed `jikji` binary on PATH. A GitHub Release binary is also
-valid when available. The default Rust binary is Python-free for normal
-prepare/find/search; Python is only an opt-in media bridge for image/audio/video
-OCR-ASR.
+valid when available. The shipped Rust binary is the default implementation for
+prepare/find/search, benchmarks, public-data adapters, and opt-in native OCR/ASR
+engine execution; it does not invoke the Python reference package.
 
 `agent-skill-install` may queue a background prepare for common user material
 folders and document-heavy folders under the user's home directory. That initial
