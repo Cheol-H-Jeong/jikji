@@ -116,9 +116,10 @@ def _candidate_lines(root: Path, query: str, *, top_k: int) -> list[str]:
     lines = [
         "JIKJI SEARCH RESULT:",
         f"`jikji search {root} {json.dumps(query, ensure_ascii=False)} --top-k {top_k} --json` returned these candidates.",
-        "Return paths from this list when any candidate is relevant. Preserve Jikji's order unless there is an obvious reason to rerank.",
+        "If any candidate is plausible, the Jikji result is successful: immediately return listed paths and stop searching.",
+        "Do not call search_files, grep, find, list directories, inspect .jikji JSONL/doc_text, or browse the filesystem after Jikji returns candidates.",
+        "Only when the candidate list is empty or clearly irrelevant may you run a sharper Jikji query before any raw fallback.",
         "For broad, duplicate, or generic clues, return several candidates (normally the first 5) instead of only one path; hit@5 matters for ambiguous local-file discovery.",
-        "Do not inspect .jikji JSONL/doc_text or browse the filesystem unless no candidate can answer the question.",
     ]
     for idx, item in enumerate(candidates, 1):
         reasons = ",".join(str(x) for x in (item.get("reasons") or [])[:4])
@@ -144,7 +145,8 @@ def _fast_candidate_lines(root: Path, query: str, *, top_k: int) -> list[str]:
     lines = [
         "JIKJI MAP-FIRST FAST PATH:",
         "Jikji already did the expensive local discovery pass before Hermes was called.",
-        "Do not browse, list, grep, cat, or inspect any filesystem path.",
+        "If candidates are present, treat this as a successful search result: return listed paths and stop searching.",
+        "Do not browse, list, grep, cat, inspect any filesystem path, or call search_files after Jikji returns candidates.",
         selection_rule,
         "Do not invent, summarize, or replace candidates; this is a bounded map handoff.",
         "Candidates:",
@@ -311,7 +313,7 @@ def _prompt(root: Path, mode: str, case: dict, *, candidate_top_k: int = 0, retr
             "JIKJI TOOL-FIRST MODE: Treat Jikji as a fast local search tool, not as a pile of files to manually read.",
             "A Jikji search result is provided below. Prefer answering directly from it.",
             "Your job is mostly to pass through the best candidate paths, not to perform a new search.",
-            "Do not call rg/find/ls/cat over ROOT and do not read .jikji artifacts unless the candidate list is empty or clearly irrelevant.",
+            "If the result has candidates, stop the discovery loop: do not call search_files, rg/find/ls/cat over ROOT, or read .jikji artifacts.",
             "This benchmark measures whether a local agent can skip exploratory filesystem work when Jikji has already ranked candidates.",
         ])
         base.extend(_candidate_lines(root, str(case.get("query") or ""), top_k=candidate_top_k))
@@ -319,8 +321,8 @@ def _prompt(root: Path, mode: str, case: dict, *, candidate_top_k: int = 0, retr
         base.extend([
             "JIKJI BRIEF MODE: Treat Jikji as an agent map/router, not a one-shot answer oracle.",
             "A compact query-specific brief is provided below. Use it to avoid slow raw filesystem exploration.",
-            "If the brief contains plausible candidates, return those ranked paths directly.",
-            "Only inspect original files or generated Jikji artifacts when the brief is ambiguous or empty.",
+            "If the brief contains plausible candidates, return those ranked paths directly and stop discovery.",
+            "Do not call search_files or perform a new broad search after a plausible Jikji brief; only inspect original files for narrow final verification.",
             "This benchmark measures whether Jikji can make agent exploration shorter while preserving accuracy.",
         ])
         base.extend(_brief_lines(root, str(case.get("query") or ""), top_k=candidate_top_k))

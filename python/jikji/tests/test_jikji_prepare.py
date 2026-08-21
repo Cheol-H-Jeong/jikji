@@ -347,6 +347,7 @@ def test_tool_call_policy_blocks_followups_only_when_answerable():
     assert fallback["stop_after_find"] is False
     assert fallback["forbidden_tools"] == []
     assert "raw_fallback_after_retry" in fallback["allowed_followups"]
+2: @ours
 
 
 def test_discover_promotes_explicit_path_anchor(tmp_path):
@@ -1246,6 +1247,8 @@ def test_hermes_jikji_prompt_is_agent_brief_first(tmp_path):
     assert '"schema_version": 1' in prompt
     assert "Route order" in prompt
     assert "preserve relative paths exactly" in prompt
+    assert "search_loop_guard" in prompt
+    assert "stop discovery and do not call search_files" in prompt
 
 
 def test_hermes_jikji_fast_prompt_is_map_first_no_browse(tmp_path):
@@ -1261,7 +1264,7 @@ def test_hermes_jikji_fast_prompt_is_map_first_no_browse(tmp_path):
     assert _mode_family("map-first") == "jikji-fast"
     assert _mode_family("jikji-pass-through") == "jikji-fast"
     assert "JIKJI MAP-FIRST FAST PATH" in prompt
-    assert "Do not browse, list, grep, cat, or inspect any filesystem path." in prompt
+    assert "call search_files after Jikji returns candidates" in prompt
     assert "Copy every candidate path into the JSON paths array exactly in the same order" in prompt
     assert "Actual brief payload follows" not in prompt
     assert "Do not invent, summarize, or replace candidates" in prompt
