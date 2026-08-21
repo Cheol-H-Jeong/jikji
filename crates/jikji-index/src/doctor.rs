@@ -16,6 +16,8 @@ pub struct DoctorReport {
     pub media_support: Value,
 }
 
+use jikji_media_bridge::BridgeConfig;
+
 const REQUIRED_FILES: &[&str] = &[
     ".jikji/manifest.json",
     ".jikji/file_index.jsonl",
@@ -61,19 +63,32 @@ pub fn doctor(root: &Path) -> Result<DoctorReport> {
         .get("media_index")
         .cloned()
         .unwrap_or_else(|| serde_json::json!({}));
+    let bridge_config = BridgeConfig::from_env();
+    let media_enabled = media_manifest
+        .get("enabled")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let ocr_available = bridge_config
+        .ocr
+        .as_ref()
+        .is_some_and(|engine| engine.is_available());
+    let asr_available = bridge_config
+        .asr
+        .as_ref()
+        .is_some_and(|engine| engine.is_available());
     let image_support = serde_json::json!({
         "metadata_indexing": true,
-        "ocr_active": false,
-        "ocr_available": false,
+        "ocr_active": media_enabled && ocr_available,
+        "ocr_available": ocr_available,
         "indexed_image_documents": image_doc_count(&clean_root)?,
     });
     let media_support = serde_json::json!({
-        "enabled": media_manifest.get("enabled").and_then(Value::as_bool).unwrap_or(false),
+        "enabled": media_enabled,
         "status": media_manifest.get("status").and_then(Value::as_str).unwrap_or("unknown"),
         "max_mb": media_manifest.get("max_mb").cloned().unwrap_or(Value::Null),
         "media_files": media_manifest.get("media_files").and_then(Value::as_u64).unwrap_or(0),
-        "image_ocr_available": false,
-        "audio_video_transcription_available": false,
+        "image_ocr_available": ocr_available,
+        "audio_video_transcription_available": asr_available,
         "opt_in_flag": "--enable-media-index",
     });
 

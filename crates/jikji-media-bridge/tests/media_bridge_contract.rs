@@ -1,13 +1,15 @@
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
 use jikji_media_bridge::{
-    BridgeAvailability, BridgeRuntime, MediaBridgeRequest, MediaBridgeStatus, MediaKind,
+    BridgeAvailability, BridgeConfig, BridgeRuntime, MediaBridgeRequest, MediaBridgeStatus,
+    MediaKind, NativeEngineConfig,
 };
 use tempfile::tempdir;
 
 #[test]
-fn image_metadata_is_extracted_without_python() {
+fn image_metadata_is_extracted_without_text_engine() {
     let tmp = tempdir().expect("tempdir");
     let path = tmp.path().join("sample.png");
     write_png(&path, 31, 47);
@@ -29,11 +31,10 @@ fn image_metadata_is_extracted_without_python() {
         outcome.metadata.get("height").map(String::as_str),
         Some("47")
     );
-    assert!(!outcome.python_required_by_default);
 }
 
 #[test]
-fn wav_metadata_is_extracted_without_asr_runtime() {
+fn wav_metadata_is_extracted_without_text_engine() {
     let tmp = tempdir().expect("tempdir");
     let path = tmp.path().join("sample.wav");
     write_wav(&path, 8_000, 1, 16, 16_000);
@@ -87,6 +88,93 @@ fn malformed_media_remains_metadata_only() {
     assert!(!outcome.metadata.contains_key("width"));
 }
 
+#[test]
+fn configured_ocr_and_asr_engines_return_text() {
+    for (kind, expected) in [
+        (MediaKind::Image, "image native text"),
+        (MediaKind::Audio, "audio native text"),
+    ] {
+        let fixture = media_fixture(kind);
+        let outcome = runtime_with_engine(kind, "success", Duration::from_secs(1))
+            .extract(&MediaBridgeRequest::new(fixture.path, kind));
+
+        assert_eq!(outcome.status, MediaBridgeStatus::Success);
+        assert_eq!(outcome.text, expected);
+        assert_eq!(
+            outcome.metadata.get("text_engine").map(String::as_str),
+            Some(if kind == MediaKind::Image {
+                "ocr"
+            } else {
+                "asr"
+            })
+        );
+    }
+}
+
+#[test]
+fn configured_ocr_and_asr_engine_errors_are_reported() {
+    for kind in [MediaKind::Image, MediaKind::Audio] {
+        let fixture = media_fixture(kind);
+        let outcome = runtime_with_engine(kind, "error", Duration::from_secs(1))
+            .extract(&MediaBridgeRequest::new(fixture.path, kind));
+
+        assert_eq!(outcome.status, MediaBridgeStatus::Failed);
+        assert!(outcome.text.is_empty());
+        assert_eq!(outcome.error, "fixture engine failure");
+    }
+}
+
+#[test]
+fn configured_ocr_and_asr_engine_timeouts_are_bounded() {
+    for kind in [MediaKind::Image, MediaKind::Audio] {
+        let fixture = media_fixture(kind);
+        let started = Instant::now();
+        let outcome = runtime_with_engine(kind, "timeout", Duration::from_millis(25))
+            .extract(&MediaBridgeRequest::new(fixture.path, kind));
+
+        assert_eq!(outcome.status, MediaBridgeStatus::Timeout);
+        assert!(outcome.text.is_empty());
+        assert!(outcome.error.contains("timed out"));
+        assert!(started.elapsed() < Duration::from_millis(500));
+    }
+}
+
+struct MediaFixture {
+    _dir: tempfile::TempDir,
+    path: PathBuf,
+}
+
+fn media_fixture(kind: MediaKind) -> MediaFixture {
+    let dir = tempdir().expect("tempdir");
+    let path = match kind {
+        MediaKind::Image => dir.path().join("sample.png"),
+        MediaKind::Audio | MediaKind::Video => dir.path().join("sample.wav"),
+    };
+    fs::write(&path, b"fixture media bytes").expect("write fixture");
+    MediaFixture { _dir: dir, path }
+}
+
+fn runtime_with_engine(kind: MediaKind, mode: &str, timeout: Duration) -> BridgeRuntime {
+    let script = match mode {
+        "success" => "printf '%s native text\\n' \"$JIKJI_MEDIA_ENGINE_KIND\"",
+        "error" => "printf 'fixture engine failure\\n' >&2; exit 23",
+        "timeout" => "sleep 1 & wait",
+        _ => unreachable!("unknown fixture mode"),
+    };
+    let engine = NativeEngineConfig::new(PathBuf::from("/bin/sh"))
+        .with_args(vec![
+            "-c".to_owned(),
+            script.to_owned(),
+            "fixture-engine".to_owned(),
+        ])
+        .with_timeout(timeout);
+    let mut config = BridgeConfig::default();
+    match kind {
+        MediaKind::Image => config.ocr = Some(engine),
+        MediaKind::Audio | MediaKind::Video => config.asr = Some(engine),
+    }
+    BridgeRuntime::with_config(config)
+}
 fn write_png(path: &Path, width: u32, height: u32) {
     let mut bytes = Vec::from(&b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"[..]);
     bytes.extend(width.to_be_bytes());

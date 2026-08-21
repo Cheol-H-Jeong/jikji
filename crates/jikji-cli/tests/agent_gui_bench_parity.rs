@@ -2,6 +2,9 @@
 mod helpers;
 
 use std::fs;
+use std::io::{Read, Write};
+use std::net::TcpListener;
+use std::thread;
 
 use helpers::{GuiChild, assert_rejected, json_cmd, path_str, run_fail, run_ok};
 
@@ -168,4 +171,112 @@ fn task6_gui_open_and_reveal_protect_paths_and_token() {
     ));
     assert!(reveal.starts_with("HTTP/1.1 200 OK"), "{reveal}");
     assert!(reveal.contains(root.to_string_lossy().as_ref()), "{reveal}");
+}
+
+#[test]
+fn workspacebench_and_hardbench_require_real_adapters() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    for command in [
+        "workspacebench-build",
+        "workspacebench-suite",
+        "hardbench-build",
+        "hardbench-suite",
+    ] {
+        let destination = temp.path().join(command);
+        let output = run_fail([
+            command,
+            path_str(&destination).as_str(),
+            "--no-fetch",
+            "--json",
+        ]);
+        assert!(!output.status.success(), "{command} unexpectedly succeeded");
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains("requires an actual URL adapter"),
+            "stderr={}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+}
+
+#[test]
+fn hardbench_rejects_unknown_difficulty_before_download() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let destination = temp.path().join("hardbench");
+    let output = run_fail([
+        "hardbench-build",
+        path_str(&destination).as_str(),
+        "--difficulty",
+        "impossible",
+        "--base-url",
+        "http://127.0.0.1:1",
+        "--json",
+    ]);
+    assert!(!output.status.success());
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("unsupported hardbench difficulty"),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn workspacebench_suite_uses_downloaded_endpoint_data() {
+    let listener = TcpListener::bind(("127.0.0.1", 0)).expect("bind fixture endpoint");
+    let address = listener.local_addr().expect("fixture address");
+    let server = thread::spawn(move || {
+        for _ in 0..3 {
+            let (mut stream, _) = listener.accept().expect("accept");
+            let mut request = [0_u8; 4096];
+            let count = stream.read(&mut request).expect("read request");
+            let request = String::from_utf8_lossy(&request[..count]);
+            let path = request
+                .lines()
+                .next()
+                .and_then(|line| line.split_whitespace().nth(1))
+                .unwrap_or("/");
+            let (content_type, body): (&str, &[u8]) = match path {
+                "/api" => (
+                    "application/json",
+                    br#"{"siblings":[{"rfilename":"task_lite_clean_en/9/metadata.json"}]}"#,
+                ),
+                "/resolve/task_lite_clean_en/9/metadata.json" => (
+                    "application/json",
+                    br#"{"absolute_id":9,"persona":"analyst","task":"find revenue input","data_manifest":[{"filename":"revenue.txt","stored_relpath":"finance/revenue.txt"}],"file_dep_graph":[{"from":"revenue.txt"}]}"#,
+                ),
+                "/resolve/task_lite_clean_en/9/finance/revenue.txt" => {
+                    ("text/plain", b"revenue input for 2026")
+                }
+                _ => ("text/plain", b"missing"),
+            };
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                body.len()
+            );
+            stream.write_all(response.as_bytes()).expect("headers");
+            stream.write_all(body).expect("body");
+        }
+    });
+    let temp = tempfile::tempdir().expect("tempdir");
+    let destination = temp.path().join("workspacebench");
+    let output = run_ok([
+        "workspacebench-suite",
+        path_str(&destination).as_str(),
+        "--cases",
+        "1",
+        "--base-url",
+        format!("http://{address}").as_str(),
+        "--json",
+    ]);
+    server.join().expect("server");
+    let payload: serde_json::Value = serde_json::from_slice(&output.stdout).expect("suite json");
+    assert_eq!(payload["build"]["tasks"], 1);
+    assert_eq!(payload["build"]["files_materialized"], 1);
+    assert!(payload["benchmark_report"].as_str().is_some());
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(
+            &fs::read(destination.join("manifest.json")).expect("manifest")
+        )
+        .expect("manifest json")["network"],
+        "downloaded"
+    );
 }

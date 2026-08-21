@@ -24,7 +24,7 @@ fn prepare_records_rust_native_media_metadata() {
     assert_eq!(prepared["files"], 1);
     let rows = jsonl(root.join(".jikji/document_index.jsonl"));
     let row = row_for(&rows, "photo.png");
-    assert_eq!(row["parse_status"], "success");
+    assert_eq!(row["parse_status"], "metadata_only");
     assert_eq!(row["media_bridge_status"], "metadata_only");
     let meta = json_file(root.join(row["doc_meta_path"].as_str().expect("meta")));
     assert_eq!(meta["media_bridge"]["metadata"]["engine"], "rust-native");

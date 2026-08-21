@@ -62,7 +62,7 @@ fn image_metadata_search_matches_python_contract_without_media_bridge() {
     json_cmd(&["prepare", &root_arg, "--json"]);
 
     let row = document_row(&root, "visual.png");
-    assert_eq!(row["parse_status"], "success");
+    assert_eq!(row["parse_status"], "metadata_only");
     let text_cache = fs::read_to_string(root.join(row["text_cache_path"].as_str().expect("cache")))
         .expect("read text cache");
     assert!(text_cache.contains("Dimensions: 13x21 pixels"));

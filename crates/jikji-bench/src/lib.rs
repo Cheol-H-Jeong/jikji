@@ -9,7 +9,9 @@ mod eval;
 mod io;
 mod metrics;
 mod models;
+pub mod public_adapters;
 pub mod public_datasets;
+pub mod public_sources;
 mod run;
 
 pub use benchmark_two_call::{build_two_call_value_report, write_two_call_value_report};

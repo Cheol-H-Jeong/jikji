@@ -88,6 +88,22 @@ pub(crate) struct PublicImportArgs {
     pub(crate) dataset: String,
     #[arg(long, default_value_t = 3)]
     pub(crate) cases: usize,
+    #[arg(long, default_value_t = 0)]
+    pub(crate) start: usize,
+    #[arg(long, default_value_t = 180)]
+    pub(crate) max_data_idx: usize,
+    #[arg(long, default_value_t = 20_260_603)]
+    pub(crate) seed: u64,
+    #[arg(long, default_value = "hard")]
+    pub(crate) difficulty: String,
+    #[arg(long)]
+    pub(crate) base_url: Option<String>,
+    #[arg(long, default_value_t = 64 * 1024 * 1024)]
+    pub(crate) max_file_bytes: u64,
+    #[arg(long, default_value_t = 2_100_000_000)]
+    pub(crate) max_total_bytes: u64,
+    #[arg(long, default_value_t = 180)]
+    pub(crate) timeout_seconds: u64,
     #[arg(long)]
     pub(crate) no_fetch: bool,
     #[arg(long)]
@@ -101,8 +117,24 @@ pub(crate) struct PublicSuiteArgs {
     pub(crate) dest: PathBuf,
     #[arg(long, default_value_t = 3)]
     pub(crate) cases: usize,
+    #[arg(long, default_value_t = 0)]
+    pub(crate) start: usize,
+    #[arg(long, default_value_t = 180)]
+    pub(crate) max_data_idx: usize,
+    #[arg(long, default_value_t = 20_260_603)]
+    pub(crate) seed: u64,
+    #[arg(long, default_value = "hard")]
+    pub(crate) difficulty: String,
     #[arg(long, default_value_t = 10)]
     pub(crate) top_k: usize,
+    #[arg(long)]
+    pub(crate) base_url: Option<String>,
+    #[arg(long, default_value_t = 64 * 1024 * 1024)]
+    pub(crate) max_file_bytes: u64,
+    #[arg(long, default_value_t = 2_100_000_000)]
+    pub(crate) max_total_bytes: u64,
+    #[arg(long, default_value_t = 180)]
+    pub(crate) timeout_seconds: u64,
     #[arg(long)]
     pub(crate) no_fetch: bool,
     #[arg(long)]

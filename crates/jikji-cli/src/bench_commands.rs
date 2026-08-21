@@ -3,6 +3,14 @@ use std::io;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
+use jikji_bench::public_adapters::{
+    HardBenchFetchOptions, WorkspaceBenchFetchOptions, fetch_hardbench, fetch_workspacebench,
+};
+use jikji_bench::public_datasets::HardBenchDifficulty;
+use jikji_bench::public_sources::{
+    DownloadLimits, EdithDownloadOptions, PublicDataDownloadOptions, RustHttpClient,
+    download_edith, download_publicdata,
+};
 use jikji_bench::{
     CompareOptions, ImportOptions, Pricing, RunOptions, analyze_eval, compare_benchmark_reports,
     generate_eval_set, import_fixture_dataset, run_benchmark, write_accuracy_first_value_report,
@@ -294,6 +302,75 @@ pub(crate) fn run_public_import(
             )
             .map_err(|source| jikji_core::json_error("hippocamp-fetch", source))?
         }
+        "edith" => {
+            require_fetch(label, args.no_fetch)?;
+            let mut options = EdithDownloadOptions::default();
+            options.max_cases = args.cases;
+            options.max_docs = args.cases.saturating_mul(8).max(1);
+            options.download_docs = !args.no_docs;
+            if let Some(base_url) = args.base_url {
+                options.base_url = base_url;
+            }
+            options.limits = cli_limits(
+                args.timeout_seconds,
+                args.max_file_bytes,
+                args.max_total_bytes,
+            )?;
+            serde_json::to_value(download_edith(&RustHttpClient, &args.dest, &options)?)
+                .map_err(|source| jikji_core::json_error("edith-import", source))?
+        }
+        "publicdata" => {
+            require_fetch(label, args.no_fetch)?;
+            let mut options = PublicDataDownloadOptions::default();
+            options.target_docs = args.cases.max(3);
+            options.max_cases = args.cases.max(1);
+            options.max_id = args.cases.saturating_mul(50).max(3);
+            if let Some(base_url) = args.base_url {
+                let base = base_url.trim_end_matches('/');
+                options.view_url = format!("{base}/view/{{id}}");
+                options.xlsx_url = format!("{base}/xlsx");
+            }
+            options.limits = cli_limits(
+                args.timeout_seconds,
+                args.max_file_bytes,
+                args.max_total_bytes,
+            )?;
+            serde_json::to_value(download_publicdata(&RustHttpClient, &args.dest, &options)?)
+                .map_err(|source| jikji_core::json_error("publicdata-build", source))?
+        }
+        "workspacebench" => {
+            require_fetch(label, args.no_fetch)?;
+            let mut options = WorkspaceBenchFetchOptions::new(&args.dest);
+            options.max_tasks = args.cases;
+            options.start = args.start;
+            options.max_file_bytes = args.max_file_bytes;
+            options.max_total_bytes = args.max_total_bytes;
+            if let Some(base_url) = args.base_url {
+                let base = base_url.trim_end_matches('/');
+                options.api_url = format!("{base}/api");
+                options.resolve_base_url = format!("{base}/resolve/");
+            }
+            serde_json::to_value(fetch_workspacebench(&HttpFetcher::default(), &options)?)
+                .map_err(|source| jikji_core::json_error("workspacebench-build", source))?
+        }
+        "hardbench" => {
+            require_fetch(label, args.no_fetch)?;
+            let mut options = HardBenchFetchOptions::new(&args.dest);
+            options.target_docs = args.cases.max(3);
+            options.max_data_idx = args.max_data_idx;
+            options.max_file_bytes = args.max_file_bytes;
+            options.max_total_bytes = args.max_total_bytes;
+            options.max_cases_per_split = args.cases.max(1);
+            options.seed = args.seed;
+            options.difficulty = parse_hardbench_difficulty(&args.difficulty)?;
+            if let Some(base_url) = args.base_url {
+                let base = base_url.trim_end_matches('/');
+                options.view_base_url = format!("{base}/view");
+                options.file_base_url = format!("{base}/file");
+            }
+            serde_json::to_value(fetch_hardbench(&HttpFetcher::default(), &options)?)
+                .map_err(|source| jikji_core::json_error("hardbench-build", source))?
+        }
         other => {
             return Err(jikji_core::io_error(
                 other,
@@ -424,15 +501,189 @@ pub(crate) fn run_benchmark_value_report(
 }
 pub(crate) fn run_public_suite(
     label: &'static str,
-    _args: PublicSuiteArgs,
+    args: PublicSuiteArgs,
 ) -> jikji_core::Result<ExitCode> {
-    Err(jikji_core::io_error(
+    if !matches!(
         label,
-        io::Error::new(
-            io::ErrorKind::Unsupported,
-            "native Rust suite is not wired for this dataset command",
-        ),
-    ))
+        "edith" | "publicdata" | "workspacebench" | "hardbench"
+    ) {
+        return Err(jikji_core::io_error(
+            label,
+            io::Error::new(
+                io::ErrorKind::Unsupported,
+                "native Rust suite is not wired for this dataset command",
+            ),
+        ));
+    }
+    require_fetch(label, args.no_fetch)?;
+    let limits = cli_limits(
+        args.timeout_seconds,
+        args.max_file_bytes,
+        args.max_total_bytes,
+    )?;
+    let (root, eval_set, build) = match label {
+        "edith" => {
+            let mut options = EdithDownloadOptions::default();
+            options.max_cases = args.cases;
+            options.max_docs = args.cases.saturating_mul(8).max(1);
+            if let Some(base_url) = args.base_url {
+                options.base_url = base_url;
+            }
+            options.limits = limits;
+            let result = download_edith(&RustHttpClient, &args.dest, &options)?;
+            (
+                result.corpus_root.clone(),
+                result.eval_set_path.clone(),
+                serde_json::to_value(result)
+                    .map_err(|source| jikji_core::json_error("edith-suite", source))?,
+            )
+        }
+        "publicdata" => {
+            let mut options = PublicDataDownloadOptions::default();
+            options.target_docs = args.cases.max(3);
+            options.max_cases = args.cases.max(1);
+            options.max_id = args.cases.saturating_mul(50).max(3);
+            if let Some(base_url) = args.base_url {
+                let base = base_url.trim_end_matches('/');
+                options.view_url = format!("{base}/view/{{id}}");
+                options.xlsx_url = format!("{base}/xlsx");
+            }
+            options.limits = limits;
+            let result = download_publicdata(&RustHttpClient, &args.dest, &options)?;
+            (
+                result.test_root.clone(),
+                result.eval_set_path.clone(),
+                serde_json::to_value(result)
+                    .map_err(|source| jikji_core::json_error("publicdata-suite", source))?,
+            )
+        }
+        "workspacebench" => {
+            let mut options = WorkspaceBenchFetchOptions::new(&args.dest);
+            options.max_tasks = args.cases;
+            options.start = args.start;
+            options.max_file_bytes = args.max_file_bytes;
+            options.max_total_bytes = args.max_total_bytes;
+            if let Some(base_url) = args.base_url {
+                let base = base_url.trim_end_matches('/');
+                options.api_url = format!("{base}/api");
+                options.resolve_base_url = format!("{base}/resolve/");
+            }
+            let result = fetch_workspacebench(&HttpFetcher::default(), &options)?;
+            (
+                result.corpus_root.clone(),
+                result.eval_set_path.clone(),
+                serde_json::to_value(result)
+                    .map_err(|source| jikji_core::json_error("workspacebench-suite", source))?,
+            )
+        }
+        "hardbench" => {
+            let mut options = HardBenchFetchOptions::new(&args.dest);
+            options.target_docs = args.cases.max(3);
+            options.max_data_idx = args.max_data_idx;
+            options.max_file_bytes = args.max_file_bytes;
+            options.max_total_bytes = args.max_total_bytes;
+            options.max_cases_per_split = args.cases.max(1);
+            options.seed = args.seed;
+            options.difficulty = parse_hardbench_difficulty(&args.difficulty)?;
+            if let Some(base_url) = args.base_url {
+                let base = base_url.trim_end_matches('/');
+                options.view_base_url = format!("{base}/view");
+                options.file_base_url = format!("{base}/file");
+            }
+            let result = fetch_hardbench(&HttpFetcher::default(), &options)?;
+            (
+                result.test_root.clone(),
+                result.eval_set_path.clone(),
+                serde_json::to_value(result)
+                    .map_err(|source| jikji_core::json_error("hardbench-suite", source))?,
+            )
+        }
+        _ => unreachable!(),
+    };
+    if args.no_prepare {
+        let index = root.join(".jikji/search_index.sqlite");
+        if !index.is_file() {
+            return Err(jikji_core::io_error(
+                &index,
+                io::Error::new(
+                    io::ErrorKind::NotFound,
+                    "--no-prepare requires an already prepared corpus index",
+                ),
+            ));
+        }
+    } else {
+        jikji_index::prepare(&root, &jikji_core::PrepareOptions::default())?;
+    }
+    let benchmark = run_benchmark(
+        &root,
+        &RunOptions {
+            eval_set: Some(eval_set),
+            modes: vec!["raw".to_owned(), "jikji".to_owned()],
+            top_k: args.top_k,
+            prepare: false,
+            allow_leak: false,
+        },
+    )?;
+    let payload =
+        json!({"build": build, "benchmark_report": benchmark.report, "metrics": benchmark.metrics});
+    if args.json {
+        print_json(&payload)?;
+    } else {
+        println!("{label} suite complete: {}", benchmark.report.display());
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+fn cli_limits(
+    timeout_seconds: u64,
+    max_file_bytes: u64,
+    max_total_bytes: u64,
+) -> jikji_core::Result<DownloadLimits> {
+    if timeout_seconds == 0
+        || max_file_bytes == 0
+        || max_total_bytes == 0
+        || max_file_bytes > max_total_bytes
+    {
+        return Err(jikji_core::io_error(
+            "public-dataset",
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "timeout and byte limits must be positive; max-file-bytes cannot exceed max-total-bytes",
+            ),
+        ));
+    }
+    Ok(DownloadLimits {
+        timeout: std::time::Duration::from_secs(timeout_seconds),
+        max_file_bytes,
+        max_total_bytes,
+    })
+}
+
+fn require_fetch(label: &str, no_fetch: bool) -> jikji_core::Result<()> {
+    if no_fetch {
+        return Err(jikji_core::io_error(
+            label,
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "this command requires an actual URL adapter; remove --no-fetch",
+            ),
+        ));
+    }
+    Ok(())
+}
+
+fn parse_hardbench_difficulty(value: &str) -> jikji_core::Result<HardBenchDifficulty> {
+    match value {
+        "hard" => Ok(HardBenchDifficulty::Hard),
+        "extreme" => Ok(HardBenchDifficulty::Extreme),
+        other => Err(jikji_core::io_error(
+            "hardbench",
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("unsupported hardbench difficulty: {other}"),
+            ),
+        )),
+    }
 }
 
 fn dataset_error(error: jikji_public_datasets::DatasetError) -> jikji_core::JikjiError {

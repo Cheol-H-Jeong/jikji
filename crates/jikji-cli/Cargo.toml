@@ -28,6 +28,8 @@ serde_json.workspace = true
 rusqlite = { version = "0.32", features = ["bundled"] }
 tempfile.workspace = true
 zip = { version = "2", default-features = false, features = ["deflate"] }
+flate2 = "1"
+tar = "0.4"
 
 [lints]
 workspace = true

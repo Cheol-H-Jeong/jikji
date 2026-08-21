@@ -31,16 +31,27 @@ impl DocumentParser for MediaMetadataParser {
             .to_ascii_lowercase();
         let kind = media_kind(extension.as_str());
         let metadata = extract_metadata(input.path, input.bytes, kind);
-        let text = media_text(input, extension.as_str(), kind, &metadata);
-        let status = if text.is_empty() {
-            ParseStatus::MetadataOnly
-        } else {
-            ParseStatus::Success
-        };
-        let mut document = ParsedDocument::new(text, status, self.name());
+        let text = metadata_text(&metadata);
+        let mut document = ParsedDocument::new(text, ParseStatus::MetadataOnly, self.name());
         document.metadata = metadata;
         document
     }
+}
+
+fn metadata_text(metadata: &std::collections::BTreeMap<String, String>) -> String {
+    let mut lines = Vec::new();
+    if let (Some(width), Some(height)) = (metadata.get("width"), metadata.get("height")) {
+        lines.push(format!("Dimensions: {width}x{height} pixels"));
+    }
+    if let Some(duration) = metadata.get("duration_ms") {
+        lines.push(format!("Duration: {duration} ms"));
+    }
+    for (key, value) in metadata {
+        if !matches!(key.as_str(), "width" | "height" | "duration_ms") {
+            lines.push(format!("{}: {value}", key.replace('_', " ")));
+        }
+    }
+    lines.join("\n")
 }
 
 fn media_kind(extension: &str) -> MediaKind {
@@ -51,27 +62,4 @@ fn media_kind(extension: &str) -> MediaKind {
     } else {
         MediaKind::Video
     }
-}
-
-fn media_text(
-    input: ParserInput<'_>,
-    extension: &str,
-    kind: MediaKind,
-    metadata: &std::collections::BTreeMap<String, String>,
-) -> String {
-    if kind != MediaKind::Image {
-        return String::new();
-    }
-    let (Some(width), Some(height)) = (metadata.get("width"), metadata.get("height")) else {
-        return String::new();
-    };
-    let name = input
-        .path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .unwrap_or("image");
-    format!(
-        "# Image: {name}\nFormat: {}\nDimensions: {width}x{height} pixels",
-        extension.to_ascii_uppercase()
-    )
 }
