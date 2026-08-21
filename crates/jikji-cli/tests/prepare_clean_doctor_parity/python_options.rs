@@ -1,5 +1,7 @@
 use std::fs;
+use std::time::{SystemTime, UNIX_EPOCH};
 
+use jikji_core::storage::{load_artifact, replace_artifacts};
 use serde_json::Value;
 
 use super::{json_cmd, jsonl, root_str, run_ok, temp_root};
@@ -61,6 +63,7 @@ fn prepare_search_find_brief_options_and_map_max_chars_follow_python_surface() {
         "1024",
         "--parse-timeout",
         "0.2",
+        "--no-background-refresh",
         "--json",
     ]);
     assert_candidate_paths_exclude(&find["candidates"], "ignored.skip");
@@ -81,6 +84,15 @@ fn prepare_search_find_brief_options_and_map_max_chars_follow_python_surface() {
         "--json",
     ]);
     assert_eq!(brief["root"], root_str(&root));
+
+    let discover = json_cmd([
+        "discover",
+        root_str(&root).as_str(),
+        "needle",
+        "--no-background-refresh",
+        "--json",
+    ]);
+    assert_eq!(discover["background_refresh_started"], false);
 
     let map = run_ok(["map", root_str(&root).as_str(), "--max-chars", "80"]);
     let map_text = String::from_utf8(map.stdout).expect("utf8 map");
@@ -112,6 +124,74 @@ fn search_and_brief_start_background_refresh_for_changed_indexes_by_default() {
         "--json",
     ]);
     assert_eq!(quiet["background_refresh_started"], false);
+}
+
+#[test]
+fn find_and_discover_start_background_refresh_by_default() {
+    let root = temp_root("find-discover-background-refresh");
+    fs::write(root.join("needle.txt"), "needle alpha").expect("write target");
+    json_cmd(["prepare", root_str(&root).as_str(), "--json"]);
+    fs::write(root.join("changed.txt"), "needle changed").expect("change tree");
+
+    let find = json_cmd(["find", root_str(&root).as_str(), "needle", "--json"]);
+    assert_eq!(find["index_status"], "changed_using_previous_index");
+    assert_eq!(find["background_refresh_started"], true);
+
+    let second = temp_root("discover-background-refresh");
+    fs::write(second.join("needle.txt"), "needle alpha").expect("write target");
+    json_cmd(["prepare", root_str(&second).as_str(), "--json"]);
+    fs::write(second.join("changed.txt"), "needle changed").expect("change tree");
+    let discover = json_cmd(["discover", root_str(&second).as_str(), "needle", "--json"]);
+    assert_eq!(discover["index_status"], "changed_using_previous_index");
+    assert_eq!(discover["background_refresh_started"], true);
+}
+
+#[test]
+fn search_ttl_defaults_to_24_hours_and_accepts_override() {
+    let root = temp_root("search-stale-ttl");
+    fs::write(root.join("needle.txt"), "needle alpha").expect("write target");
+    json_cmd(["prepare", root_str(&root).as_str(), "--json"]);
+
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("clock")
+        .as_secs();
+    let mut manifest = load_artifact(&root, "manifest")
+        .expect("load manifest")
+        .expect("manifest");
+    manifest["generated_at"] = serde_json::json!(now - 23 * 60 * 60);
+    replace_artifacts(&root, &[("manifest", manifest.clone())]).expect("store manifest");
+
+    let fresh = json_cmd([
+        "search",
+        root_str(&root).as_str(),
+        "needle",
+        "--no-background-refresh",
+        "--json",
+    ]);
+    assert_eq!(fresh["index_status"], "ready");
+
+    let overridden = json_cmd([
+        "search",
+        root_str(&root).as_str(),
+        "needle",
+        "--stale-after-seconds",
+        "3600",
+        "--no-background-refresh",
+        "--json",
+    ]);
+    assert_eq!(overridden["index_status"], "stale_using_previous_index");
+
+    manifest["generated_at"] = serde_json::json!(now - 25 * 60 * 60);
+    replace_artifacts(&root, &[("manifest", manifest)]).expect("store stale manifest");
+    let stale = json_cmd([
+        "search",
+        root_str(&root).as_str(),
+        "needle",
+        "--no-background-refresh",
+        "--json",
+    ]);
+    assert_eq!(stale["index_status"], "stale_using_previous_index");
 }
 
 #[test]

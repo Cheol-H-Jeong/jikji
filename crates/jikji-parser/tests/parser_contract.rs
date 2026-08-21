@@ -1,4 +1,3 @@
-use std::fs;
 use std::io::Write;
 
 use jikji_parser::{ParseStatus, ParserRegistry};
@@ -139,59 +138,59 @@ fn structured_parsers_extract_email_calendar_sqlite_and_epub_text() {
 }
 
 #[test]
-fn archive_parsers_list_member_names_without_extracting_contents() {
+fn archive_parsers_default_to_metadata_without_member_contents() {
     let registry = ParserRegistry::with_defaults();
-    let tmp = tempdir().expect("tempdir");
-
     let mut zip = zip::ZipWriter::new(std::io::Cursor::new(Vec::<u8>::new()));
     let options = zip::write::SimpleFileOptions::default();
-    zip.start_file("../evil/archive_lookup_marker_9123.txt", options)
+    zip.start_file("nested/archive_lookup_marker_9123.txt", options)
         .expect("zip member");
     zip.write_all(b"body must not be extracted")
         .expect("zip body");
-    zip.start_file("nested/second.txt", options)
-        .expect("second member");
-    zip.write_all(b"second").expect("second body");
     let zip_bytes = zip.finish().expect("finish zip").into_inner();
 
-    let parsed = parse_fixture(&registry, "bundle.zip", &zip_bytes);
-    assert_eq!(parsed.status, ParseStatus::ArchiveListing);
-    assert!(
-        parsed
-            .text
-            .contains("../evil/archive_lookup_marker_9123.txt")
+    let parsed = parse_fixture(&registry, "searchable-bundle.zip", &zip_bytes);
+    assert_eq!(parsed.status, ParseStatus::MetadataOnly);
+    assert!(parsed.text.contains("searchable-bundle.zip"));
+    assert!(!parsed.text.contains("archive_lookup_marker_9123"));
+    assert!(!parsed.text.contains("body must not be extracted"));
+    assert_eq!(
+        parsed.metadata.get("detail_indexed"),
+        Some(&"false".to_owned())
     );
-    assert!(!tmp.path().join("evil").exists());
+}
 
-    let tar_path = tmp.path().join("bundle.tar");
-    {
-        let file = fs::File::create(&tar_path).expect("tar file");
-        let mut builder = tar::Builder::new(file);
-        let mut header = tar::Header::new_gnu();
-        header
-            .set_path("tar_lookup_marker_3301.txt")
-            .expect("tar path");
-        header.set_size(0);
-        header.set_cksum();
-        builder
-            .append(&header, std::io::empty())
-            .expect("append tar member");
-        builder.finish().expect("finish tar");
-    }
-    let tar = registry.parse_path(&tar_path, 4_000);
-    assert_eq!(tar.status, ParseStatus::ArchiveListing);
-    assert!(tar.text.contains("tar_lookup_marker_3301.txt"));
+#[test]
+fn deep_archive_parsing_is_safe_bounded_and_repeatable() {
+    let registry = ParserRegistry::with_defaults();
+    let mut zip = zip::ZipWriter::new(std::io::Cursor::new(Vec::<u8>::new()));
+    let options = zip::write::SimpleFileOptions::default();
+    zip.start_file("docs/note.txt", options)
+        .expect("safe member");
+    zip.write_all(b"deep-archive-body-token-8812")
+        .expect("safe body");
+    zip.start_file("../escape.txt", options)
+        .expect("traversal member");
+    zip.write_all(b"traversal-body-must-not-index")
+        .expect("traversal body");
+    zip.start_file("huge.txt", options).expect("large member");
+    zip.write_all(&[b'x'; 64]).expect("large body");
+    let bytes = zip.finish().expect("finish zip").into_inner();
+    let limits = jikji_parser::ArchiveLimits {
+        max_entries: 10,
+        max_entry_bytes: 32,
+        max_total_bytes: 32,
+    };
 
-    for name in ["compressed.7z", "compressed.rar"] {
-        let parsed = parse_fixture(&registry, name, b"raw-archive-body-token");
-        assert_eq!(parsed.status, ParseStatus::MetadataOnly);
-        assert!(parsed.text.contains("listing unavailable"));
-        assert!(!parsed.text.contains("raw-archive-body-token"));
-        assert_eq!(
-            parsed.metadata.get("listing"),
-            Some(&"unsupported".to_owned())
-        );
-    }
+    let first = registry.parse_bytes_deep("bundle.zip", &bytes, 4_000, limits);
+    let second = registry.parse_bytes_deep("bundle.zip", &bytes, 4_000, limits);
+
+    assert_eq!(first.status, ParseStatus::Success);
+    assert!(first.text.contains("deep-archive-body-token-8812"));
+    assert!(!first.text.contains("traversal-body-must-not-index"));
+    assert!(!first.text.contains(&"x".repeat(64)));
+    assert_eq!(first, second);
+    assert_eq!(first.metadata.get("entries_indexed"), Some(&"1".to_owned()));
+    assert_eq!(first.metadata.get("entries_skipped"), Some(&"2".to_owned()));
 }
 
 #[test]
@@ -255,8 +254,9 @@ fn malformed_inputs_return_controlled_status_when_bytes_are_not_parseable() {
     let registry = ParserRegistry::with_defaults();
 
     let malformed_archive = parse_fixture(&registry, "broken.zip", b"not a zip");
-    assert_eq!(malformed_archive.status, ParseStatus::Failed);
-    assert!(malformed_archive.text.is_empty());
+    assert_eq!(malformed_archive.status, ParseStatus::MetadataOnly);
+    assert!(malformed_archive.text.contains("broken.zip"));
+    assert!(!malformed_archive.text.contains("not a zip"));
 
     let malformed_xml = parse_fixture(&registry, "broken.xml", b"<root><unterminated");
     assert_eq!(malformed_xml.status, ParseStatus::Success);

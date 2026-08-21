@@ -9,6 +9,7 @@ description = "Shared types, errors, path policy, and generated artifact constan
 
 [dependencies]
 serde.workspace = true
+rusqlite.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 

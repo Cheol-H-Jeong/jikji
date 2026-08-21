@@ -625,6 +625,7 @@ dependencies = [
 name = "jikji-core"
 version = "0.1.1"
 dependencies = [
+ "rusqlite",
  "serde",
  "serde_json",
  "thiserror",
@@ -653,6 +654,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "tempfile",
  "zip",
 ]
 

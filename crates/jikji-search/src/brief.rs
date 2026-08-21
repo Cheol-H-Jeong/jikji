@@ -1,13 +1,13 @@
 use std::path::Path;
 
 use jikji_core::Result;
+use jikji_core::storage::{database_path, load_artifact, root_key};
 use serde_json::{Value, json};
 
 use crate::answer_pack::handoff_policy;
 use crate::discover::DiscoverOptions;
 use crate::discover::discover;
 use crate::graph::graph_query;
-use crate::io::read_json_optional;
 use crate::searcher::SearchCandidate;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -24,7 +24,10 @@ pub fn brief_payload(
     options: BriefOptions,
     candidates: &[SearchCandidate],
 ) -> Value {
-    let manifest = read_json_optional(&root.join(".jikji/manifest.json"));
+    let manifest = load_artifact(root, "manifest")
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| json!({}));
     let enriched = candidates
         .iter()
         .enumerate()
@@ -62,9 +65,9 @@ pub fn brief_payload(
         "route_order": [
             "1. Trust this brief's candidates when evidence/reasons match the user request.",
             "2. If ambiguous, run repeat_ranked_search with a sharper query or larger top-k.",
-            "3. If still insufficient, search file_cards/chunk_map/folder_profile.",
-            "4. Search .jikji/doc_text for parser-extracted bodies.",
-            "5. Search original text-like files excluding .jikji as a last resort."
+            "3. If still insufficient, rerun Jikji with a sharper query.",
+            "4. Use candidate evidence stored in the central Jikji SQLite database.",
+            "5. Open original text-like files only as a final verification step."
         ],
         "corpus_summary": {
             "files": manifest.get("files").cloned().unwrap_or(Value::Null),
@@ -84,13 +87,10 @@ pub fn brief_payload(
             "last_resort_original_rg": ""
         },
         "artifacts": {
-            "visible_map": root.join(".jikji_agent_map.md").display().to_string(),
-            "agent_routes": root.join(".jikji/agent_routes.md").display().to_string(),
-            "file_cards": root.join(".jikji/file_cards.jsonl").display().to_string(),
-            "chunk_map": root.join(".jikji/chunk_map.jsonl").display().to_string(),
-            "folder_profile": root.join(".jikji/folder_profile.jsonl").display().to_string(),
-            "search_index": root.join(".jikji/search_index.sqlite").display().to_string(),
-            "doc_text_dir": root.join(".jikji/doc_text").display().to_string(),
+            "storage": "central_sqlite",
+            "database": database_path().ok().map(|path| path.display().to_string()),
+            "root_key": root_key(root).ok(),
+            "visible_map": root.join(".jikji_agent_map.md").display().to_string()
         },
     })
 }
@@ -146,9 +146,9 @@ pub fn compact_brief_payload(
         "handoff_action": discover["handoff_action"].clone(),
         "handoff_policy": discover.get("handoff_policy").cloned().unwrap_or_else(|| handoff_policy("adaptive", "direct_use")),
         "artifacts": {
-            "graph_routes": root.join(".jikji/graph_routes.jsonl").display().to_string(),
-            "knowledge_graph": root.join(".jikji/knowledge_graph.json").display().to_string(),
-            "wiki_index": root.join(".jikji/wiki/index.md").display().to_string(),
+            "storage": "central_sqlite",
+            "database": database_path().ok().map(|path| path.display().to_string()),
+            "root_key": root_key(root).ok()
         },
         "candidates": compact,
     }))

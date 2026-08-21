@@ -14,14 +14,14 @@ pub struct SearchArtifactStats {
 }
 
 pub fn build_search_artifacts(
-    index_dir: &Path,
+    root: &Path,
     file_cards: &[Value],
     chunk_rows: &[Value],
     folder_profiles: &[Value],
 ) -> Result<SearchArtifactStats> {
-    let sqlite = build_sqlite_index(index_dir, file_cards, chunk_rows)?;
-    let rows = rows_from_cards(index_dir, file_cards, chunk_rows);
-    let (graph_nodes, graph_edges) = build_graph_artifacts(index_dir, &rows, folder_profiles)?;
+    let sqlite = build_sqlite_index(root, file_cards, chunk_rows)?;
+    let rows = rows_from_cards(root, file_cards, chunk_rows);
+    let (graph_nodes, graph_edges) = build_graph_artifacts(root, &rows, folder_profiles)?;
     Ok(SearchArtifactStats {
         rows: sqlite.rows,
         terms: sqlite.terms,

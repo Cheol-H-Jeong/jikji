@@ -1,7 +1,8 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use jikji_core::{JIKJI_DIR, Result, io_error};
+use jikji_core::storage::{delete_root, load_artifact, root_storage_dir};
+use jikji_core::{Result, io_error};
 use serde::Serialize;
 use serde_json::Value;
 
@@ -32,12 +33,16 @@ pub fn clean(root: &Path, options: CleanOptions) -> Result<CleanResult> {
     let clean_root = root
         .canonicalize()
         .map_err(|source| io_error(root, source))?;
+    let central_storage = root_storage_dir(&clean_root).ok();
     let decision = clean_allowed(&clean_root, options.force)?;
     let targets = clean_targets(&clean_root)?;
     let rules_preview = clean_agent_rules(&clean_root, true)?;
     let mut would_remove = targets.clone();
     would_remove.extend(rules_preview.removed.iter().cloned());
-    let has_agent_dir = clean_root.join(JIKJI_DIR).exists();
+    if let Some(storage) = &central_storage {
+        would_remove.push(storage.clone());
+    }
+    let has_agent_dir = load_artifact(&clean_root, "manifest")?.is_some();
     let has_agent_rule_changes =
         !rules_preview.edited.is_empty() || !rules_preview.removed.is_empty();
     if !decision.allowed && (has_agent_dir || !would_remove.is_empty() || has_agent_rule_changes) {
@@ -52,8 +57,8 @@ pub fn clean(root: &Path, options: CleanOptions) -> Result<CleanResult> {
             preserved_original_files: true,
             error: Some(decision.error.unwrap_or_else(|| {
                 format!(
-                    "Refusing to remove {} without a verified Jikji manifest.",
-                    clean_root.join(JIKJI_DIR).display()
+                    "Refusing to remove central Jikji index for {} without a verified manifest.",
+                    clean_root.display()
                 )
             })),
         });
@@ -82,6 +87,14 @@ pub fn clean(root: &Path, options: CleanOptions) -> Result<CleanResult> {
         }
         removed.push(target);
     }
+    if delete_root(&clean_root)? {
+        if let Some(storage) = central_storage {
+            if storage.is_dir() {
+                fs::remove_dir_all(&storage).map_err(|source| io_error(&storage, source))?;
+            }
+            removed.push(storage);
+        }
+    }
     let rules_applied = clean_agent_rules(&clean_root, false)?;
     removed.extend(rules_applied.removed.iter().cloned());
     Ok(CleanResult {
@@ -107,26 +120,8 @@ fn clean_allowed(root: &Path, force: bool) -> Result<CleanDecision> {
     if force {
         return Ok(clean_decision(true, "force", None));
     }
-    let manifest_path = root.join(JIKJI_DIR).join("manifest.json");
-    let text = match fs::read_to_string(&manifest_path) {
-        Ok(text) => text,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            return Ok(clean_decision(false, "missing_manifest", None));
-        }
-        Err(source) => return Err(io_error(manifest_path, source)),
-    };
-    let manifest: Value = match serde_json::from_str(&text) {
-        Ok(manifest) => manifest,
-        Err(source) => {
-            return Ok(clean_decision(
-                false,
-                "malformed_manifest",
-                Some(format!(
-                    "JSON error at {}: {source}",
-                    manifest_path.display()
-                )),
-            ));
-        }
+    let Some(manifest) = load_artifact(root, "manifest")? else {
+        return Ok(clean_decision(false, "missing_manifest", None));
     };
     let manifest_root = manifest.get("root").and_then(Value::as_str).unwrap_or("");
     let same_root = PathBuf::from(manifest_root)

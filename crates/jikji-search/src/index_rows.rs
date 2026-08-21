@@ -33,7 +33,7 @@ pub(crate) fn rows_from_cards(
     file_cards: &[Value],
     chunk_rows: &[Value],
 ) -> Vec<IndexRow> {
-    let root = index_dir.parent().unwrap_or(index_dir);
+    let root = index_dir;
     let mut chunks_by_path = BTreeMap::<String, Vec<&Value>>::new();
     for chunk in chunk_rows {
         if let Some(path) = value_str(chunk, "path") {

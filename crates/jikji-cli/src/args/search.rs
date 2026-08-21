@@ -21,6 +21,8 @@ pub(crate) struct FindArgs {
     #[arg(long, default_value_t = 24 * 60 * 60, allow_hyphen_values = true)]
     pub(crate) stale_after_seconds: i64,
     #[arg(long)]
+    pub(crate) no_background_refresh: bool,
+    #[arg(long)]
     pub(crate) include_hidden: bool,
     #[arg(long)]
     pub(crate) include_sensitive: bool,

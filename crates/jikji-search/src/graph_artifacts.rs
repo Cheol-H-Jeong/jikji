@@ -1,25 +1,18 @@
-use std::fs;
 use std::path::Path;
 
-use jikji_core::{Result, ensure_generated_dir, io_error};
+use jikji_core::Result;
+use jikji_core::storage::replace_artifacts;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
 use crate::index_rows::{IndexRow, evidence_for};
-use crate::io::{write_json, write_jsonl};
 use crate::tokenizer::tokens;
 
 pub(crate) fn build_graph_artifacts(
-    index_dir: &Path,
+    root: &Path,
     rows: &[IndexRow],
     folder_profiles: &[Value],
 ) -> Result<(usize, usize)> {
-    let wiki_dir = index_dir.join("wiki");
-    let sources_dir = wiki_dir.join("sources");
-    ensure_generated_dir(&wiki_dir)?;
-    ensure_generated_dir(&sources_dir)?;
-    clear_generated_source_pages(&sources_dir)?;
-
     let mut graph = GraphArtifactRows {
         folders_linked: folder_profiles.len(),
         ..GraphArtifactRows::default()
@@ -29,7 +22,7 @@ pub(crate) fn build_graph_artifacts(
         .push(json!({"id":"root","kind":"corpus","label":"root"}));
     add_folder_profiles(&mut graph, folder_profiles);
     for row in rows {
-        add_source(index_dir, row, &mut graph)?;
+        add_source(row, &mut graph);
     }
     graph
         .nodes
@@ -41,7 +34,7 @@ pub(crate) fn build_graph_artifacts(
     graph
         .routes
         .sort_by_key(|row| row["path"].as_str().unwrap_or("").to_owned());
-    write_graph_files(index_dir, &wiki_dir, rows, &graph)?;
+    write_graph_rows(root, rows, &graph)?;
     Ok((graph.nodes.len(), graph.edges.len()))
 }
 
@@ -51,18 +44,6 @@ struct GraphArtifactRows {
     edges: Vec<Value>,
     routes: Vec<Value>,
     folders_linked: usize,
-}
-
-fn clear_generated_source_pages(sources_dir: &Path) -> Result<()> {
-    if let Ok(entries) = fs::read_dir(sources_dir) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.extension().and_then(|ext| ext.to_str()) == Some("md") {
-                fs::remove_file(&path).map_err(|source| io_error(path, source))?;
-            }
-        }
-    }
-    Ok(())
 }
 
 fn add_folder_profiles(graph: &mut GraphArtifactRows, folder_profiles: &[Value]) {
@@ -82,14 +63,9 @@ fn add_folder_profiles(graph: &mut GraphArtifactRows, folder_profiles: &[Value])
     }
 }
 
-fn add_source(index_dir: &Path, row: &IndexRow, graph: &mut GraphArtifactRows) -> Result<()> {
+fn add_source(row: &IndexRow, graph: &mut GraphArtifactRows) {
     let source_id = safe_id("source", &row.path);
-    let wiki_rel = format!(".jikji/wiki/sources/{}", source_slug(&row.path));
-    fs::write(
-        index_dir.parent().unwrap_or(index_dir).join(&wiki_rel),
-        source_page(row, &wiki_rel),
-    )
-    .map_err(|source| io_error(index_dir.join(&wiki_rel), source))?;
+    let wiki_rel = format!("wiki/sources/{}", source_slug(&row.path));
     let terms = tokens(&format!("{} {} {}", row.path, row.summary, row.body), 24);
     graph.nodes.push(json!({
         "id": source_id,
@@ -125,7 +101,6 @@ fn add_source(index_dir: &Path, row: &IndexRow, graph: &mut GraphArtifactRows) -
         "text_cache_path": row.text_cache_path,
         "preview": evidence_for(&row.body, &row.summary, &row.name).first().cloned().unwrap_or_default(),
     }));
-    Ok(())
 }
 
 fn edge_sort_key(edge: &Value) -> String {
@@ -137,39 +112,40 @@ fn edge_sort_key(edge: &Value) -> String {
     )
 }
 
-fn write_graph_files(
-    index_dir: &Path,
-    wiki_dir: &Path,
-    rows: &[IndexRow],
-    graph: &GraphArtifactRows,
-) -> Result<()> {
-    write_json(
-        index_dir.join("knowledge_graph.json"),
-        &json!({
-            "schema_version": 1,
-            "root": index_dir.parent().map(|path| path.display().to_string()).unwrap_or_default(),
-            "source": "jikji deterministic llm-wiki compiler",
-            "nodes": graph.nodes,
-            "edges": graph.edges,
-            "stats": {
-                "nodes": graph.nodes.len(),
-                "edges": graph.edges.len(),
-                "sources": rows.len(),
-                "folders_linked": graph.folders_linked,
-                "terms": graph.routes.len(),
-                "intents": 0,
-            },
-        }),
-    )?;
-    write_jsonl(index_dir.join("graph_routes.jsonl"), &graph.routes)?;
-    fs::write(
-        index_dir.join("llm_wiki_schema.md"),
-        "# Jikji LLM Wiki Schema\n",
-    )
-    .map_err(|source| io_error(index_dir.join("llm_wiki_schema.md"), source))?;
-    fs::write(wiki_dir.join("index.md"), wiki_index(rows))
-        .map_err(|source| io_error(wiki_dir.join("index.md"), source))?;
-    Ok(())
+fn write_graph_rows(root: &Path, rows: &[IndexRow], graph: &GraphArtifactRows) -> Result<()> {
+    let knowledge_graph = json!({
+        "schema_version": 1,
+        "root": root.display().to_string(),
+        "source": "jikji deterministic llm-wiki compiler",
+        "nodes": graph.nodes,
+        "edges": graph.edges,
+        "stats": {
+            "nodes": graph.nodes.len(),
+            "edges": graph.edges.len(),
+            "sources": rows.len(),
+            "folders_linked": graph.folders_linked,
+            "terms": graph.routes.len(),
+            "intents": 0,
+        },
+    });
+    let mut artifacts = vec![
+        ("graph", knowledge_graph),
+        ("wiki_index", json!({"markdown": wiki_index(rows)})),
+    ];
+    artifacts.extend(
+        graph
+            .routes
+            .iter()
+            .cloned()
+            .map(|row| ("graph_routes", row)),
+    );
+    artifacts.extend(rows.iter().map(|row| {
+        (
+            "wiki",
+            json!({"path": row.path, "markdown": source_page(row, "")}),
+        )
+    }));
+    replace_artifacts(root, &artifacts)
 }
 
 fn safe_id(prefix: &str, value: &str) -> String {

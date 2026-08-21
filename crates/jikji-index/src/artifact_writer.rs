@@ -1,8 +1,9 @@
 use std::fs;
 
+use jikji_core::storage::{replace_artifacts, root_storage_dir};
 use jikji_core::{
-    JIKJI_DIR, OWNED_GENERATED_PATHS, PrepareOptions, RETIRED_GENERATED_PATHS, ROOT_AGENT_MAP,
-    Result, ensure_generated_dir, io_error,
+    OWNED_GENERATED_PATHS, PrepareOptions, RETIRED_GENERATED_PATHS, ROOT_AGENT_MAP, Result,
+    ensure_generated_dir, io_error,
 };
 use jikji_search::SearchArtifactStats;
 use serde_json::{Value, json};
@@ -23,7 +24,7 @@ pub(crate) fn write_static_artifacts(
     docs: &DocumentBuild,
     search_stats: SearchArtifactStats,
 ) -> Result<()> {
-    let index_dir = scan.root.join(JIKJI_DIR);
+    let index_dir = root_storage_dir(&scan.root)?;
     let media_files = scan
         .files
         .iter()
@@ -67,6 +68,15 @@ pub(crate) fn write_static_artifacts(
         "knowledge_graph_nodes": search_stats.graph_nodes,
         "knowledge_graph_edges": search_stats.graph_edges,
     });
+    replace_artifacts(
+        &scan.root,
+        &[
+            ("manifest", manifest.clone()),
+            ("corpus_profile", json!({"schema_version": 1})),
+            ("intent_taxonomy", json!({})),
+            ("autorag_manifest", json!({"schema_version": 1})),
+        ],
+    )?;
     write_json(index_dir.join("manifest.json"), &manifest)?;
     write_json(
         index_dir.join("corpus_profile.json"),
@@ -81,8 +91,9 @@ pub(crate) fn write_static_artifacts(
 }
 
 fn write_markdown_files(scan: &ScanResult, manifest: &Value) -> Result<()> {
-    let index_dir = scan.root.join(JIKJI_DIR);
+    let index_dir = root_storage_dir(&scan.root)?;
     let map = agent_map(scan, manifest);
+    replace_artifacts(&scan.root, &[("agent_map", json!({"markdown": map}))])?;
     fs::write(index_dir.join("agent_map.md"), &map)
         .map_err(|source| io_error(index_dir.join("agent_map.md"), source))?;
     fs::write(scan.root.join(ROOT_AGENT_MAP), &map)
@@ -138,9 +149,6 @@ fn media_status(enabled: bool, media_files: usize) -> &'static str {
     }
 }
 
-fn search_index_bytes(index_dir: &std::path::Path) -> u64 {
-    index_dir
-        .join("search_index.sqlite")
-        .metadata()
-        .map_or(0, |metadata| metadata.len())
+fn search_index_bytes(_index_dir: &std::path::Path) -> u64 {
+    0
 }

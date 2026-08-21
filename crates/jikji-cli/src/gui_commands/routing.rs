@@ -9,9 +9,10 @@ use std::process::{Command, Stdio};
 use std::sync::{Arc, RwLock};
 
 use jikji_core::PrepareOptions;
+use jikji_core::storage::{database_path, load_artifact, root_key};
 use jikji_index::{doctor, prepare};
 use jikji_search::{DiscoverOptions, SearchOptions, discover, search};
-use serde_json::{Value, json};
+use serde_json::json;
 
 use super::http::{HttpRequest, HttpResponse, malformed_request, query_bool, query_value};
 use super::token::ManagementToken;
@@ -94,7 +95,10 @@ fn with_root(state: &GuiState, action: impl FnOnce(&Path) -> HttpResponse) -> Ht
 }
 
 fn root_status(root: &Path) -> HttpResponse {
-    let manifest = read_json(root.join(".jikji/manifest.json"));
+    let manifest = load_artifact(root, "manifest")
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| json!({}));
     let doctor_ok = doctor(root).map(|report| report.ok).unwrap_or(false);
     HttpResponse::json(
         200,
@@ -103,11 +107,9 @@ fn root_status(root: &Path) -> HttpResponse {
             "prepared": doctor_ok,
             "manifest": manifest,
             "artifacts": {
-                "manifest": root.join(".jikji/manifest.json").exists(),
-                "search_index": root.join(".jikji/search_index.sqlite").exists(),
-                "knowledge_graph": root.join(".jikji/knowledge_graph.json").exists(),
-                "file_cards": root.join(".jikji/file_cards.jsonl").exists(),
-                "doc_text": root.join(".jikji/doc_text").exists()
+                "storage": "central_sqlite",
+                "database": database_path().ok().map(|path| path.display().to_string()),
+                "root_key": root_key(root).ok()
             },
             "default_agent_command": "jikji find ROOT \"query\" --json",
         }),
@@ -323,13 +325,6 @@ fn resolve_root_path(root: &Path, rel_path: &str) -> std::result::Result<PathBuf
         ));
     }
     Ok(resolved)
-}
-
-fn read_json(path: PathBuf) -> Value {
-    fs::read_to_string(path)
-        .ok()
-        .and_then(|text| serde_json::from_str(&text).ok())
-        .unwrap_or_else(|| json!({}))
 }
 
 #[cfg(all(test, unix, not(target_os = "macos")))]

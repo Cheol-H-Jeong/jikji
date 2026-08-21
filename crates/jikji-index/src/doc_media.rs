@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use jikji_core::PrepareOptions;
 use jikji_media_bridge::{BridgeRuntime, MediaBridgeOutcome, MediaBridgeRequest, MediaKind};
-use jikji_parser::{ParsedDocument, ParserRegistry};
+use jikji_parser::{ArchiveLimits, ParsedDocument, ParserRegistry};
 
 pub(crate) const MEDIA_EXTENSIONS: &[&str] = &[
     "png", "jpg", "jpeg", "tif", "tiff", "webp", "bmp", "gif", "mp3", "wav", "m4a", "flac", "ogg",
@@ -54,10 +54,21 @@ impl DocumentCacheRuntime {
         }
         let path = source.path.to_path_buf();
         let max_chars = options.doc_text_max_chars;
+        let deep_archive_index = options.deep_archive_index;
+        let archive_limits = ArchiveLimits {
+            max_entries: options.archive_max_entries,
+            max_entry_bytes: options.archive_max_entry_bytes,
+            max_total_bytes: options.archive_max_total_bytes,
+        };
         let timeout = Duration::from_secs_f64(options.parse_timeout_seconds);
         let (sender, receiver) = mpsc::channel();
         thread::spawn(move || {
-            let parsed = ParserRegistry::with_defaults().parse_path(&path, max_chars);
+            let registry = ParserRegistry::with_defaults();
+            let parsed = if deep_archive_index {
+                registry.parse_path_deep(&path, max_chars, archive_limits)
+            } else {
+                registry.parse_path(&path, max_chars)
+            };
             let _ = sender.send(parsed);
         });
         receiver

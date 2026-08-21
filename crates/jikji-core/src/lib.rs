@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+pub mod storage;
 
 pub const ROOT_AGENT_MAP: &str = ".jikji_agent_map.md";
 pub const LEGACY_ROOT_AGENT_MAP: &str = "000_JIKJI_AGENT_MAP.md";
@@ -100,6 +101,24 @@ pub struct PrepareOptions {
     pub doc_text_chunk_chars: usize,
     pub enable_media_index: bool,
     pub media_index_max_mb: f64,
+    #[serde(default)]
+    pub deep_archive_index: bool,
+    #[serde(default = "default_archive_max_entries")]
+    pub archive_max_entries: usize,
+    #[serde(default = "default_archive_max_entry_bytes")]
+    pub archive_max_entry_bytes: u64,
+    #[serde(default = "default_archive_max_total_bytes")]
+    pub archive_max_total_bytes: u64,
+}
+
+fn default_archive_max_entries() -> usize {
+    1000
+}
+fn default_archive_max_entry_bytes() -> u64 {
+    16 * 1024 * 1024
+}
+fn default_archive_max_total_bytes() -> u64 {
+    128 * 1024 * 1024
 }
 
 impl Default for PrepareOptions {
@@ -115,6 +134,10 @@ impl Default for PrepareOptions {
             doc_text_chunk_chars: 1_000_000,
             enable_media_index: false,
             media_index_max_mb: 25.0,
+            deep_archive_index: false,
+            archive_max_entries: default_archive_max_entries(),
+            archive_max_entry_bytes: default_archive_max_entry_bytes(),
+            archive_max_total_bytes: default_archive_max_total_bytes(),
         }
     }
 }

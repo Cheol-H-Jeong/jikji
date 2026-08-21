@@ -1,6 +1,6 @@
 ---
 name: jikji
-description: Use Jikji find to locate local files, folders, metadata, and parsed document text through a non-destructive prebuilt agent map/search index while saving repeated LLM calls, tokens, and time.
+description: MUST use Jikji find first for bounded local file/folder/document discovery; return the machine-readable answer contract and never raw-crawl after a successful Jikji result.
 ---
 
 # Jikji Local File Discovery Skill
@@ -58,18 +58,22 @@ Do not start with `grep`, `rg`, `ls`, `find`, `fd`, `cat`, or `tree` to locate a
 file. Jikji has already built the local map, parser text cache, file cards,
 metadata routes, and graph routes needed for this step.
 
-`jikji find` searches existing indexes only. If it reports that the root is not
-prepared, do not retry with broad raw crawling and do not expect `find` to
-prepare the root. Tell the user the requested range is not indexed yet and ask
-before running:
+`jikji find` searches existing indexes only. Every discovery request MUST inspect the JSON fields
+`index_status`, `handoff_action`, `answerability`, `retry_proof`, and `tool_call_policy`.
+
+If the index is missing, stale, unavailable, or the result is empty/clearly wrong, do not raw-crawl
+yet. Run exactly one sharper Jikji retry using the command in `next_commands[]` (or the same command
+with the alternate query), and pass `--after-jikji-retry --retry-proof RETRY_PROOF` when supported.
+Never run a second Jikji retry. If that one retry still fails, remains empty, or remains clearly wrong,
+the contract will set `handoff_action=raw_fallback_after_retry` and permit only its bounded raw fallback.
+If Jikji succeeds (`handoff_action=direct_use` or `answerability=answerable_from_payload`), raw fallback
+is forbidden: return `answer_paths[]`/`paths[]` in Jikji order and do not invoke filesystem tools.
+
+If the root is not prepared and the user authorizes setup, run:
 
 ```bash
 jikji prepare /explicit/root --json
 ```
-
-If the user asks for image, audio, or video content search, explain that
-multimedia OCR/ASR is intentionally opt-in because it can consume CPU/RAM. Ask
-before running prepare with media indexing enabled.
 
 Interpret the JSON contract:
 
@@ -82,6 +86,12 @@ Interpret the JSON contract:
 - `handoff_action=jikji_retry` means run exactly one sharper `jikji find` retry.
 - `handoff_action=raw_fallback_after_retry` means raw filesystem search is
   allowed only after that retry failed, stayed empty, or stayed clearly wrong.
+- `index_status` values such as `missing`, `stale`, or `failure` are bounded
+  recovery signals, not permission for immediate raw crawling.
+- `max_jikji_retries` MUST be `1` before fallback and `max_raw_fallback_commands`
+  is the hard ceiling after fallback. Treat `raw_fallback_allowed=false` as an
+  absolute prohibition.
+- On success, raw output is forbidden even if a tempting path is visible elsewhere.
 - If `agent_should_not_rerank` is true, preserve Jikji's order.
 
 ## Stop Rule: Do Not Over-Call After a Sufficient Find
@@ -152,6 +162,18 @@ rg "keyword" /explicit/root --glob '!**/.jikji/**'
 
 Use parser-extracted `.jikji/doc_text/` for PDF/HWP/HWPX/Office document bodies.
 Search native text-like files in original locations only as the final fallback.
+
+For media OCR/ASR and archive-member body indexing, use the explicit bounded mode:
+
+```bash
+jikji deep-index /explicit/root --json
+```
+
+The default `prepare` indexes document and code contents, while media and archive
+files remain metadata/name searchable only. `deep-index` enables native OCR/ASR
+when configured through `JIKJI_OCR_ENGINE` or `JIKJI_ASR_ENGINE`, and parses safe
+archive members incrementally under entry-count and byte limits. Re-running it
+is incremental and preserves traversal/bomb/timeout limits.
 
 ## Evaluation
 

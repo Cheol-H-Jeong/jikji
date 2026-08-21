@@ -1,6 +1,6 @@
 use std::fs;
 
-use super::fixture::{json_cmd, root_arg, run, temp_root};
+use super::fixture::{database_path, json_cmd, root_arg, run, temp_root};
 
 #[test]
 fn missing_stale_shell_noise_path_anchor_and_cjk_classes_are_covered() {
@@ -28,17 +28,14 @@ fn corrupted_sqlite_search_index_fails_without_shell_noise_or_panic() {
     fs::write(root.join("note.txt"), "ACME agreement").expect("write note");
     let root_arg = root_arg(&root);
     json_cmd(&["prepare", &root_arg, "--json"]);
-    fs::write(
-        root.join(".jikji/search_index.sqlite"),
-        b"not a sqlite database",
-    )
-    .expect("corrupt sqlite");
+    fs::write(database_path(&root), b"not a sqlite database").expect("corrupt sqlite");
 
     let output = run(&["find", &root_arg, "ACME", "--json"]);
     assert!(!output.status.success());
-    assert!(output.stdout.is_empty());
+    let response: serde_json::Value = serde_json::from_slice(&output.stdout).expect("failure json");
+    assert_eq!(response["handoff_action"], "jikji_retry");
+    assert_eq!(response["max_jikji_retries"], 1);
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("search_index.sqlite"));
     assert!(!stderr.contains("rm -rf"));
 }
 

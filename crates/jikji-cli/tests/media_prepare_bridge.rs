@@ -6,8 +6,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde_json::Value;
 
 #[test]
-fn prepare_records_rust_native_media_metadata() {
+fn default_prepare_indexes_media_filename_without_root_sidecar() {
     let root = temp_root("native-media");
+    let data_dir = temp_root("native-media-db");
     let mut png = vec![0_u8; 24];
     png[..8].copy_from_slice(b"\x89PNG\r\n\x1a\n");
     png[12..16].copy_from_slice(b"IHDR");
@@ -15,24 +16,21 @@ fn prepare_records_rust_native_media_metadata() {
     png[20..24].copy_from_slice(&200_u32.to_be_bytes());
     fs::write(root.join("photo.png"), png).expect("write media");
 
-    let prepared = json_cmd(&[
-        "prepare",
-        root_str(&root).as_str(),
-        "--enable-media-index",
-        "--json",
-    ]);
+    let prepared = json_cmd(&data_dir, &["prepare", root_str(&root).as_str(), "--json"]);
     assert_eq!(prepared["files"], 1);
-    let rows = jsonl(root.join(".jikji/document_index.jsonl"));
-    let row = row_for(&rows, "photo.png");
-    assert_eq!(row["parse_status"], "metadata_only");
-    assert_eq!(row["media_bridge_status"], "metadata_only");
-    let meta = json_file(root.join(row["doc_meta_path"].as_str().expect("meta")));
-    assert_eq!(meta["media_bridge"]["metadata"]["engine"], "rust-native");
-    assert_eq!(meta["media_bridge"]["metadata"]["width"], "320");
+    assert!(!root.join(".jikji").exists());
+
+    let found = json_cmd(
+        &data_dir,
+        &["find", root_str(&root).as_str(), "photo.png", "--json"],
+    );
+    assert_eq!(found["paths"][0], "photo.png");
+    assert!(data_dir.join("jikji/index.sqlite").is_file());
 }
 
-fn json_cmd(args: &[&str]) -> Value {
+fn json_cmd(data_dir: &Path, args: &[&str]) -> Value {
     let output = Command::new(env!("CARGO_BIN_EXE_jikji"))
+        .env("JIKJI_DATA_DIR", data_dir)
         .args(args)
         .output()
         .expect("run jikji");
@@ -42,24 +40,6 @@ fn json_cmd(args: &[&str]) -> Value {
         String::from_utf8_lossy(&output.stderr)
     );
     serde_json::from_slice(&output.stdout).expect("json stdout")
-}
-
-fn jsonl(path: impl AsRef<Path>) -> Vec<Value> {
-    fs::read_to_string(path)
-        .expect("read jsonl")
-        .lines()
-        .map(|line| serde_json::from_str(line).expect("jsonl row"))
-        .collect()
-}
-
-fn json_file(path: impl AsRef<Path>) -> Value {
-    serde_json::from_slice(&fs::read(path).expect("read json")).expect("json file")
-}
-
-fn row_for<'a>(rows: &'a [Value], path: &str) -> &'a Value {
-    rows.iter()
-        .find(|row| row["path"] == path)
-        .expect("document row")
 }
 
 fn root_str(path: &Path) -> String {

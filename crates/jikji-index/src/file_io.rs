@@ -5,18 +5,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use jikji_core::{Result, io_error, json_error};
 use serde_json::Value;
 
-pub(crate) fn read_jsonl(path: PathBuf) -> Result<Vec<Value>> {
-    let text = match fs::read_to_string(&path) {
-        Ok(text) => text,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
-        Err(source) => return Err(io_error(path, source)),
-    };
-    text.lines()
-        .filter(|line| !line.trim().is_empty())
-        .map(|line| serde_json::from_str(line).map_err(|source| json_error(&path, source)))
-        .collect()
-}
-
 pub(crate) fn write_json(path: PathBuf, value: &Value) -> Result<()> {
     let text = serde_json::to_string_pretty(value).map_err(|source| json_error(&path, source))?;
     fs::write(&path, text).map_err(|source| io_error(path, source))

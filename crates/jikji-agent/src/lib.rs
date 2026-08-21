@@ -101,12 +101,15 @@ pub fn install_agent_skill(
         None => default_skill_dest(&normalized)?,
     };
     if target.exists() && !force {
-        return Ok(AgentSkillInstallResult {
-            agent: normalized,
-            path: target,
-            installed: false,
-            message: "already exists; pass --force to overwrite".to_owned(),
-        });
+        let existing = fs::read_to_string(&target).map_err(|source| io_error(&target, source))?;
+        if existing == SKILL_MARKDOWN {
+            return Ok(AgentSkillInstallResult {
+                agent: normalized,
+                path: target,
+                installed: false,
+                message: "already current".to_owned(),
+            });
+        }
     }
     if let Some(parent) = target.parent() {
         fs::create_dir_all(parent).map_err(|source| io_error(parent, source))?;
@@ -116,7 +119,12 @@ pub fn install_agent_skill(
         agent: normalized,
         path: target,
         installed: true,
-        message: "installed".to_owned(),
+        message: if force {
+            "installed (forced)"
+        } else {
+            "installed or upgraded"
+        }
+        .to_owned(),
     })
 }
 
@@ -192,6 +200,18 @@ mod tests {
     }
 
     #[test]
+    fn install_agent_skill_upgrades_stale_managed_skill_without_force() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let dest = dir.path().join("SKILL.md");
+        fs::write(&dest, "---\nname: jikji\n---\nold routing\n").expect("stale skill");
+
+        let result = install_agent_skill("codex", Some(&dest), false).expect("upgrade");
+
+        assert!(result.installed);
+        assert_eq!(fs::read_to_string(dest).expect("skill"), skill_markdown());
+    }
+
+    #[test]
     fn agent_selection_expands_all_aliases() {
         let agents = expand_agent_selection("all").expect("all");
 
@@ -201,6 +221,8 @@ mod tests {
             expand_agent_selection("open-clo").expect("alias"),
             ["openclo"]
         );
+        assert!(agents.contains(&"hermes".to_owned()));
+        assert!(agents.contains(&"opencode".to_owned()));
     }
 
     #[test]
@@ -225,6 +247,9 @@ mod tests {
         assert_eq!(written.matches(AGENT_RULES_BEGIN).count(), 1);
         assert!(written.contains(AGENT_RULES_END));
         assert!(written.contains("Keep this."));
+        assert!(written.contains("ABSOLUTE RULE — JIKJI FIRST"));
+        assert!(written.contains("exactly one Jikji retry"));
+        assert!(written.contains("raw_fallback_after_retry"));
 
         let removed = remove_routing_block(&path).expect("remove");
         let final_text = fs::read_to_string(&path).expect("final read");
@@ -240,5 +265,9 @@ mod tests {
 
         assert!(text.contains("Never move, rename, delete, or reorganize"));
         assert!(text.contains("jikji find /explicit/root"));
+        assert!(text.contains("Never run a second Jikji retry"));
+        assert!(text.contains("raw_fallback_allowed=false"));
+        assert!(text.contains("On success, raw output is forbidden"));
+        assert_eq!(text, include_str!("../../../skills/jikji/SKILL.md"));
     }
 }

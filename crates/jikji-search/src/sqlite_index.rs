@@ -2,48 +2,68 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use jikji_core::Result;
-use rusqlite::{Connection, params};
+use jikji_core::storage::{database_path, ensure_root, open_database};
+use rusqlite::{Transaction, params};
 
 use crate::SEARCH_INDEX_SCHEMA_VERSION;
 use crate::index_rows::{IndexRow, fielded_terms, row_terms};
 use crate::io::sqlite_error;
 
-pub(crate) fn write_sqlite(path: &Path, rows: &[IndexRow]) -> Result<()> {
-    let mut con = Connection::open(path).map_err(|source| sqlite_error(path, source))?;
-    con.execute_batch(
-        "PRAGMA journal_mode=OFF;
-         PRAGMA synchronous=OFF;
-         CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);
-         CREATE TABLE docs(id INTEGER PRIMARY KEY, path TEXT NOT NULL, name TEXT NOT NULL, ext TEXT NOT NULL, duplicate_group_id TEXT NOT NULL, row_json TEXT NOT NULL);
-         CREATE TABLE terms(term TEXT NOT NULL, doc_id INTEGER NOT NULL);
-         CREATE TABLE filename_keys(key TEXT NOT NULL, doc_id INTEGER NOT NULL);
-         CREATE TABLE idf(term TEXT PRIMARY KEY, value REAL NOT NULL);
-         CREATE TABLE field_terms(term TEXT NOT NULL, field TEXT NOT NULL, doc_id INTEGER NOT NULL, tf INTEGER NOT NULL);
-         CREATE TABLE field_lengths(doc_id INTEGER NOT NULL, field TEXT NOT NULL, length INTEGER NOT NULL);
-         CREATE TABLE field_idf(term TEXT PRIMARY KEY, value REAL NOT NULL);
-         CREATE TABLE field_avg(field TEXT PRIMARY KEY, value REAL NOT NULL);",
-    )
-    .map_err(|source| sqlite_error(path, source))?;
-    let tx = con
+pub(crate) fn write_sqlite(root: &Path, rows: &[IndexRow]) -> Result<()> {
+    let path = database_path()?;
+    let mut connection = open_database()?;
+    initialize(&connection, &path)?;
+    let root_id = ensure_root(&connection, root)?;
+    let tx = connection
         .transaction()
-        .map_err(|source| sqlite_error(path, source))?;
+        .map_err(|source| sqlite_error(&path, source))?;
+    clear_root(&tx, root_id, &path)?;
     let mut stats = SqliteStats::default();
-    for (doc_idx, row) in rows.iter().enumerate() {
-        let doc_id = i64::try_from(doc_idx + 1).unwrap_or(i64::MAX);
-        insert_doc(path, &tx, doc_id, row)?;
-        insert_terms(path, &tx, doc_id, row, &mut stats)?;
-        insert_filename_keys(path, &tx, doc_id, row)?;
-        insert_field_terms(path, &tx, doc_id, row, &mut stats)?;
+    for (index, row) in rows.iter().enumerate() {
+        let doc_id = i64::try_from(index + 1).unwrap_or(i64::MAX);
+        insert_doc(&tx, root_id, doc_id, row, &path)?;
+        insert_terms(&tx, root_id, doc_id, row, &mut stats, &path)?;
+        insert_filename_keys(&tx, root_id, doc_id, row, &path)?;
+        insert_field_terms(&tx, root_id, doc_id, row, &mut stats, &path)?;
     }
-    insert_stats(path, &tx, rows, stats)?;
-    tx.commit().map_err(|source| sqlite_error(path, source))?;
-    con.execute_batch(
-        "CREATE INDEX idx_terms_term ON terms(term);
-         CREATE INDEX idx_filename_keys_key ON filename_keys(key);
-         CREATE INDEX idx_field_terms_term ON field_terms(term);
-         CREATE INDEX idx_field_terms_doc ON field_terms(doc_id);",
-    )
-    .map_err(|source| sqlite_error(path, source))
+    insert_stats(&tx, root_id, rows, stats, &path)?;
+    tx.commit().map_err(|source| sqlite_error(&path, source))
+}
+
+pub(crate) fn initialize(connection: &rusqlite::Connection, path: &Path) -> Result<()> {
+    connection.execute_batch(
+        "CREATE TABLE IF NOT EXISTS search_meta(root_id INTEGER NOT NULL REFERENCES roots(id) ON DELETE CASCADE,key TEXT NOT NULL,value TEXT NOT NULL,PRIMARY KEY(root_id,key));
+         CREATE TABLE IF NOT EXISTS search_docs(root_id INTEGER NOT NULL REFERENCES roots(id) ON DELETE CASCADE,id INTEGER NOT NULL,path TEXT NOT NULL,name TEXT NOT NULL,ext TEXT NOT NULL,duplicate_group_id TEXT NOT NULL,row_json TEXT NOT NULL,PRIMARY KEY(root_id,id));
+         CREATE TABLE IF NOT EXISTS search_terms(root_id INTEGER NOT NULL,term TEXT NOT NULL,doc_id INTEGER NOT NULL);
+         CREATE TABLE IF NOT EXISTS search_filename_keys(root_id INTEGER NOT NULL,key TEXT NOT NULL,doc_id INTEGER NOT NULL);
+         CREATE TABLE IF NOT EXISTS search_idf(root_id INTEGER NOT NULL,term TEXT NOT NULL,value REAL NOT NULL,PRIMARY KEY(root_id,term));
+         CREATE TABLE IF NOT EXISTS search_field_terms(root_id INTEGER NOT NULL,term TEXT NOT NULL,field TEXT NOT NULL,doc_id INTEGER NOT NULL,tf INTEGER NOT NULL);
+         CREATE TABLE IF NOT EXISTS search_field_lengths(root_id INTEGER NOT NULL,doc_id INTEGER NOT NULL,field TEXT NOT NULL,length INTEGER NOT NULL);
+         CREATE TABLE IF NOT EXISTS search_field_idf(root_id INTEGER NOT NULL,term TEXT NOT NULL,value REAL NOT NULL,PRIMARY KEY(root_id,term));
+         CREATE TABLE IF NOT EXISTS search_field_avg(root_id INTEGER NOT NULL,field TEXT NOT NULL,value REAL NOT NULL,PRIMARY KEY(root_id,field));
+         CREATE INDEX IF NOT EXISTS search_terms_lookup ON search_terms(root_id,term);
+         CREATE INDEX IF NOT EXISTS search_filename_lookup ON search_filename_keys(root_id,key);
+         CREATE INDEX IF NOT EXISTS search_field_terms_lookup ON search_field_terms(root_id,term);
+         CREATE INDEX IF NOT EXISTS search_field_docs_lookup ON search_field_terms(root_id,doc_id);"
+    ).map_err(|source| sqlite_error(path, source))
+}
+
+fn clear_root(tx: &Transaction<'_>, root_id: i64, path: &Path) -> Result<()> {
+    for table in [
+        "search_meta",
+        "search_docs",
+        "search_terms",
+        "search_filename_keys",
+        "search_idf",
+        "search_field_terms",
+        "search_field_lengths",
+        "search_field_idf",
+        "search_field_avg",
+    ] {
+        tx.execute(&format!("DELETE FROM {table} WHERE root_id=?1"), [root_id])
+            .map_err(|source| sqlite_error(path, source))?;
+    }
+    Ok(())
 }
 
 #[derive(Default)]
@@ -55,39 +75,30 @@ struct SqliteStats {
 }
 
 fn insert_doc(
-    path: &Path,
-    tx: &rusqlite::Transaction<'_>,
+    tx: &Transaction<'_>,
+    root_id: i64,
     doc_id: i64,
     row: &IndexRow,
+    path: &Path,
 ) -> Result<()> {
-    tx.execute(
-        "INSERT INTO docs(id,path,name,ext,duplicate_group_id,row_json) VALUES(?,?,?,?,?,?)",
-        params![
-            doc_id,
-            row.path,
-            row.name,
-            row.ext,
-            row.duplicate_group_id,
-            serde_json::to_string(&row.row_json).unwrap_or_default()
-        ],
-    )
-    .map_err(|source| sqlite_error(path, source))?;
+    tx.execute("INSERT INTO search_docs(root_id,id,path,name,ext,duplicate_group_id,row_json) VALUES(?,?,?,?,?,?,?)", params![root_id,doc_id,row.path,row.name,row.ext,row.duplicate_group_id,serde_json::to_string(&row.row_json).unwrap_or_default()]).map_err(|source| sqlite_error(path, source))?;
     Ok(())
 }
 
 fn insert_terms(
-    path: &Path,
-    tx: &rusqlite::Transaction<'_>,
+    tx: &Transaction<'_>,
+    root_id: i64,
     doc_id: i64,
     row: &IndexRow,
     stats: &mut SqliteStats,
+    path: &Path,
 ) -> Result<()> {
     for term in row_terms(row) {
         stats.term_rows += 1;
         *stats.df.entry(term.clone()).or_insert(0) += 1;
         tx.execute(
-            "INSERT INTO terms(term,doc_id) VALUES(?,?)",
-            params![term, doc_id],
+            "INSERT INTO search_terms(root_id,term,doc_id) VALUES(?,?,?)",
+            params![root_id, term, doc_id],
         )
         .map_err(|source| sqlite_error(path, source))?;
     }
@@ -95,15 +106,16 @@ fn insert_terms(
 }
 
 fn insert_filename_keys(
-    path: &Path,
-    tx: &rusqlite::Transaction<'_>,
+    tx: &Transaction<'_>,
+    root_id: i64,
     doc_id: i64,
     row: &IndexRow,
+    path: &Path,
 ) -> Result<()> {
     for key in &row.filename_keys {
         tx.execute(
-            "INSERT INTO filename_keys(key,doc_id) VALUES(?,?)",
-            params![key, doc_id],
+            "INSERT INTO search_filename_keys(root_id,key,doc_id) VALUES(?,?,?)",
+            params![root_id, key, doc_id],
         )
         .map_err(|source| sqlite_error(path, source))?;
     }
@@ -111,63 +123,76 @@ fn insert_filename_keys(
 }
 
 fn insert_field_terms(
-    path: &Path,
-    tx: &rusqlite::Transaction<'_>,
+    tx: &Transaction<'_>,
+    root_id: i64,
     doc_id: i64,
     row: &IndexRow,
     stats: &mut SqliteStats,
+    path: &Path,
 ) -> Result<()> {
-    let mut seen_field_terms = BTreeSet::new();
+    let mut seen = BTreeSet::new();
     for (field, counts) in fielded_terms(row) {
-        let field_len = counts.iter().map(|(_, count)| *count).sum::<usize>();
-        *stats.field_len_totals.entry(field.to_owned()).or_insert(0) += field_len;
+        let length = counts.iter().map(|(_, count)| *count).sum::<usize>();
+        *stats.field_len_totals.entry(field.to_owned()).or_insert(0) += length;
         tx.execute(
-            "INSERT INTO field_lengths(doc_id,field,length) VALUES(?,?,?)",
-            params![doc_id, field, i64::try_from(field_len).unwrap_or(i64::MAX)],
+            "INSERT INTO search_field_lengths(root_id,doc_id,field,length) VALUES(?,?,?,?)",
+            params![
+                root_id,
+                doc_id,
+                field,
+                i64::try_from(length).unwrap_or(i64::MAX)
+            ],
         )
         .map_err(|source| sqlite_error(path, source))?;
         for (term, tf) in counts {
-            seen_field_terms.insert(term.clone());
+            seen.insert(term.clone());
             tx.execute(
-                "INSERT INTO field_terms(term,field,doc_id,tf) VALUES(?,?,?,?)",
-                params![term, field, doc_id, i64::try_from(tf).unwrap_or(i64::MAX)],
+                "INSERT INTO search_field_terms(root_id,term,field,doc_id,tf) VALUES(?,?,?,?,?)",
+                params![
+                    root_id,
+                    term,
+                    field,
+                    doc_id,
+                    i64::try_from(tf).unwrap_or(i64::MAX)
+                ],
             )
             .map_err(|source| sqlite_error(path, source))?;
         }
     }
-    for term in seen_field_terms {
+    for term in seen {
         *stats.field_df.entry(term).or_insert(0) += 1;
     }
     Ok(())
 }
 
 fn insert_stats(
-    path: &Path,
-    tx: &rusqlite::Transaction<'_>,
+    tx: &Transaction<'_>,
+    root_id: i64,
     rows: &[IndexRow],
     stats: SqliteStats,
+    path: &Path,
 ) -> Result<()> {
     let total = rows.len().max(1) as f64;
     for (term, freq) in stats.df {
         let value = ((1.0 + total) / (1.0 + freq as f64)).ln() + 1.0;
         tx.execute(
-            "INSERT INTO idf(term,value) VALUES(?,?)",
-            params![term, value],
+            "INSERT INTO search_idf(root_id,term,value) VALUES(?,?,?)",
+            params![root_id, term, value],
         )
         .map_err(|source| sqlite_error(path, source))?;
     }
     for (term, freq) in stats.field_df {
         let value = ((total - freq as f64 + 0.5) / (freq as f64 + 0.5) + 1.0).ln();
         tx.execute(
-            "INSERT INTO field_idf(term,value) VALUES(?,?)",
-            params![term, value],
+            "INSERT INTO search_field_idf(root_id,term,value) VALUES(?,?,?)",
+            params![root_id, term, value],
         )
         .map_err(|source| sqlite_error(path, source))?;
     }
     for (field, total_len) in stats.field_len_totals {
         tx.execute(
-            "INSERT INTO field_avg(field,value) VALUES(?,?)",
-            params![field, total_len as f64 / total],
+            "INSERT INTO search_field_avg(root_id,field,value) VALUES(?,?,?)",
+            params![root_id, field, total_len as f64 / total],
         )
         .map_err(|source| sqlite_error(path, source))?;
     }
@@ -177,8 +202,8 @@ fn insert_stats(
         ("terms", stats.term_rows.to_string()),
     ] {
         tx.execute(
-            "INSERT INTO meta(key,value) VALUES(?,?)",
-            params![key, value],
+            "INSERT INTO search_meta(root_id,key,value) VALUES(?,?,?)",
+            params![root_id, key, value],
         )
         .map_err(|source| sqlite_error(path, source))?;
     }

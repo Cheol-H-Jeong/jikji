@@ -25,6 +25,12 @@ pub(crate) fn run_prepare(args: PrepareArgs) -> jikji_core::Result<ExitCode> {
     Ok(ExitCode::SUCCESS)
 }
 
+pub(crate) fn run_deep_index(mut args: PrepareArgs) -> jikji_core::Result<ExitCode> {
+    args.enable_media_index = true;
+    args.deep_archive_index = true;
+    run_prepare(args)
+}
+
 pub(crate) fn prepare_options_from_args(args: &PrepareArgs) -> PrepareOptions {
     PrepareOptions {
         include_hidden: args.include_hidden,
@@ -37,6 +43,10 @@ pub(crate) fn prepare_options_from_args(args: &PrepareArgs) -> PrepareOptions {
         doc_text_chunk_chars: args.doc_text_chunk_chars,
         enable_media_index: args.enable_media_index,
         media_index_max_mb: args.media_index_max_mb,
+        deep_archive_index: args.deep_archive_index,
+        archive_max_entries: args.archive_max_entries,
+        archive_max_entry_bytes: args.archive_max_entry_bytes,
+        archive_max_total_bytes: args.archive_max_total_bytes,
     }
 }
 

@@ -28,6 +28,14 @@ pub(crate) struct PrepareArgs {
     pub(crate) enable_media_index: bool,
     #[arg(long, default_value_t = 25.0)]
     pub(crate) media_index_max_mb: f64,
+    #[arg(long, hide = true)]
+    pub(crate) deep_archive_index: bool,
+    #[arg(long, default_value_t = 1_000)]
+    pub(crate) archive_max_entries: usize,
+    #[arg(long, default_value_t = 16 * 1024 * 1024)]
+    pub(crate) archive_max_entry_bytes: u64,
+    #[arg(long, default_value_t = 128 * 1024 * 1024)]
+    pub(crate) archive_max_total_bytes: u64,
     #[arg(long)]
     pub(crate) no_agent_rules: bool,
 }

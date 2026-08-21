@@ -12,7 +12,7 @@ use crate::bench_commands::{
     run_public_import, run_public_suite,
 };
 use crate::output::print_json;
-use crate::prepare_commands::{run_clean, run_prepare};
+use crate::prepare_commands::{run_clean, run_deep_index, run_prepare};
 use crate::search_commands::{run_brief, run_discover, run_find, run_search};
 use crate::search_graph::run_graph;
 
@@ -30,6 +30,7 @@ mod search_prepare_options;
 mod search_refresh;
 
 fn main() -> ExitCode {
+    let _background_refresh_guard = search_refresh::BackgroundRefreshGuard::from_env();
     match run(Cli::parse()) {
         Ok(code) => code,
         Err(error) => {
@@ -42,6 +43,7 @@ fn main() -> ExitCode {
 fn run(cli: Cli) -> jikji_core::Result<ExitCode> {
     match cli.command {
         Command::Prepare(args) | Command::Refresh(args) => run_prepare(args),
+        Command::DeepIndex(args) => run_deep_index(args),
         Command::Clean(args) => run_clean(args),
         Command::Map(args) => {
             print!("{}", truncate_chars(&read_map(&args.root)?, args.max_chars));

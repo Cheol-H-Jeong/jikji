@@ -2,7 +2,7 @@ use std::fs;
 
 use serde_json::Value;
 
-use super::fixture::{json_cmd, root_arg, run_ok, temp_root};
+use super::fixture::{database_path, json_cmd, root_arg, run, run_ok, temp_root};
 
 #[test]
 fn search_brief_graph_and_find_return_python_contract_fields() {
@@ -23,24 +23,49 @@ fn search_brief_graph_and_find_return_python_contract_fields() {
     let prepared = json_cmd(&["prepare", &root_arg, "--json"]);
     assert_eq!(prepared["files"], 2);
     assert!(
-        root.join(".jikji/search_index.sqlite")
+        database_path(&root)
             .metadata()
-            .expect("search sqlite")
+            .expect("central sqlite")
             .len()
             > 0
     );
-    assert!(
-        root.join(".jikji/graph_routes.jsonl")
-            .metadata()
-            .expect("routes")
-            .len()
-            > 0
-    );
+    assert!(!root.join(".jikji").exists());
 
     assert_search_contract(&root_arg);
     assert_brief_contract(&root_arg);
     assert_graph_contract(&root_arg);
     assert_find_contract(&root_arg);
+}
+
+#[test]
+fn missing_index_requires_exactly_one_jikji_retry_before_raw_fallback() {
+    let root = temp_root("missing-index-recovery-contract");
+    let root_arg = root_arg(&root);
+    let first = run(&["find", &root_arg, "lost contract", "--json"]);
+    assert_eq!(first.status.code(), Some(1));
+    let first_payload: Value = serde_json::from_slice(&first.stdout).expect("first recovery json");
+    assert_eq!(first_payload["index_status"], "missing");
+    assert_eq!(first_payload["handoff_action"], "jikji_retry");
+    assert_eq!(first_payload["max_jikji_retries"], 1);
+    assert_eq!(first_payload["raw_fallback_allowed"], false);
+    assert_eq!(first_payload["max_raw_fallback_commands"], 0);
+    let proof = first_payload["retry_proof"].as_str().expect("retry proof");
+
+    let second = run(&[
+        "find",
+        &root_arg,
+        "lost contract",
+        "--after-jikji-retry",
+        "--retry-proof",
+        proof,
+        "--json",
+    ]);
+    assert_eq!(second.status.code(), Some(1));
+    let second_payload: Value = serde_json::from_slice(&second.stdout).expect("fallback json");
+    assert_eq!(second_payload["handoff_action"], "raw_fallback_after_retry");
+    assert_eq!(second_payload["max_jikji_retries"], 0);
+    assert_eq!(second_payload["raw_fallback_allowed"], true);
+    assert_eq!(second_payload["max_raw_fallback_commands"], 2);
 }
 
 #[test]
@@ -112,12 +137,8 @@ fn assert_brief_contract(root_arg: &str) {
         brief["candidates"][0]["path"],
         "contracts/ACME_master_services_agreement.txt"
     );
-    assert!(
-        brief["artifacts"]["search_index"]
-            .as_str()
-            .expect("search artifact")
-            .ends_with(".jikji/search_index.sqlite")
-    );
+    assert_eq!(brief["artifacts"]["storage"], "central_sqlite");
+    assert!(brief["artifacts"]["database"].as_str().is_some());
 
     let compact = run_ok(&[
         "brief",
@@ -140,8 +161,8 @@ fn assert_brief_contract(root_arg: &str) {
 
 fn assert_graph_contract(root_arg: &str) {
     let graph_status = json_cmd(&["graph", root_arg, "status", "--json"]);
-    assert_eq!(graph_status["prepared"], true);
-    assert!(graph_status["stats"]["nodes"].as_u64().expect("nodes") > 0);
+    assert_eq!(graph_status["available"], true);
+    assert!(graph_status["nodes"].as_u64().expect("nodes") > 0);
 
     let graph_query = json_cmd(&[
         "graph",

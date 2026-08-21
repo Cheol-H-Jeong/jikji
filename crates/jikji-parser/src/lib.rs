@@ -12,6 +12,23 @@ mod structured;
 mod text;
 mod utils;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ArchiveLimits {
+    pub max_entries: usize,
+    pub max_entry_bytes: u64,
+    pub max_total_bytes: u64,
+}
+
+impl Default for ArchiveLimits {
+    fn default() -> Self {
+        Self {
+            max_entries: 1_000,
+            max_entry_bytes: 16 * 1024 * 1024,
+            max_total_bytes: 128 * 1024 * 1024,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct ParserInput<'a> {
     pub path: &'a Path,
@@ -113,6 +130,30 @@ impl ParserRegistry {
     pub fn parse_bytes(&self, name: &str, bytes: &[u8], max_chars: usize) -> ParsedDocument {
         let path = PathBuf::from(name);
         self.parse_path_with_bytes(path.as_path(), bytes, max_chars)
+    }
+
+    pub fn parse_path_deep(
+        &self,
+        path: &Path,
+        max_chars: usize,
+        limits: ArchiveLimits,
+    ) -> ParsedDocument {
+        let bytes = match fs::read(path) {
+            Ok(bytes) => bytes,
+            Err(_) => return ParsedDocument::failed("filesystem"),
+        };
+        archive::parse_deep(self, path, &bytes, max_chars, limits)
+    }
+
+    pub fn parse_bytes_deep(
+        &self,
+        name: &str,
+        bytes: &[u8],
+        max_chars: usize,
+        limits: ArchiveLimits,
+    ) -> ParsedDocument {
+        let path = PathBuf::from(name);
+        archive::parse_deep(self, &path, bytes, max_chars, limits)
     }
 
     fn parse_path_with_bytes(&self, path: &Path, bytes: &[u8], max_chars: usize) -> ParsedDocument {

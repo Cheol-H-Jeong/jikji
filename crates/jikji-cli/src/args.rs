@@ -32,6 +32,8 @@ pub(crate) struct Cli {
 pub(crate) enum Command {
     #[command(about = "Create or update .jikji artifacts for a folder.")]
     Prepare(PrepareArgs),
+    #[command(about = "Deeply index archive members and media text for a folder.")]
+    DeepIndex(PrepareArgs),
     #[command(about = "Alias for prepare.")]
     Refresh(PrepareArgs),
     #[command(about = "Remove only Jikji-owned generated artifacts.")]

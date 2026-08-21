@@ -1,7 +1,8 @@
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
-use jikji_core::{JIKJI_DIR, PrepareOptions, Result, ensure_generated_dir};
+use jikji_core::storage::{load_artifacts, replace_artifacts, root_storage_dir};
+use jikji_core::{PrepareOptions, Result, ensure_generated_dir};
 use jikji_search::build_search_artifacts;
 use serde::Serialize;
 use serde_json::Value;
@@ -10,10 +11,9 @@ use crate::artifact_rows::{deleted_rows, file_rows, folder_rows, merge_document_
 use crate::artifact_writer::write_static_artifacts;
 use crate::doc_cache::{CacheDirs, document_rows};
 use crate::doc_prune::prune_doc_caches;
-use crate::file_io::{read_jsonl, write_jsonl};
+use crate::file_io::write_jsonl;
 use crate::lock::LockGuard;
 use crate::scan::{ScanResult, rel_path, scan_root};
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct PrepareResult {
     pub root: PathBuf,
@@ -29,20 +29,20 @@ pub struct PrepareResult {
 
 pub fn prepare(root: &Path, options: &PrepareOptions) -> Result<PrepareResult> {
     let scan = scan_root(root, options)?;
-    let index_dir = scan.root.join(JIKJI_DIR);
+    let index_dir = root_storage_dir(&scan.root)?;
     ensure_generated_dir(&index_dir)?;
     let _guard = LockGuard::acquire(&index_dir)?;
     build_artifacts(scan, options)
 }
 
 fn build_artifacts(scan: ScanResult, options: &PrepareOptions) -> Result<PrepareResult> {
-    let index_dir = scan.root.join(JIKJI_DIR);
+    let index_dir = root_storage_dir(&scan.root)?;
     let doc_text_dir = index_dir.join("doc_text");
     let doc_meta_dir = index_dir.join("doc_meta");
     ensure_generated_dir(&doc_text_dir)?;
     ensure_generated_dir(&doc_meta_dir)?;
 
-    let previous = read_jsonl(index_dir.join("file_index.jsonl"))?;
+    let previous = load_artifacts(&scan.root, "files")?;
     let current_paths = scan
         .files
         .iter()
@@ -72,8 +72,15 @@ fn build_artifacts(scan: ScanResult, options: &PrepareOptions) -> Result<Prepare
             chunks: &docs.chunk_rows,
         },
     )?;
+    let mut artifacts = Vec::new();
+    artifacts.extend(file_rows.iter().cloned().map(|row| ("files", row)));
+    artifacts.extend(folder_rows.iter().cloned().map(|row| ("folders", row)));
+    artifacts.extend(docs.rows.iter().cloned().map(|row| ("documents", row)));
+    artifacts.extend(docs.chunk_rows.iter().cloned().map(|row| ("chunks", row)));
+    artifacts.extend(file_rows.iter().cloned().map(|row| ("cards", row)));
+    replace_artifacts(&scan.root, &artifacts)?;
     let search_stats =
-        build_search_artifacts(&index_dir, &file_rows, &docs.chunk_rows, &folder_rows)?;
+        build_search_artifacts(&scan.root, &file_rows, &docs.chunk_rows, &folder_rows)?;
     write_static_artifacts(&scan, options, &docs, search_stats)?;
 
     Ok(PrepareResult {
