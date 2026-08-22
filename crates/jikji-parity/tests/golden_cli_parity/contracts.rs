@@ -162,7 +162,7 @@ fn corrupted_sqlite_search_index_is_a_controlled_malformed_input_failure() {
     fs::write(database_path(&root), b"not a sqlite database").expect("corrupt sqlite");
 
     let output = run(&["find", &root_arg, "ACME", "--json"]);
-    assert!(!output.status.success());
+    assert!(output.status.success());
     let response: serde_json::Value = serde_json::from_slice(&output.stdout).expect("failure json");
     assert_eq!(response["handoff_action"], "jikji_retry");
     assert_eq!(response["max_jikji_retries"], 1);

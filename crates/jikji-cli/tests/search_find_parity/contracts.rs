@@ -42,7 +42,7 @@ fn missing_index_requires_exactly_one_jikji_retry_before_raw_fallback() {
     let root = temp_root("missing-index-recovery-contract");
     let root_arg = root_arg(&root);
     let first = run(&["find", &root_arg, "lost contract", "--json"]);
-    assert_eq!(first.status.code(), Some(1));
+    assert_eq!(first.status.code(), Some(0));
     let first_payload: Value = serde_json::from_slice(&first.stdout).expect("first recovery json");
     assert_eq!(first_payload["index_status"], "missing");
     assert_eq!(first_payload["handoff_action"], "jikji_retry");
@@ -60,7 +60,7 @@ fn missing_index_requires_exactly_one_jikji_retry_before_raw_fallback() {
         proof,
         "--json",
     ]);
-    assert_eq!(second.status.code(), Some(1));
+    assert_eq!(second.status.code(), Some(0));
     let second_payload: Value = serde_json::from_slice(&second.stdout).expect("fallback json");
     assert_eq!(second_payload["handoff_action"], "raw_fallback_after_retry");
     assert_eq!(second_payload["max_jikji_retries"], 0);

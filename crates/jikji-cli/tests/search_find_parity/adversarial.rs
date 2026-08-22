@@ -8,7 +8,7 @@ fn missing_stale_shell_noise_path_anchor_and_cjk_classes_are_covered() {
     fs::write(missing.join("note.txt"), "ACME agreement").expect("write missing");
     let missing_arg = root_arg(&missing);
     let missing_output = run(&["find", &missing_arg, "ACME", "--json"]);
-    assert!(!missing_output.status.success());
+    assert!(missing_output.status.success());
     assert!(!missing.join(".jikji").exists());
 
     let root = temp_root("task5-adversarial");
@@ -31,7 +31,7 @@ fn corrupted_sqlite_search_index_fails_without_shell_noise_or_panic() {
     fs::write(database_path(&root), b"not a sqlite database").expect("corrupt sqlite");
 
     let output = run(&["find", &root_arg, "ACME", "--json"]);
-    assert!(!output.status.success());
+    assert!(output.status.success());
     let response: serde_json::Value = serde_json::from_slice(&output.stdout).expect("failure json");
     assert_eq!(response["handoff_action"], "jikji_retry");
     assert_eq!(response["max_jikji_retries"], 1);

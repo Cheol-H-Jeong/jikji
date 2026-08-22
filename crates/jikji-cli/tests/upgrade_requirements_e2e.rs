@@ -135,25 +135,31 @@ fn central_db_default_policy_deep_index_refresh_and_agent_fallback_work_end_to_e
     assert!(started.elapsed() < Duration::from_secs(2));
 
     let missing = tempfile::tempdir().unwrap();
-    let first = fixture.json_failure([
-        "find",
-        path_str(missing.path()).as_str(),
-        "missing-token",
-        "--json",
-    ]);
+    let first = fixture.json(
+        [
+            "find",
+            path_str(missing.path()).as_str(),
+            "missing-token",
+            "--json",
+        ],
+        &[],
+    );
     assert_eq!(first["handoff_action"], "jikji_retry");
     assert_eq!(first["max_jikji_retries"], 1);
     assert_eq!(first["raw_fallback_allowed"], false);
     let proof = first["retry_proof"].as_str().unwrap();
-    let second = fixture.json_failure([
-        "find",
-        path_str(missing.path()).as_str(),
-        "missing-token",
-        "--after-jikji-retry",
-        "--retry-proof",
-        proof,
-        "--json",
-    ]);
+    let second = fixture.json(
+        [
+            "find",
+            path_str(missing.path()).as_str(),
+            "missing-token",
+            "--after-jikji-retry",
+            "--retry-proof",
+            proof,
+            "--json",
+        ],
+        &[],
+    );
     assert_eq!(second["handoff_action"], "raw_fallback_after_retry");
     assert_eq!(second["max_raw_fallback_commands"], 2);
     assert_eq!(second["raw_fallback_allowed"], true);
@@ -239,15 +245,6 @@ impl Fixture {
             "stderr={}",
             String::from_utf8_lossy(&output.stderr)
         );
-        serde_json::from_slice(&output.stdout).unwrap()
-    }
-    fn json_failure<I, S>(&self, args: I) -> Value
-    where
-        I: IntoIterator<Item = S>,
-        S: AsRef<std::ffi::OsStr>,
-    {
-        let output = self.run(args, &[]);
-        assert!(!output.status.success());
         serde_json::from_slice(&output.stdout).unwrap()
     }
 }

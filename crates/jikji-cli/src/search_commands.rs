@@ -225,10 +225,11 @@ fn emit_find_recovery(
     });
     if args.json {
         print_json_compact(&payload)?;
+        Ok(ExitCode::SUCCESS)
     } else {
         print_missing_index(&args.root);
+        Ok(ExitCode::from(1))
     }
-    Ok(ExitCode::from(1))
 }
 
 fn recovery_proof(args: &FindArgs, index_status: &str) -> String {
