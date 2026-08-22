@@ -12,24 +12,26 @@
 
 - 2,000-file cold `prepare`: no more than 35% slower; must remain below 1 second.
 - warm `find`: no more than 20% slower; must remain below 100 ms.
+- warm `search`: absolute median below 25 ms; relative delta is reported but fixed process/DB startup dominates at this scale.
 - explicit `deep-index` on the 240-file mixed corpus: below 250 ms without configured OCR/ASR engines.
 - stale search response plus background-refresh launch: below 50 ms median and below 50 ms added median latency.
 
 ## Results
 
-| Path | Baseline median | Candidate median | Delta | Verdict |
-| --- | ---: | ---: | ---: | --- |
-| cold `prepare`, 2,000 files | 373.8 ms | 465.0 ms | +24.4% | PASS |
-| warm `find`, 240 files | 57.6 ms | 63.1 ms | +9.5% | PASS |
-| `deep-index`, 240 files | n/a | 75.9 ms | n/a | PASS |
-| ready `search`, refresh disabled | n/a | 9.9 ms | n/a | PASS |
-| stale `search`, refresh requested | n/a | 47.8 ms | +36.6 ms | PASS |
+| Path | Baseline median | Candidate median | Delta | Comparison | Verdict |
+| --- | ---: | ---: | ---: | --- | --- |
+| cold `prepare`, 2,000 files | 408.4 ms | 474.6 ms | +16.2% | pre-central-DB `1f40919` | PASS |
+| warm `find`, 240 files | 57.0 ms | 65.2 ms | +14.5% | pre-central-DB `1f40919` | PASS |
+| warm `search`, 240 files | 8.2 ms | 11.0 ms | +33.7% | pre-central-DB `1f40919` | PASS: 11 ms absolute |
+| `deep-index`, 240 files | n/a | 75.0 ms | n/a | no pre-upgrade command; absolute budget 250 ms | PASS |
+| ready `search`, refresh disabled | n/a | 11.4 ms | n/a | candidate internal control | PASS |
+| stale `search`, refresh requested | n/a | 19.0 ms | +7.6 ms | no pre-upgrade stale-refresh path; compare ready control | PASS |
 
-Raw samples are stored in the JSON output of the reproduction script. The same
-script was run twice after the SQLite `synchronous=NORMAL` optimization; the
-second run gave `prepare +23.7%`, `find +1.6%`, `deep-index 74.9 ms`, and stale
-refresh added `36.6 ms`. The former fixed-connection overhead is measurable,
-but all paths remain below the stated absolute latency budgets.
+The complete raw sample arrays for this final run are committed at
+`docs/central-db-performance-raw-2026-08-21.json`. `deep-index` and stale
+refresh did not exist in baseline `1f40919`, so they have no historical baseline:
+`deep-index` is judged against the 250 ms absolute budget, while stale refresh is
+judged against the candidate ready-search control and 50 ms response/added-latency budgets.
 
 ## Comparison basis
 
@@ -53,8 +55,8 @@ python3 tools/benchmark/compare_central_db.py \
 ```
 
 The script generates a deterministic 240-file corpus and a 2,000-file corpus,
-then runs 5 cold prepares, 15 finds, 5 deep-index operations, and 15 ready plus
-15 stale searches. It prints raw samples and medians.
+then runs 5 cold prepares, 15 finds, 15 baseline/candidate searches, 5 deep-index
+operations, and 15 ready plus 15 stale searches. It prints every raw sample and median.
 
 ## Correctness gates run with the benchmark
 
@@ -64,6 +66,6 @@ then runs 5 cold prepares, 15 finds, 5 deep-index operations, and 15 ready plus
 - `PYTHONPATH=python/jikji/src .venv/bin/pytest python/jikji/tests tests/parity -q` — 141 passed
 - `cargo test -p jikji-cli --test upgrade_requirements_e2e` — 1 passed
 
-Conclusion: no blocking performance regression. The largest measured change is
-2,000-file cold `prepare` at +24.4%, within the 35% budget; search remains below
-100 ms and stale refresh remains below 50 ms median / added latency budget.
+Conclusion: no blocking performance regression. `prepare` and `find` remain
+within their relative budgets; `search` is +33.7% but only 11.0 ms absolute,
+and the new `deep-index`/stale-refresh paths remain inside their absolute budgets.

@@ -58,6 +58,19 @@ def find_samples(binary: Path, corpus: Path, runs: int, label: str, extra: list[
     return samples
 
 
+def search_samples(binary: Path, corpus: Path, runs: int, label: str, extra: list[str]) -> list[float]:
+    data = Path(tempfile.gettempdir()) / f"jikji-search-{label}"
+    shutil.rmtree(data, ignore_errors=True)
+    env = os.environ | {"JIKJI_DATA_DIR": str(data)}
+    run([str(binary), "prepare", str(corpus), "--no-agent-rules", "--json"], env)
+    samples = []
+    for _ in range(runs):
+        started = time.perf_counter()
+        run([str(binary), "search", str(corpus), "performance marker 0110", "--json", *extra], env)
+        samples.append(time.perf_counter() - started)
+    return samples
+
+
 def command_samples(binary: Path, corpus: Path, command: str, runs: int, extra: list[str]) -> list[float]:
     samples = []
     data = Path(tempfile.gettempdir()) / f"jikji-{command}-benchmark"
@@ -109,6 +122,10 @@ def main() -> int:
         find_samples(args.baseline, small, 15, "baseline", []),
         find_samples(args.candidate, small, 15, "candidate", ["--no-background-refresh"]),
     )
+    search = metric(
+        search_samples(args.baseline, small, 15, "baseline", []),
+        search_samples(args.candidate, small, 15, "candidate", ["--no-background-refresh"]),
+    )
     deep = command_samples(args.candidate, small, "deep-index", 5, ["--no-agent-rules", "--json"])
     ready = command_samples(args.candidate, small, "search", 15, ["--no-background-refresh", "--json"])
     stale = command_samples(args.candidate, small, "search", 15, ["--stale-after-seconds", "0", "--json"])
@@ -116,6 +133,7 @@ def main() -> int:
         "corpora": {"small_files": 240, "large_files": 2000},
         "prepare_large": prepare,
         "find_small": find,
+        "search_small": search,
         "deep_index_small": {"samples_s": deep, "median_s": statistics.median(deep)},
         "refresh_small": {
             "ready_samples_s": ready,
