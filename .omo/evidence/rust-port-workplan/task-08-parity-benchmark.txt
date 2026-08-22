@@ -1,0 +1,16 @@
+PASS
+
+Prepare/Search/Find Timings
+Shared Python Evaluator Benchmark Path
+Contract failures: none
+
+Command: python3 tools/benchmark/compare_central_db.py --baseline /tmp/jikji-benchmark-baseline/target/release/jikji --candidate target/release/jikji --out /tmp/jikji-benchmark.json
+Environment: Linux x86_64, AMD Ryzen AI MAX+ 395, Rust release binaries
+Baseline: 1f40919
+Candidate: 5045f89
+prepare 2000 files: baseline median 0.408385203s, candidate median 0.474628582s, delta +16.2208%
+find 240 files: baseline median 0.056996679s, candidate median 0.065246192s, delta +14.4737%
+search 240 files: baseline median 0.008198046s, candidate median 0.010960022s, delta +33.6907%, absolute 10.96ms
+ deep-index 240 files: candidate median 74.961ms, no baseline command; absolute budget 250ms
+stale refresh: candidate ready median 11.440ms, stale median 18.997ms, added 7.557ms; no baseline command; absolute budget 50ms
+Verdict: PASS under documented budgets.
