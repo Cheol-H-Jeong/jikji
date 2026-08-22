@@ -59,6 +59,9 @@ pub fn open_database() -> Result<Connection> {
     connection
         .pragma_update(None, "foreign_keys", "ON")
         .map_err(|source| sqlite_error(&path, source))?;
+    connection
+        .pragma_update(None, "synchronous", "NORMAL")
+        .map_err(|source| sqlite_error(&path, source))?;
     let initialized = &INITIALIZED_DATABASES;
     let mut initialized = initialized
         .lock()
