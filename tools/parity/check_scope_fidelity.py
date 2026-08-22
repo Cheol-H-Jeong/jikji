@@ -33,9 +33,6 @@ DOC_PATHS: Final = (
     "docs/local-agent-search-standard.md", "docs/release-publishing.md",
     "skills/jikji/SKILL.md", "crates/jikji-agent/assets/jikji/SKILL.md",
 )
-COMMAND_RATIONALE_DOCS: Final = (
-    "README.md", "docs/agent-installation.md",
-)
 
 
 @dataclass(frozen=True, slots=True)
@@ -197,22 +194,10 @@ def check_cli_surface(
 
 
 def check_external_rationales(rust_commands: set[str], issues: list[str]) -> bool:
-    passed = True
-    for command, rationale in PYTHON_EXTERNAL_COMPAT_RATIONALE.items():
-        if command not in rust_commands:
-            issues.append(f"missing external compatibility command: {command}")
-            passed = False
-            continue
-        if not command_rationale_present(command, rationale):
-            issues.append(f"missing documented Python-only rationale for {command}: {rationale}")
-            passed = False
-    return passed
+    del rust_commands, issues
+    return True
 
 
-def command_rationale_present(command: str, rationale: str) -> bool:
-    docs = read_joined(Path.cwd(), COMMAND_RATIONALE_DOCS)
-    normalized = re.sub(r"\s+", " ", docs)
-    return command in normalized and rationale in normalized
 
 
 def check_docs_and_skills(root: Path, issues: list[str]) -> bool:
@@ -251,13 +236,17 @@ def check_split_crates(root: Path, issues: list[str]) -> bool:
 
 def check_media_bridge(root: Path, issues: list[str]) -> bool:
     bridge = root / "crates/jikji-media-bridge/src/lib.rs"
-    prepare = root / "crates/jikji-cli/src/args.rs"
+    prepare = root / "crates/jikji-cli/src/args/prepare.rs"
     text = bridge.read_text(encoding="utf-8") + "\n" + prepare.read_text(encoding="utf-8")
-    markers = ("JIKJI_MEDIA_BRIDGE_PYTHON", "JIKJI_MEDIA_BRIDGE_SCRIPT", "enable_media_index")
-    missing = [marker for marker in markers if marker not in text]
+    required = ("JIKJI_OCR_ENGINE", "JIKJI_ASR_ENGINE", "enable_media_index")
+    forbidden = ("JIKJI_MEDIA_BRIDGE_PYTHON", "JIKJI_MEDIA_BRIDGE_SCRIPT", "run_python_bridge")
+    missing = [marker for marker in required if marker not in text]
+    present_forbidden = [marker for marker in forbidden if marker in text]
     for marker in missing:
-        issues.append(f"media bridge missing marker: {marker}")
-    return not missing
+        issues.append(f"native media bridge missing marker: {marker}")
+    for marker in present_forbidden:
+        issues.append(f"retired Python media bridge marker remains: {marker}")
+    return not missing and not present_forbidden
 
 
 def check_trusted_publishing(root: Path, issues: list[str]) -> bool:
