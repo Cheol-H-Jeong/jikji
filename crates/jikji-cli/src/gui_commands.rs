@@ -11,6 +11,7 @@ use crate::args::GuiArgs;
 use crate::output::print_json;
 
 mod http;
+mod jobs;
 mod routing;
 mod token;
 
@@ -57,6 +58,16 @@ const INDEX_HTML: &str = r##"<!doctype html>
     .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; padding: 16px 24px; }
     .stat { min-width: 0; min-height: 72px; padding: 12px 16px; border: 1px solid var(--line); border-radius: var(--r2); background: var(--panel); }
     .stat b { display: block; margin-top: 4px; font-family: Georgia, serif; font-size: 20px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .deep-status { margin: 0 24px 16px; padding: 12px 16px; border: 1px solid var(--line); border-radius: var(--r2); background: var(--panel); }
+    .deep-status-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin-top: 8px; color: var(--muted); font-size: 13px; }
+    .deep-status-grid b { display: block; color: var(--ink); font-variant-numeric: tabular-nums; }
+    .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .control-field { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; }
+    .control-field input { width: 92px; min-height: 36px; }
+    .control-field input[type="checkbox"] { width: 20px; }
+    .add-root-copy { color: var(--muted); }
+    @media (max-width: 980px) { .deep-status-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+    @media (max-width: 640px) { .deep-status { margin-inline: 12px; } .deep-status-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     .workspace { display: grid; grid-template-columns: minmax(240px, 1fr) minmax(340px, 1.45fr) minmax(320px, 1.35fr); min-height: calc(100vh - 137px); border-top: 1px solid var(--line); }
     .pane { min-width: 0; background: var(--panel); }
     .pane + .pane { border-left: 1px solid var(--line); }
@@ -116,23 +127,23 @@ const INDEX_HTML: &str = r##"<!doctype html>
       <input id="query" name="q" type="search" placeholder="Find a contract, note, person…" autocomplete="off">
       <button class="primary" id="search-button" type="submit">Find</button>
     </form>
-    <div class="token-wrap">
-      <label class="eyebrow" for="manage-token">Manage token</label>
-      <input id="manage-token" type="password" autocomplete="off" spellcheck="false" aria-describedby="token-help" placeholder="Required for changes">
-    </div>
+    <div class="token-wrap"><label class="eyebrow" for="manage-token">Manage token</label><input id="manage-token" type="password" autocomplete="off" spellcheck="false" aria-describedby="token-help" placeholder="Required for changes"></div>
   </header>
   <p id="token-help" hidden>The token stays in this tab and is sent only to local mutation routes.</p>
   <div class="error" id="global-error" role="alert" hidden></div>
   <section class="stats" aria-label="Index health">
-    <div class="stat"><span class="eyebrow">Index health</span><b id="health">Checking…</b></div>
-    <div class="stat"><span class="eyebrow">Indexed files</span><b id="file-count">—</b></div>
-    <div class="stat"><span class="eyebrow">Root size</span><b id="root-size">—</b></div>
-    <div class="stat"><span class="eyebrow">Last indexed</span><b id="last-indexed">—</b></div>
+    <div class="stat"><span class="eyebrow">Index health</span><b id="health">Loading status…</b></div><div class="stat"><span class="eyebrow">Indexed files</span><b id="file-count">—</b></div><div class="stat"><span class="eyebrow">Root size</span><b id="root-size">—</b></div><div class="stat"><span class="eyebrow">Last indexed</span><b id="last-indexed">—</b></div>
+  </section>
+  <section class="deep-status" aria-labelledby="deep-title">
+    <div class="pane-head"><h2 id="deep-title">Deep indexing</h2><span class="spacer"></span><span class="eyebrow" id="deep-state">Not run</span></div>
+    <p id="deep-copy" class="add-root-copy">Media and archive bodies are opt-in. Configure bounded OCR/ASR and archive processing before starting.</p>
+    <div class="controls"><label class="control-field"><input id="media-ocr" type="checkbox"> OCR</label><label class="control-field"><input id="media-asr" type="checkbox"> ASR</label><label class="control-field">Archive entries <input id="archive-entries" type="number" min="1" step="1" value="1000"></label><label class="control-field">Entry bytes <input id="archive-entry-bytes" type="number" min="1" step="1048576" value="16777216"></label><label class="control-field">Total bytes <input id="archive-total-bytes" type="number" min="1" step="1048576" value="134217728"></label></div>
+    <div class="deep-status-grid" aria-live="polite"><span>Entries<b id="deep-entries">—</b></span><span>Bytes<b id="deep-bytes">—</b></span><span>Elapsed<b id="deep-time">—</b></span><span>Estimated cost<b id="deep-cost">—</b></span><span>Media<b id="deep-media">—</b></span></div>
   </section>
   <main class="workspace" aria-label="Jikji index browser">
     <nav class="pane explorer-pane" aria-labelledby="explorer-title">
       <div class="pane-head"><h2 id="explorer-title">Library</h2><span class="spacer"></span><button class="compact" id="refresh" type="button">Refresh</button></div>
-      <label class="sr-only" for="root-select">Indexed root</label><select class="root-select" id="root-select"><option>Loading roots…</option></select>
+      <label class="sr-only" for="root-select">Indexed root</label><div class="controls"><select class="root-select" id="root-select"><option>Loading roots…</option></select><button class="compact" id="add-root" type="button">Add folder</button></div>
       <div class="tree-path" id="tree-path">/</div><div class="eyebrow" id="folder-context" aria-live="polite">Current folder: /</div>
       <ul class="list" id="file-list" aria-live="polite"><li class="state"><strong>Loading library</strong>Reading indexed files…</li></ul>
     </nav>
@@ -164,7 +175,7 @@ const INDEX_HTML: &str = r##"<!doctype html>
     const setText = (id, value) => { $(id).textContent = value == null || value === "" ? "—" : String(value); };
     const bytes = (value) => { const n = Number(value); if (!Number.isFinite(n)) return "—"; const u = ["B","KB","MB","GB","TB"]; let i=0,x=n; while(x>=1024&&i<u.length-1){x/=1024;i++;} return `${x>=10||i===0?x.toFixed(0):x.toFixed(1)} ${u[i]}`; };
     const date = (value) => { if (!value) return "—"; const d = new Date(typeof value === "number" && value < 1e12 ? value * 1000 : value); return Number.isNaN(d.valueOf()) ? String(value) : d.toLocaleString(); };
-    const errorMessage = (error) => error instanceof Error ? error.message : String(error);
+    const errorMessage = (error) => { const detail=error?.detail || error?.error_detail; if (detail?.message) return `${detail.message} (${detail.request_id || detail.code || "error"})`; if (error?.message) return error.message; return String(error); };
     function showError(error) { const el=$("global-error"); el.textContent=errorMessage(error); el.hidden=false; }
     function clearError() { $("global-error").hidden=true; $("global-error").textContent=""; }
     function toast(message) { const el=$("toast"); el.textContent=message; el.hidden=false; clearTimeout(toast.timer); toast.timer=setTimeout(()=>el.hidden=true,3200); }
@@ -176,7 +187,7 @@ const INDEX_HTML: &str = r##"<!doctype html>
         const response = await fetch(url, { method: options.method || "GET", headers: { "Accept": "application/json" }, cache: "no-store", signal: controller.signal });
         const contentType = response.headers.get("content-type") || "";
         const payload = contentType.includes("json") ? await response.json() : await response.text();
-        if (!response.ok) throw new Error(payload && payload.error ? payload.error : `Request failed (${response.status})`);
+        if (!response.ok) { const detail=payload && (payload.error_detail || payload.error); const message=typeof detail === "string" ? detail : detail?.message || `Request failed (${response.status})`; throw Object.assign(new Error(message), { detail: payload?.error_detail, status: response.status }); }
         return payload;
       } catch(error) { if (error?.name === "AbortError") throw new Error("Request timed out. Retry the action."); throw error; }
       finally { clearTimeout(timeout); }
@@ -184,13 +195,25 @@ const INDEX_HTML: &str = r##"<!doctype html>
     function token() { const value=$("manage-token").value.trim(); if (!value) { $("manage-token").focus(); throw new Error("Enter the management token printed when Jikji GUI started."); } return value; }
     function listState(target, title, copy) { target.replaceChildren(); const li=document.createElement("li"); li.className="state"; const strong=document.createElement("strong"); strong.textContent=title; li.append(strong,document.createTextNode(copy)); target.append(li); }
     function statistics(payload) { return payload.statistics || payload.stats || payload.manifest?.statistics || {}; }
+    function updateDeepStatus(payload) {
+      const deep=payload.deep_index || payload.deepIndex || {};
+      setText("deep-state", deep.state || (payload.deep_index ? "completed" : "Not run"));
+      setText("deep-entries", deep.entries ?? deep.archive_entries ?? deep.entry_count);
+      setText("deep-bytes", deep.bytes ?? deep.archive_bytes ?? deep.total_bytes ? bytes(deep.bytes ?? deep.archive_bytes ?? deep.total_bytes) : null);
+      setText("deep-time", deep.elapsed_ms != null ? `${deep.elapsed_ms} ms` : (deep.seconds != null ? `${deep.seconds} s` : deep.elapsed));
+      setText("deep-cost", deep.estimated_cost ?? deep.resource_cost ?? deep.estimated_resource_cost);
+      setText("deep-media", deep.media_index === true ? "OCR/ASR enabled" : (deep.media_index === false ? "disabled" : deep.media || "—"));
+      if (deep.error || deep.message) setText("deep-copy", deep.error || deep.message);
+    }
     function updateStats(payload) {
       const stats=statistics(payload), manifest=payload.manifest || {};
-      setText("health", payload.prepared ? "Ready" : "Needs indexing");
+      setText("health", payload.prepared ? "Ready" : (payload.root ? "Needs indexing" : "No indexed root"));
       setText("file-count", number.format(stats.files ?? stats.file_count ?? manifest.file_count ?? 0));
       setText("root-size", bytes(stats.bytes ?? stats.total_bytes ?? manifest.total_bytes));
       setText("last-indexed", date(stats.updated_at ?? stats.indexed_at ?? manifest.generated_at));
+      updateDeepStatus(payload);
     }
+    function deepOptions() { return { media_ocr: $("media-ocr").checked, media_asr: $("media-asr").checked, archive_max_entries: Number($("archive-entries").value), archive_max_entry_bytes: Number($("archive-entry-bytes").value), archive_max_total_bytes: Number($("archive-total-bytes").value) }; }
     async function loadRoots() {
       const data=await api("/api/roots"); state.roots=Array.isArray(data.roots)?data.roots:[]; state.root=data.active_root || state.root || state.roots[0]?.root || "";
       const select=$("root-select"); select.replaceChildren();
@@ -201,17 +224,16 @@ const INDEX_HTML: &str = r##"<!doctype html>
     async function loadFiles(folder="") {
       state.folder=folder; setText("tree-path", folder || "/"); setText("folder-context", `Current folder: ${folder || "/"}`); listState($("file-list"),"Loading folder","Reading indexed entries…");
       try { const data=await api("/api/files",{path:folder}); const entries=Array.isArray(data.entries)?data.entries:[]; const list=$("file-list"); list.replaceChildren();
-        if (folder) { const li=document.createElement("li"), up=document.createElement("button"); up.className="file-row"; up.type="button"; up.append(document.createTextNode("↰"),document.createTextNode("Parent folder"),document.createTextNode("")); up.addEventListener("click",()=>loadFiles(folder.split("/").slice(0,-1).join("/"))); li.append(up); list.append(li); }
+        if (folder) { const li=document.createElement("li"), up=document.createElement("button"); up.className="file-row"; up.type="button"; up.append(document.createTextNode("↰"),document.createTextNode("Parent folder")); up.addEventListener("click",()=>loadFiles(folder.split("/").slice(0,-1).join("/"))); li.append(up); list.append(li); }
         entries.forEach(entry=>{const li=document.createElement("li"),button=document.createElement("button"),icon=document.createElement("span"),name=document.createElement("span"),size=document.createElement("small"); button.type="button"; button.className="file-row"; button.dataset.path=entry.path; icon.textContent=entry.type==="directory"||entry.type==="folder"?"▸":"·"; name.textContent=entry.name || entry.path; size.textContent=entry.type==="directory"||entry.type==="folder"?"":bytes(entry.size); button.append(icon,name,size); button.addEventListener("click",()=>entry.type==="directory"||entry.type==="folder"?loadFiles(entry.path):loadPreview(entry.path)); li.append(button); list.append(li); });
-        if (!entries.length) listState(list,folder?"Folder is empty":"Library is empty",folder?"No indexed entries in this folder.":"Reindex this root to discover files.");
+        if (!entries.length) listState(list,folder?"Folder is empty":"Library is empty",folder?"No indexed entries in this folder.":"Add a folder or reindex this root to discover files.");
       } catch(error) { listState($("file-list"),error.message.includes("timed out")?"Folder request timed out":"Could not load files",`${errorMessage(error)} Retry with Refresh.`); showError(error); }
     }
     function previewText(data) {
-      const container=$("preview"); container.replaceChildren(); const meta=document.createElement("div"); meta.className="preview-meta";
-      [data.path,data.type,bytes(data.size),data.encoding].filter(Boolean).forEach(value=>{const span=document.createElement("span"); span.textContent=value; meta.append(span);}); container.append(meta);
+      const container=$("preview"); container.replaceChildren(); const meta=document.createElement("div"); meta.className="preview-meta"; [data.path,data.type,bytes(data.size),data.encoding].filter(Boolean).forEach(value=>{const span=document.createElement("span"); span.textContent=value; meta.append(span);}); container.append(meta);
       if (data.supported===false) { const box=document.createElement("div"); box.className="state"; const strong=document.createElement("strong"); strong.textContent="Preview unavailable"; box.append(strong,document.createTextNode(data.reason || "This file type cannot be shown safely.")); container.append(box); return; }
-      const pre=document.createElement("pre"), content=String(data.content || ""), matches=Array.isArray(data.matches)?data.matches.slice().sort((a,b)=>a.start-b.start):[]; let cursor=0;
-      matches.forEach(match=>{const start=Math.max(cursor,Number(match.start)||0), end=Math.min(content.length,Number(match.end)||0); if(end<=start)return; pre.append(document.createTextNode(content.slice(cursor,start))); const mark=document.createElement("mark"); mark.textContent=content.slice(start,end); pre.append(mark); cursor=end;}); pre.append(document.createTextNode(content.slice(cursor))); container.append(pre);
+      const pre=document.createElement("pre"), content=String(data.content || ""), matches=Array.isArray(data.matches)?data.matches.slice().sort((a,b)=>a.start-b.start):[]; const index=(value,units)=>{let offset=0; for(let i=0;i<value.length;){if(offset>=units)return i; offset+=value.codePointAt(i)>0xffff?2:1; i+=value.codePointAt(i)>0xffff?2:1;} return value.length;}; let cursor=0;
+      matches.forEach(match=>{const start=index(content,Math.max(cursor,Number(match.start)||0)), end=index(content,Math.max(Number(match.end)||0,Number(match.start)||0)); if(end<=start)return; pre.append(document.createTextNode(content.slice(cursor,start))); const mark=document.createElement("mark"); mark.textContent=content.slice(start,end); pre.append(mark); cursor=end;}); pre.append(document.createTextNode(content.slice(cursor))); container.append(pre);
     }
     async function loadPreview(path) { state.selected=path; document.querySelectorAll("[data-path]").forEach(el=>el.setAttribute("aria-current",String(el.dataset.path===path))); $("download").disabled=false; $("reveal").disabled=false; $("preview").replaceChildren(); const loading=document.createElement("div"); loading.className="state busy"; loading.textContent="Loading preview"; $("preview").append(loading);
       try { previewText(await api("/api/preview",{path,q:state.query})); } catch(error) { $("preview").replaceChildren(); const box=document.createElement("div"); box.className="state"; const strong=document.createElement("strong"); strong.textContent=error.message.includes("timed out")?"Preview request timed out":"Preview failed"; box.append(strong,document.createTextNode(`${errorMessage(error)} Retry by selecting the file again.`)); $("preview").append(box); showError(error); }
@@ -225,11 +247,12 @@ const INDEX_HTML: &str = r##"<!doctype html>
     $("root-select").addEventListener("change", switchRoot);
     async function switchRoot() { const path=$("root-select").value; if(!path)return; try { const data=await api("/api/root",{path,token:token()},{method:"POST"}); state.root=data.root||path;state.folder="";state.selected="";updateStats(data);await loadFiles();toast("Active root changed."); } catch(error){showError(error);} }
     function confirmAction(title,copy,label,action){setText("confirm-title",title);setText("confirm-copy",copy);setText("confirm-ok",label);state.confirmAction=action;$("confirm-dialog").showModal();}
-    async function mutation(path, values, label) { clearError(); const button=$(label); button.disabled=true;button.classList.add("busy"); try { const data=await api(path,{...values,token:token()},{method:"POST"}); if(data.prepared!==undefined)updateStats(data); await Promise.all([loadRoots(),loadFiles(state.folder)]); toast(`${button.textContent.trim()} complete.`); } catch(error){showError(error);} finally {button.disabled=false;button.classList.remove("busy");} }
-    $("refresh").addEventListener("click",()=>mutation("/api/refresh",{},"refresh"));
-    $("reindex").addEventListener("click",()=>mutation("/api/reindex",{},"reindex"));
+    $("add-root").addEventListener("click",()=>{const path=window.prompt("Enter an absolute folder path to add"); if(path) mutation("/api/root",{path},"add-root");});
+    async function waitForJob(jobId) { for (let attempt=0; attempt<120; attempt++) { const job=await api(`/api/jobs/${encodeURIComponent(jobId)}`); if (job.state === "completed") return job.result || job; if (job.state === "failed") throw new Error(job.error?.message || "Index job failed"); await new Promise(resolve=>setTimeout(resolve,1000)); } throw new Error("Index job status timed out. Retry the action."); }
+    async function mutation(path, values, label) { clearError(); const button=$(label); button.disabled=true;button.classList.add("busy"); try { let data=await api(path,{...values,token:token()},{method:"POST"}); if(data.job_id) data=await waitForJob(data.job_id); if(data.prepared!==undefined)updateStats(data); await Promise.all([loadRoots(),loadStatus(),loadFiles(state.folder)]); toast(`${button.textContent.trim()} complete.`); } catch(error){showError(error);} finally {button.disabled=false;button.classList.remove("busy");} }
+    $("refresh").addEventListener("click",()=>mutation("/api/refresh",{async:true},"refresh"));
     $("reindex-folder").addEventListener("click",()=>mutation("/api/reindex-folder",{path:state.folder},"reindex-folder"));
-    $("deep-index").addEventListener("click",()=>mutation("/api/deep-index",{},"deep-index"));
+    $("deep-index").addEventListener("click",()=>mutation("/api/deep-index",{...deepOptions(),async:true},"deep-index"));
     $("deep-target-enable").addEventListener("click",()=>mutation("/api/deep-index-target",{path:state.folder,enabled:true},"deep-target-enable"));
     $("deep-target-disable").addEventListener("click",()=>mutation("/api/deep-index-target",{path:state.folder,enabled:false},"deep-target-disable"));
     $("remove-folder").addEventListener("click",()=>confirmAction("Remove indexed folder?",`This removes ${state.folder || "/"} from Jikji's index. Source files are not deleted.`,"Remove folder",()=>mutation("/api/remove-folder",{path:state.folder},"remove-folder")));
@@ -238,6 +261,7 @@ const INDEX_HTML: &str = r##"<!doctype html>
     $("download").addEventListener("click",()=>{if(state.selected)location.assign(`/download?${params({path:state.selected})}`);});
     $("reveal").addEventListener("click",async()=>{try{await api("/reveal",{path:state.selected,token:token()},{method:"POST"});toast("Opened in your file manager.");}catch(error){showError(error);}});
     Promise.all([loadRoots(),loadStatus()]).then(()=>loadFiles()).catch(error=>{setText("health","Error");showError(error);listState($("file-list"),error.message.includes("timed out")?"Jikji request timed out":"Jikji is unavailable",`${errorMessage(error)} Retry with Refresh.`);});
+    })();
   </script>
 </body>
 </html>"##;

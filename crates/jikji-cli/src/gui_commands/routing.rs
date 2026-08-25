@@ -8,7 +8,7 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex, RwLock};
-use std::time::UNIX_EPOCH;
+use std::time::{Instant, UNIX_EPOCH};
 
 use jikji_core::PrepareOptions;
 use jikji_core::storage::{
@@ -21,6 +21,7 @@ use jikji_search::{DiscoverOptions, SearchOptions, discover, search};
 use serde_json::json;
 
 use super::http::{HttpRequest, HttpResponse, malformed_request, query_bool, query_value};
+use super::jobs::{JobRegistry, snapshot_response};
 use super::token::ManagementToken;
 
 #[derive(Clone)]
@@ -28,6 +29,7 @@ pub(crate) struct GuiState {
     root: Arc<RwLock<PathBuf>>,
     mutation: Arc<Mutex<()>>,
     manage_token: ManagementToken,
+    jobs: JobRegistry,
 }
 
 impl GuiState {
@@ -36,6 +38,7 @@ impl GuiState {
             root: Arc::new(RwLock::new(root)),
             mutation: Arc::new(Mutex::new(())),
             manage_token,
+            jobs: JobRegistry::default(),
         }
     }
 
@@ -77,6 +80,13 @@ pub(crate) fn route_request(
     match (request.method.as_str(), request.path.as_str()) {
         ("GET", "/") | ("GET", "/index.html") => HttpResponse::html(200, index_html),
         ("GET", "/api/status") | ("GET", "/api/root-status") => with_root(state, root_status),
+        ("GET", path) if path.starts_with("/api/jobs/") => {
+            let id = path.trim_start_matches("/api/jobs/");
+            match state.jobs.get(id) {
+                Some(job) => HttpResponse::json(200, snapshot_response(job)),
+                None => HttpResponse::json(404, json!({"error":"job not found"})),
+            }
+        }
         ("GET", "/api/roots") => roots_response(state),
         ("GET", "/api/files") => with_root(state, |root| files_response(root, &request.query)),
         ("GET", "/api/search") => with_root(state, |root| search_response(root, &request.query)),
@@ -91,6 +101,9 @@ pub(crate) fn route_request(
         ("POST", "/api/reindex-folder") => {
             management_response(state, &request.query, reindex_folder_response)
         }
+        ("POST", "/api/deep-index") => {
+            management_response(state, &request.query, deep_index_response)
+        }
         ("POST" | "DELETE", "/api/remove-folder") => {
             management_response(state, &request.query, remove_folder_response)
         }
@@ -98,9 +111,6 @@ pub(crate) fn route_request(
             management_response(state, &request.query, deep_index_target_response)
         }
         ("POST", "/api/reindex") => management_response(state, &request.query, reindex_response),
-        ("POST", "/api/deep-index") => {
-            management_response(state, &request.query, deep_index_response)
-        }
         ("POST", "/api/root") => management_response(state, &request.query, root_switch_response),
         ("POST" | "DELETE", "/api/remove-root") => {
             management_response(state, &request.query, remove_root_response)
@@ -558,26 +568,76 @@ fn spawn_opener<'a>(
         .stderr(Stdio::null())
         .spawn()
         .map(|_| ())
-        .map_err(|source| source.to_string())
+        .map_err(|error| error.to_string())
 }
 
-fn refresh_response(state: &GuiState, _query: &str) -> HttpResponse {
-    prepare_active_root(state, PrepareOptions::default())
+fn refresh_response(state: &GuiState, query: &str) -> HttpResponse {
+    prepare_operation_response(state, query, PrepareOptions::default(), false)
 }
 
-fn reindex_response(state: &GuiState, _query: &str) -> HttpResponse {
-    prepare_active_root(state, PrepareOptions::default())
+fn reindex_response(state: &GuiState, query: &str) -> HttpResponse {
+    prepare_operation_response(state, query, PrepareOptions::default(), false)
 }
 
-fn deep_index_response(state: &GuiState, _query: &str) -> HttpResponse {
+fn prepare_operation_response(
+    state: &GuiState,
+    query: &str,
+    options: PrepareOptions,
+    deep: bool,
+) -> HttpResponse {
+    if !query_bool(query, "async") {
+        return prepare_active_root(state, options);
+    }
+    let root = match state.root() {
+        Ok(root) => root,
+        Err(response) => return response,
+    };
+    let job_options = options.clone();
+    let job_id = state.jobs.start(move || {
+        let result = prepare(&root, &job_options).map_err(|error| error.to_string())?;
+        let payload = json!({"root":root,"files":result.files,"documents":result.docs_parsed,"deep":deep});
+        if deep {
+            store_artifact(&root, "deep_index_status", json!({"state":"completed","root":root,"files":result.files,"documents":result.docs_parsed,"entries":result.files,"elapsed_ms":0,"estimated_cost":"bounded","media_index":job_options.enable_media_index,"deep_archive_index":true})).map_err(|error| error.to_string())?;
+        }
+        Ok(payload)
+    });
+    HttpResponse::json(202, json!({"job_id":job_id,"state":"queued","progress":0}))
+}
+
+fn deep_index_response(state: &GuiState, query: &str) -> HttpResponse {
+    let media_enabled = query_bool(query, "media_ocr") || query_bool(query, "media_asr");
     let options = PrepareOptions {
-        enable_media_index: true,
+        enable_media_index: media_enabled,
+        media_index_max_mb: query_f64(query, "media_max_mb")
+            .unwrap_or(25.0)
+            .clamp(1.0, 4096.0),
         deep_archive_index: true,
+        archive_max_entries: query_usize(query, "archive_max_entries")
+            .unwrap_or(1_000)
+            .clamp(1, 100_000),
+        archive_max_entry_bytes: query_u64(query, "archive_max_entry_bytes")
+            .unwrap_or(16 * 1024 * 1024)
+            .clamp(1, 512 * 1024 * 1024),
+        archive_max_total_bytes: query_u64(query, "archive_max_total_bytes")
+            .unwrap_or(128 * 1024 * 1024)
+            .clamp(1, 4 * 1024 * 1024 * 1024),
         ..PrepareOptions::default()
     };
+    if query_bool(query, "async") {
+        return prepare_operation_response(state, query, options, true);
+    }
+    let started = Instant::now();
     with_root(state, |root| match prepare(root, &options) {
         Ok(result) => {
-            let status = json!({"state":"completed","root":root,"files":result.files,"documents":result.docs_parsed,"media_index":true,"deep_archive_index":true});
+            let bytes = load_artifacts(root, "files")
+                .ok()
+                .map(|rows| {
+                    rows.iter()
+                        .filter_map(|row| row.get("size").and_then(serde_json::Value::as_u64))
+                        .sum::<u64>()
+                })
+                .unwrap_or(0);
+            let status = json!({"state":"completed","root":root,"files":result.files,"documents":result.docs_parsed,"entries":result.files,"bytes":bytes,"elapsed_ms":started.elapsed().as_millis(),"estimated_cost":if media_enabled {"high"} else {"bounded"},"media_index":media_enabled,"deep_archive_index":true});
             match store_artifact(root, "deep_index_status", status) {
                 Ok(()) => root_status(root),
                 Err(error) => HttpResponse::json(500, json!({"error": error.to_string()})),
@@ -585,6 +645,16 @@ fn deep_index_response(state: &GuiState, _query: &str) -> HttpResponse {
         }
         Err(error) => HttpResponse::json(500, json!({"error": error.to_string()})),
     })
+}
+
+fn query_u64(query: &str, name: &str) -> Option<u64> {
+    query_value(query, name)?.parse().ok()
+}
+fn query_usize(query: &str, name: &str) -> Option<usize> {
+    query_u64(query, name).and_then(|value| usize::try_from(value).ok())
+}
+fn query_f64(query: &str, name: &str) -> Option<f64> {
+    query_value(query, name)?.parse().ok()
 }
 
 fn folder_query_path(
