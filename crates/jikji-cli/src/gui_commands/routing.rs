@@ -457,7 +457,7 @@ fn discover_response(root: &Path, query: &str) -> HttpResponse {
         Ok(mut payload) => {
             payload["mode"] = json!("find");
             payload["command"] = json!("jikji find");
-            filter_candidates_to_index(root, &mut payload);
+            filter_candidates_to_index(root, &q, &mut payload);
             add_candidate_snippets(root, &q, &mut payload);
             HttpResponse::json(200, payload)
         }
@@ -465,8 +465,9 @@ fn discover_response(root: &Path, query: &str) -> HttpResponse {
     }
 }
 
-fn filter_candidates_to_index(root: &Path, payload: &mut serde_json::Value) {
+fn filter_candidates_to_index(root: &Path, query: &str, payload: &mut serde_json::Value) {
     let indexed = indexed_file_statuses(root);
+    let normalized_query = query.to_lowercase();
     let Some(candidates) = payload
         .get_mut("candidates")
         .and_then(serde_json::Value::as_array_mut)
@@ -474,10 +475,20 @@ fn filter_candidates_to_index(root: &Path, payload: &mut serde_json::Value) {
         return;
     };
     candidates.retain(|candidate| {
-        candidate
-            .get("p")
-            .and_then(serde_json::Value::as_str)
-            .is_some_and(|path| indexed.contains_key(path))
+        let Some(path) = candidate.get("p").and_then(serde_json::Value::as_str) else {
+            return false;
+        };
+        if !indexed.contains_key(path) {
+            return false;
+        }
+        if path.to_lowercase().contains(&normalized_query) {
+            return true;
+        }
+        resolve_root_path(root, path)
+            .ok()
+            .and_then(|file| file.metadata().ok().map(|metadata| (file, metadata.len())))
+            .and_then(|(file, size)| read_text_preview(&file, size).ok().flatten())
+            .is_some_and(|content| content.to_lowercase().contains(&normalized_query))
     });
     if candidates.is_empty() {
         payload["answerability"] = json!("no_match");
