@@ -89,6 +89,9 @@ pub(crate) fn route_request(
         }
         ("GET", "/api/roots") => roots_response(state),
         ("GET", "/api/files") => with_root(state, |root| files_response(root, &request.query)),
+        ("GET", "/api/indexed-files") => {
+            with_root(state, |root| indexed_files_response(root, &request.query))
+        }
         ("GET", "/api/search") => with_root(state, |root| search_response(root, &request.query)),
         ("GET", "/api/find") | ("GET", "/api/discover") => {
             with_root(state, |root| discover_response(root, &request.query))
@@ -273,6 +276,64 @@ fn indexed_file_statuses(root: &Path) -> std::collections::HashMap<String, Strin
         })
         .collect()
 }
+fn indexed_files_response(root: &Path, query: &str) -> HttpResponse {
+    let prefix = query_value(query, "path")
+        .unwrap_or_default()
+        .trim_matches('/')
+        .to_owned();
+    let mut entries = Vec::new();
+    let mut folders = std::collections::BTreeSet::new();
+    for row in load_artifacts(root, "files").unwrap_or_default() {
+        let Some(path) = row.get("path").and_then(serde_json::Value::as_str) else {
+            continue;
+        };
+        if !prefix.is_empty() && !(path == prefix || path.starts_with(&format!("{prefix}/"))) {
+            continue;
+        }
+        let relative = path.strip_prefix(&prefix).unwrap_or(path).trim_matches('/');
+        if relative.is_empty() {
+            continue;
+        }
+        let mut parts = relative.splitn(2, '/');
+        let name = parts.next().unwrap_or(relative);
+        if let Some(rest) = parts.next() {
+            let folder = if prefix.is_empty() {
+                name.to_owned()
+            } else {
+                format!("{prefix}/{name}")
+            };
+            folders.insert(folder);
+            let _ = rest;
+        } else {
+            entries.push(json!({
+                "path": path,
+                "name": name,
+                "type": "file",
+                "status": row.get("status").and_then(serde_json::Value::as_str).unwrap_or("current"),
+                "size": row.get("size").and_then(serde_json::Value::as_u64).unwrap_or(0),
+            }));
+        }
+    }
+    for folder in folders {
+        let name = folder.rsplit('/').next().unwrap_or(&folder);
+        entries
+            .push(json!({"path": folder, "name": name, "type": "directory", "status": "indexed"}));
+    }
+    entries.sort_by(|left, right| {
+        (right["type"] == "directory")
+            .cmp(&(left["type"] == "directory"))
+            .then_with(|| {
+                left["name"]
+                    .as_str()
+                    .unwrap_or("")
+                    .cmp(right["name"].as_str().unwrap_or(""))
+            })
+    });
+    HttpResponse::json(
+        200,
+        json!({"root": root, "path": prefix, "entries": entries, "source": "jikji_index"}),
+    )
+}
 
 fn preview_response(root: &Path, query: &str) -> HttpResponse {
     let Some(rel) = query_value(query, "path") else {
@@ -358,7 +419,6 @@ fn relative_display_path(root: &Path, path: &Path) -> String {
         relative.to_string_lossy().replace('\\', "/")
     }
 }
-
 fn search_response(root: &Path, query: &str) -> HttpResponse {
     let q = query_value(query, "q").unwrap_or_default();
     if q.trim().is_empty() {
@@ -397,10 +457,31 @@ fn discover_response(root: &Path, query: &str) -> HttpResponse {
         Ok(mut payload) => {
             payload["mode"] = json!("find");
             payload["command"] = json!("jikji find");
+            filter_candidates_to_index(root, &mut payload);
             add_candidate_snippets(root, &q, &mut payload);
             HttpResponse::json(200, payload)
         }
         Err(error) => HttpResponse::json(500, json!({"error": error.to_string()})),
+    }
+}
+
+fn filter_candidates_to_index(root: &Path, payload: &mut serde_json::Value) {
+    let indexed = indexed_file_statuses(root);
+    let Some(candidates) = payload
+        .get_mut("candidates")
+        .and_then(serde_json::Value::as_array_mut)
+    else {
+        return;
+    };
+    candidates.retain(|candidate| {
+        candidate
+            .get("p")
+            .and_then(serde_json::Value::as_str)
+            .is_some_and(|path| indexed.contains_key(path))
+    });
+    if candidates.is_empty() {
+        payload["answerability"] = json!("no_match");
+        payload["confidence"] = json!("none");
     }
 }
 
