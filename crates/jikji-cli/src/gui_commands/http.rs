@@ -108,6 +108,15 @@ pub(crate) fn query_value(query: &str, name: &str) -> Option<String> {
     }
     None
 }
+pub(crate) fn query_values(query: &str, name: &str) -> Vec<String> {
+    query
+        .split('&')
+        .filter_map(|pair| {
+            let (key, value) = pair.split_once('=').unwrap_or((pair, ""));
+            (key == name).then(|| percent_decode(value))
+        })
+        .collect()
+}
 
 pub(crate) fn query_bool(query: &str, name: &str) -> bool {
     matches!(

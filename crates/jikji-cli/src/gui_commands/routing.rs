@@ -10,6 +10,11 @@ use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Instant, UNIX_EPOCH};
 
+use super::http::{
+    HttpRequest, HttpResponse, malformed_request, query_bool, query_value, query_values,
+};
+use super::jobs::{JobRegistry, snapshot_response};
+use super::token::ManagementToken;
 use jikji_core::PrepareOptions;
 use jikji_core::storage::{
     clear_artifact, database_path, delete_root_by_key, indexed_roots, load_artifact,
@@ -19,10 +24,6 @@ use jikji_core::storage::{
 use jikji_index::{doctor, prepare};
 use jikji_search::{DiscoverOptions, SearchOptions, discover, search};
 use serde_json::json;
-
-use super::http::{HttpRequest, HttpResponse, malformed_request, query_bool, query_value};
-use super::jobs::{JobRegistry, snapshot_response};
-use super::token::ManagementToken;
 
 #[derive(Clone)]
 pub(crate) struct GuiState {
@@ -103,6 +104,9 @@ pub(crate) fn route_request(
         ("POST", "/api/refresh") => management_response(state, &request.query, refresh_response),
         ("POST", "/api/reindex-folder") => {
             management_response(state, &request.query, reindex_folder_response)
+        }
+        ("POST", "/api/index-selection") => {
+            management_response(state, &request.query, index_selection_response)
         }
         ("POST", "/api/deep-index") => {
             management_response(state, &request.query, deep_index_response)
@@ -266,13 +270,21 @@ fn indexed_file_statuses(root: &Path) -> std::collections::HashMap<String, Strin
         .unwrap_or_default()
         .into_iter()
         .filter_map(|row| {
-            Some((
-                row.get("path")?.as_str()?.to_owned(),
-                row.get("status")
+            let path = row.get("path")?.as_str()?.to_owned();
+            let status = if row
+                .get("text_cache_path")
+                .and_then(serde_json::Value::as_str)
+                .is_some_and(|value| !value.is_empty())
+                || row
+                    .get("parse_status")
                     .and_then(serde_json::Value::as_str)
-                    .unwrap_or("current")
-                    .to_owned(),
-            ))
+                    .is_some_and(|value| value != "metadata_only" && value != "unsupported")
+            {
+                "content"
+            } else {
+                "basic"
+            };
+            Some((path, status.to_owned()))
         })
         .collect()
 }
@@ -763,6 +775,51 @@ fn folder_query_path(
         ));
     }
     Ok((rel.trim_matches('/').to_owned(), path))
+}
+
+fn index_selection_response(state: &GuiState, query: &str) -> HttpResponse {
+    let paths = query_values(query, "path");
+    if paths.is_empty() {
+        return HttpResponse::json(400, json!({"error":"missing path"}));
+    }
+    let mode = query_value(query, "mode").unwrap_or_else(|| "basic".to_owned());
+    if mode != "basic" && mode != "content" {
+        return HttpResponse::json(400, json!({"error":"mode must be basic or content"}));
+    }
+    let root = match state.root() {
+        Ok(root) => root,
+        Err(response) => return response,
+    };
+    for path in &paths {
+        if let Err(response) = resolve_root_path(&root, path) {
+            return response;
+        }
+    }
+    let mut options = PrepareOptions::default();
+    if mode == "content" {
+        options.enable_media_index =
+            query_bool(query, "media_ocr") || query_bool(query, "media_asr");
+        options.deep_archive_index = true;
+        options.archive_max_entries = query_usize(query, "archive_max_entries")
+            .unwrap_or(options.archive_max_entries)
+            .clamp(1, 100_000);
+        options.archive_max_entry_bytes = query_u64(query, "archive_max_entry_bytes")
+            .unwrap_or(options.archive_max_entry_bytes)
+            .clamp(1, 512 * 1024 * 1024);
+        options.archive_max_total_bytes = query_u64(query, "archive_max_total_bytes")
+            .unwrap_or(options.archive_max_total_bytes)
+            .clamp(1, 4 * 1024 * 1024 * 1024);
+    }
+    let selected = paths.len();
+    let job_mode = mode.clone();
+    let job_id = state.jobs.start(move || {
+        let result = prepare(&root, &options).map_err(|error| error.to_string())?;
+        Ok(json!({"root":root,"mode":job_mode,"selected":selected,"files":result.files,"documents":result.docs_parsed}))
+    });
+    HttpResponse::json(
+        202,
+        json!({"job_id":job_id,"state":"queued","selected":selected,"mode":mode,"progress":0}),
+    )
 }
 
 fn reindex_folder_response(state: &GuiState, query: &str) -> HttpResponse {
