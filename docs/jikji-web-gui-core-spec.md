@@ -246,3 +246,23 @@ GUI는 `GET /api/jobs/{job_id}`를 polling하여 `queued → running → complet
 - 모든 Rust 오류를 표준 error envelope로 통일
 
 이 문서는 외부 GUI 개발자가 구현할 핵심 사용자 계약이며, 기존 embedded Rust SPA를 다시 확장하는 지시가 아니다.
+
+## 12. 확인 필요 항목과 현재 가정
+
+외부 GUI 개발 시작 전에 다음 항목은 운영자와 확정해야 한다.
+
+- 실제 배포 환경에서 GUI가 호출할 API base URL과 인증 방식: 현재 문서는 same-origin reverse proxy와 Rust management token을 기준으로 한다.
+- Markdown 렌더러와 허용 HTML/URL scheme: 보안 정책에 맞는 라이브러리와 CSP를 구현자가 선택한다.
+- OCR/ASR 엔진, 모델 파일, GPU/CPU 자원과 작업 취소 지원 여부.
+- 기본 root 선택 정책, 사용자별 root 권한, 다중 사용자 격리 범위.
+- 대용량 문서 preview의 최대 크기, pagination/windowing 정책.
+- `POST /api/index-selection` 및 job cancellation의 최종 Rust API 스키마.
+
+현재 명세의 가정:
+
+- `root-relative path`만 클라이언트와 API 사이에 전달하며, 클라이언트가 임의의 absolute path를 저장하거나 검색하지 않는다.
+- Jikji Rust API와 central SQLite가 상태와 검색 결과의 단일 권위 원천이다.
+- 기본 인덱스는 filename/path/metadata이고, 문서·미디어·archive 본문은 명시적 content indexing 작업에서만 추가된다.
+- 원본 파일은 어떤 GUI 작업에서도 이동·삭제·개명하지 않는다.
+
+위 항목이 확정되기 전에는 구현자가 임의의 인증, OCR/ASR 공급자, 데이터 보존 기간, 사용자 권한 모델을 제품 요구사항으로 확정하지 않는다.
