@@ -317,11 +317,18 @@ fn indexed_files_response(root: &Path, query: &str) -> HttpResponse {
             folders.insert(folder);
             let _ = rest;
         } else {
+            let scope = indexed_file_statuses(root)
+                .get(path)
+                .cloned()
+                .unwrap_or_else(|| "basic".to_owned());
             entries.push(json!({
                 "path": path,
                 "name": name,
                 "type": "file",
-                "status": row.get("status").and_then(serde_json::Value::as_str).unwrap_or("current"),
+                "status": scope,
+                "scope": scope,
+                "parse_status": row.get("parse_status").cloned().unwrap_or(serde_json::Value::Null),
+                "indexed_at": row.get("indexed_at").cloned().unwrap_or(serde_json::Value::Null),
                 "size": row.get("size").and_then(serde_json::Value::as_u64).unwrap_or(0),
             }));
         }
