@@ -88,6 +88,12 @@ pub(crate) fn route_request(
                 None => HttpResponse::json(404, json!({"error":"job not found"})),
             }
         }
+        ("POST", path) if path.starts_with("/api/jobs/") && path.ends_with("/cancel") => {
+            let id = path
+                .trim_start_matches("/api/jobs/")
+                .trim_end_matches("/cancel");
+            cancel_job_response(state, id, &request.query)
+        }
         ("GET", "/api/roots") => roots_response(state),
         ("GET", "/api/files") => with_root(state, |root| files_response(root, &request.query)),
         ("GET", "/api/indexed-files") => {
@@ -139,6 +145,16 @@ fn management_response(
         Err(response) => return response,
     };
     action(state, query)
+}
+
+fn cancel_job_response(state: &GuiState, id: &str, query: &str) -> HttpResponse {
+    if !state.token_matches(query) {
+        return HttpResponse::json(403, json!({"error":"invalid management token"}));
+    }
+    match state.jobs.cancel(id) {
+        Some(job) => HttpResponse::json(200, snapshot_response(job)),
+        None => HttpResponse::json(404, json!({"error":"job not found"})),
+    }
 }
 
 fn with_root(state: &GuiState, action: impl FnOnce(&Path) -> HttpResponse) -> HttpResponse {
@@ -229,13 +245,20 @@ fn files_response(root: &Path, query: &str) -> HttpResponse {
         } else {
             "other"
         };
-        let status = if file_type == "file" {
+        let scope = if file_type == "file" {
             indexed
                 .get(&relative)
-                .map(String::as_str)
-                .unwrap_or("unindexed")
+                .cloned()
+                .unwrap_or_else(|| "unindexed".to_owned())
+        } else {
+            "unindexed".to_owned()
+        };
+        let status = if file_type == "file" && scope != "unindexed" {
+            "current"
         } else if file_type == "directory" {
             "current"
+        } else if file_type == "file" {
+            "unindexed"
         } else {
             "unsupported"
         };
@@ -246,6 +269,7 @@ fn files_response(root: &Path, query: &str) -> HttpResponse {
             "mtime": metadata.modified().ok().and_then(|time| time.duration_since(UNIX_EPOCH).ok()).map(|duration| duration.as_secs()),
             "type": file_type,
             "status": status,
+            "scope": scope,
         }));
     }
     entries.sort_by(|left, right| {
@@ -704,7 +728,7 @@ fn prepare_operation_response(
         Err(response) => return response,
     };
     let job_options = options.clone();
-    let job_id = state.jobs.start(move || {
+    let job_id = state.jobs.start(move |_| {
         let result = prepare(&root, &job_options).map_err(|error| error.to_string())?;
         let payload = json!({"root":root,"files":result.files,"documents":result.docs_parsed,"deep":deep});
         if deep {
@@ -819,7 +843,7 @@ fn index_selection_response(state: &GuiState, query: &str) -> HttpResponse {
     }
     let selected = paths.len();
     let job_mode = mode.clone();
-    let job_id = state.jobs.start(move || {
+    let job_id = state.jobs.start(move |_| {
         let result = prepare(&root, &options).map_err(|error| error.to_string())?;
         Ok(json!({"root":root,"mode":job_mode,"selected":selected,"files":result.files,"documents":result.docs_parsed}))
     });
