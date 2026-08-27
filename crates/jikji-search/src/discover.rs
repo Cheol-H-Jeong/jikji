@@ -1,5 +1,7 @@
 use std::collections::BTreeMap;
+use std::io::Write;
 use std::path::Path;
+use std::process::{Command, Stdio};
 
 use jikji_core::Result;
 use serde_json::{Value, json};
@@ -29,14 +31,86 @@ impl Default for DiscoverOptions {
         }
     }
 }
+fn run_llm_judge(input: &Value, candidates: &mut Vec<SearchCandidate>) -> Value {
+    let Some(command) = std::env::var_os("JIKJI_LLM_JUDGE_COMMAND") else {
+        return json!({"status":"unavailable","selected_path":null,"fallback":"merged_candidates"});
+    };
+    let parts = command
+        .to_string_lossy()
+        .split_whitespace()
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
+    let Some((program, args)) = parts.split_first() else {
+        return json!({"status":"unavailable","selected_path":null,"fallback":"merged_candidates"});
+    };
+    let mut child = match Command::new(program)
+        .args(args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+    {
+        Ok(child) => child,
+        Err(error) => {
+            return json!({"status":"failed","error":error.to_string(),"fallback":"merged_candidates"});
+        }
+    };
+    let payload = match serde_json::to_vec(input) {
+        Ok(payload) => payload,
+        Err(error) => {
+            return json!({"status":"failed","error":error.to_string(),"fallback":"merged_candidates"});
+        }
+    };
+    if child.stdin.as_mut().is_none() || child.stdin.as_mut().unwrap().write_all(&payload).is_err()
+    {
+        return json!({"status":"failed","error":"judge stdin write failed","fallback":"merged_candidates"});
+    }
+    let output = match child.wait_with_output() {
+        Ok(output) if output.status.success() => output,
+        Ok(output) => {
+            return json!({"status":"failed","error":format!("judge exited with {}", output.status),"fallback":"merged_candidates"});
+        }
+        Err(error) => {
+            return json!({"status":"failed","error":error.to_string(),"fallback":"merged_candidates"});
+        }
+    };
+    let response: Value = match serde_json::from_slice(&output.stdout) {
+        Ok(value) => value,
+        Err(error) => {
+            return json!({"status":"failed","error":error.to_string(),"fallback":"merged_candidates"});
+        }
+    };
+    let selected = response
+        .get("path")
+        .and_then(Value::as_str)
+        .or_else(|| response.as_str());
+    if let Some(path) = selected {
+        if let Some(index) = candidates
+            .iter()
+            .position(|candidate| candidate.path == path)
+        {
+            let chosen = candidates.remove(index);
+            candidates.insert(0, chosen);
+            return json!({"status":"selected","selected_path":path,"fallback":null});
+        }
+    }
+    json!({"status":"invalid_selection","selected_path":null,"fallback":"merged_candidates"})
+}
 
 pub fn discover(root: &Path, query: &str, options: DiscoverOptions) -> Result<Value> {
     let request = DiscoverRequest::from(root, query, &options);
-    let candidates = if request.retrieval_query.is_empty() {
+    let mut candidates = if request.retrieval_query.is_empty() {
         Vec::new()
     } else {
         merge_candidates(root, &request.variants, options.top_k)?
     };
+    let strategies = strategy_results(root, &request.variants, options.top_k);
+    let judge_input = json!({
+        "original_query": query,
+        "strategies": strategies,
+        "merged_candidates": judge_slate(root, &candidates),
+    });
+    let judge_result = run_llm_judge(&judge_input, &mut candidates);
     let confidence = confidence_for(&request.query_type, &candidates);
     let action = handoff_action(confidence, request.verified_retry);
     let answer_pack = answer_pack_for(&request.query_type, confidence, &candidates);
@@ -74,7 +148,7 @@ pub fn discover(root: &Path, query: &str, options: DiscoverOptions) -> Result<Va
         "raw_fallback_allowed": budget["raw_fallback_allowed"].clone(),
         "query_variants": request.variants,
         "strategy_metadata": strategy_metadata(&request.variants),
-        "strategy_results": strategy_results(root, &request.variants, options.top_k),
+        "strategy_results": strategies,
         "llm_search_plan": {
             "mode": "one_call_multi_search_judge",
             "calls_per_cycle": 1,
@@ -85,11 +159,8 @@ pub fn discover(root: &Path, query: &str, options: DiscoverOptions) -> Result<Va
         },
         "search_plan": search_plan(root, &request.variants, options.top_k),
         "judge_candidate_slate": judge_slate(root, &candidates),
-        "llm_judge_input": {
-            "original_query": query,
-            "strategies": strategy_results(root, &request.variants, options.top_k),
-            "merged_candidates": judge_slate(root, &candidates),
-        },
+        "llm_judge_input": judge_input,
+        "llm_judge_result": judge_result,
         "evidence_pack": answer_pack["evidence_pack"].clone(),
         "candidates": compact_candidates(&candidates),
     }))
