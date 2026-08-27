@@ -9,7 +9,7 @@ use crate::discover_contract::{
     confidence_factors, confidence_for, judge_slate, next_commands, recommended_action, search_plan,
 };
 use crate::discover_query::{
-    anchor_tokens, classify_query, query_variants, retry_proof_for, strip_shell_noise,
+    anchor_tokens, classify_query, retry_proof_for, strategy_variants, strip_shell_noise,
 };
 use crate::searcher::{SearchCandidate, SearchOptions, search};
 
@@ -73,6 +73,8 @@ pub fn discover(root: &Path, query: &str, options: DiscoverOptions) -> Result<Va
         "max_verification_reads": budget["max_verification_reads"].clone(),
         "raw_fallback_allowed": budget["raw_fallback_allowed"].clone(),
         "query_variants": request.variants,
+        "strategy_metadata": strategy_metadata(&request.variants),
+        "strategy_results": strategy_results(root, &request.variants, options.top_k),
         "llm_search_plan": {
             "mode": "one_call_multi_search_judge",
             "calls_per_cycle": 1,
@@ -83,6 +85,11 @@ pub fn discover(root: &Path, query: &str, options: DiscoverOptions) -> Result<Va
         },
         "search_plan": search_plan(root, &request.variants, options.top_k),
         "judge_candidate_slate": judge_slate(root, &candidates),
+        "llm_judge_input": {
+            "original_query": query,
+            "strategies": strategy_results(root, &request.variants, options.top_k),
+            "merged_candidates": judge_slate(root, &candidates),
+        },
         "evidence_pack": answer_pack["evidence_pack"].clone(),
         "candidates": compact_candidates(&candidates),
     }))
@@ -104,7 +111,10 @@ impl DiscoverRequest {
         let variants = if retrieval_query.is_empty() {
             vec![String::new()]
         } else {
-            query_variants(&retrieval_query)
+            strategy_variants(&retrieval_query)
+                .into_iter()
+                .map(|(_, query)| query)
+                .collect()
         };
         let retry_query = variants
             .get(1)
@@ -135,6 +145,23 @@ fn handoff_action(confidence: &str, verified_retry: bool) -> &'static str {
     }
 }
 
+fn strategy_metadata(variants: &[String]) -> Vec<Value> {
+    variants.iter().enumerate().map(|(index, query)| json!({
+        "strategy": if index == 0 { "lexical" } else if index == 1 { "lexical_anchors" } else if index == 2 { "semantic" } else { "advanced" },
+        "query": query,
+        "rank": index + 1,
+    })).collect()
+}
+fn strategy_results(root: &Path, variants: &[String], top_k: usize) -> Vec<Value> {
+    variants.iter().enumerate().map(|(index, query)| {
+        let strategy = if index == 0 { "lexical" } else if index == 1 { "lexical_anchors" } else if index == 2 { "semantic" } else { "advanced" };
+        match search(root, query, SearchOptions { top_k: top_k.max(1) }) {
+            Ok(candidates) => json!({"strategy":strategy,"query":query,"top_k":candidates.iter().map(|candidate| json!({"path":candidate.path,"name":candidate.name,"score":candidate.score,"reasons":candidate.reasons,"matched_terms":candidate.matched_terms,"evidence":candidate.evidence})).collect::<Vec<_>>() }),
+            Err(error) => json!({"strategy":strategy,"query":query,"top_k":[],"error":error.to_string(),"degraded":true}),
+        }
+    }).collect()
+}
+
 fn compact_candidates(candidates: &[SearchCandidate]) -> Vec<Value> {
     candidates
         .iter()
@@ -147,6 +174,7 @@ fn compact_candidates(candidates: &[SearchCandidate]) -> Vec<Value> {
                 "why": item.reasons.iter().take(5).collect::<Vec<_>>(),
                 "terms": item.matched_terms.iter().take(8).collect::<Vec<_>>(),
                 "queries": item.queries.iter().take(3).collect::<Vec<_>>(),
+                "strategies": item.strategies.iter().take(4).collect::<Vec<_>>(),
                 "ev": item.evidence.iter().take(2).cloned().collect::<Vec<_>>().join(" | "),
                 "next_read": {"kind":"original","path":item.path},
             })
@@ -170,16 +198,16 @@ fn merge_candidates(
     let mut merged = BTreeMap::<String, SearchCandidate>::new();
     let anchors = anchor_tokens(variants.first().map_or("", String::as_str));
     for (variant_idx, variant) in variants.iter().enumerate() {
-        for (rank, item) in search(
+        let Ok(results) = search(
             root,
             variant,
             SearchOptions {
                 top_k: top_k.max(20) * 3,
             },
-        )?
-        .into_iter()
-        .enumerate()
-        {
+        ) else {
+            continue;
+        };
+        for (rank, item) in results.into_iter().enumerate() {
             merge_candidate(&mut merged, item, variant, variant_idx, rank, &anchors);
         }
     }
@@ -214,6 +242,10 @@ fn merge_candidate(
             if !existing.queries.iter().any(|query| query == variant) {
                 existing.queries.push(variant.to_owned());
             }
+            let strategy = strategy_name(variant_idx).to_owned();
+            if !existing.strategies.iter().any(|item| item == &strategy) {
+                existing.strategies.push(strategy);
+            }
             existing.best_query_rank =
                 Some(existing.best_query_rank.unwrap_or(rank + 1).min(rank + 1));
         })
@@ -221,9 +253,19 @@ fn merge_candidate(
             let mut cloned = item;
             cloned.discover_score = Some(weighted);
             cloned.queries = vec![variant.to_owned()];
+            cloned.strategies = vec![strategy_name(variant_idx).to_owned()];
             cloned.best_query_rank = Some(rank + 1);
             cloned
         });
+}
+
+fn strategy_name(index: usize) -> &'static str {
+    match index {
+        0 => "lexical",
+        1 => "lexical_anchors",
+        2 => "semantic",
+        _ => "advanced",
+    }
 }
 
 fn weighted_score(

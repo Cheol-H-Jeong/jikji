@@ -216,6 +216,40 @@ fn assert_find_contract(root_arg: &str) {
         "one_call_multi_search_judge"
     );
     assert_eq!(found["tool_call_policy"]["stop_after_find"], true);
+    assert!(
+        found["strategy_metadata"]
+            .as_array()
+            .expect("strategy metadata")
+            .len()
+            >= 3
+    );
+    assert!(
+        found["strategy_results"]
+            .as_array()
+            .expect("strategy results")
+            .iter()
+            .all(|row| {
+                row["strategy"].as_str().is_some()
+                    && row["top_k"].as_array().is_some()
+                    && row["top_k"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .all(|candidate| candidate["score"].as_f64().is_some())
+            })
+    );
+    assert_eq!(
+        found["llm_judge_input"]["original_query"],
+        "Find the ACME master services agreement"
+    );
+    assert!(
+        found["llm_judge_input"]["strategies"]
+            .as_array()
+            .expect("judge strategies")
+            .len()
+            >= 3
+    );
+    assert!(found["candidates"][0]["strategies"].as_array().is_some());
 
     let first = json_cmd(&[
         "find",

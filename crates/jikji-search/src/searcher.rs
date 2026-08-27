@@ -36,6 +36,8 @@ pub struct SearchCandidate {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub discover_score: Option<f64>,
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub strategies: Vec<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub queries: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub best_query_rank: Option<usize>,
@@ -173,6 +175,7 @@ fn candidates_from_scores(
             matched_terms: doc_matched.into_iter().take(16).collect(),
             matched_intents: Vec::new(),
             duplicate_group_id: doc.duplicate_group_id,
+            strategies: Vec::new(),
             evidence: doc.evidence,
             discover_score: None,
             queries: Vec::new(),
@@ -255,6 +258,7 @@ fn fallback_scan_docs(con: &Connection, query: &str) -> Result<Vec<SearchCandida
             duplicate_group_id,
             evidence: Vec::new(),
             discover_score: None,
+            strategies: Vec::new(),
             queries: Vec::new(),
             best_query_rank: None,
         });

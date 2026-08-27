@@ -26,21 +26,66 @@ pub(crate) fn strip_shell_noise(query: &str) -> String {
         .join(" ")
 }
 
-pub(crate) fn query_variants(query: &str) -> Vec<String> {
-    let mut out = vec![query.to_owned()];
-    let folded = query.to_lowercase();
-    if folded.contains("nda") || folded.contains("confidential") {
-        out.push("NDA confidential information copying".to_owned());
-    }
+pub(crate) fn strategy_variants(query: &str) -> Vec<(String, String)> {
+    let mut variants = vec![("lexical".to_owned(), query.to_owned())];
     let anchors = anchor_tokens(query).join(" ");
     if !anchors.is_empty() {
-        out.push(anchors);
+        variants.push(("lexical_anchors".to_owned(), anchors));
+    }
+    let semantic = semantic_expansion(query);
+    if semantic != query && !semantic.is_empty() {
+        variants.push(("semantic".to_owned(), semantic));
+    }
+    let advanced = advanced_query(query);
+    if advanced != query && !advanced.is_empty() {
+        variants.push(("advanced".to_owned(), advanced));
     }
     let mut seen = BTreeSet::new();
-    out.into_iter()
-        .filter(|variant| seen.insert(variant.to_lowercase()))
+    variants
+        .into_iter()
+        .filter(|(_, value)| seen.insert(value.to_lowercase()))
         .take(6)
         .collect()
+}
+
+fn semantic_expansion(query: &str) -> String {
+    let mut terms = query
+        .split_whitespace()
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
+    let lower = query.to_lowercase();
+    let expansions = [
+        ("contract", "agreement terms legal"),
+        ("agreement", "contract terms legal"),
+        ("renewal", "extension continuation"),
+        ("invoice", "bill payment receipt"),
+        ("meeting", "minutes notes agenda"),
+        ("photo", "image picture"),
+        ("audio", "recording transcript"),
+        ("video", "recording transcript"),
+        ("계약", "협약 조항"),
+        ("갱신", "연장 재계약"),
+        ("회의", "회의록 안건 메모"),
+    ];
+    for (needle, expansion) in expansions {
+        if lower.contains(needle) {
+            terms.extend(expansion.split_whitespace().map(str::to_owned));
+        }
+    }
+    terms.join(" ")
+}
+
+fn advanced_query(query: &str) -> String {
+    let noise = shell_noise();
+    query
+        .split_whitespace()
+        .filter(|raw| {
+            let token = raw.trim_matches(|ch: char| ".,:;!?()[]{}\"'".contains(ch));
+            !token.is_empty() && !noise.contains(token.to_lowercase().as_str()) && token.len() > 2
+        })
+        .map(str::to_owned)
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 pub(crate) fn classify_query(query: &str) -> String {
