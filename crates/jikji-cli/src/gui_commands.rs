@@ -206,7 +206,7 @@ const INDEX_HTML: &str = r##"<!doctype html>
     function toast(message) { const el=$("toast"); el.textContent=message; el.hidden=false; clearTimeout(toast.timer); toast.timer=setTimeout(()=>el.hidden=true,3200); }
     function params(values) { const out=new URLSearchParams(); Object.entries(values).forEach(([k,v])=>{if(v!==undefined&&v!==null&&v!=="")out.set(k,String(v));}); return out; }
     async function api(path, values={}, options={}) {
-      const controller=new AbortController(); const timeout=setTimeout(()=>controller.abort(),15000);
+      const controller=new AbortController(); const timeout=setTimeout(()=>controller.abort(),path.includes("/api/find")?60000:15000);
       try {
         const url = options.query ? `${path}?${options.query}` : `${path}?${params(values)}`;
         const response = await fetch(url, { method: options.method || "GET", headers: { "Accept": "application/json" }, cache: "no-store", signal: controller.signal });
