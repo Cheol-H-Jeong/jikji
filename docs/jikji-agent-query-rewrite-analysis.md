@@ -82,6 +82,13 @@ find the final vendor renewal agreement for ACME in FY25 excluding draft copies
 - `draft`와 `copies`를 제외해야 한다는 조건이 후보 필터 또는 penalty로 구조화되지 않는다.
 - 따라서 현재는 “원문 + 앵커 재배열”에 가깝다.
 
+추가 확인 사항:
+
+- `--exclude`는 `FindArgs`의 검색어 문법이 아니다. `find_prepare_options`를 통해 `PrepareOptions.exclude_patterns`로 전달되어 **인덱스 준비 시 제외할 파일 범위**를 정한다.
+- 저수준 `search`는 term별 독립 점수를 합산하므로 사용자 query의 모든 단어가 반드시 일치하는 AND 검색이 아니다.
+- 인용부호는 tokenizer의 `quoted_terms`와 후속 점수 보정에 영향을 주지만 strict phrase 검색 문법은 아니다.
+- GUI `routing.rs::discover_response`는 Rust discover 이후 원문 `q` 전체가 path 또는 preview content에 substring으로 나타나는지 추가 필터링한다. 다중 단어 자연어에서는 CLI와 GUI 결과가 달라지거나 후보가 과도하게 제거될 수 있다.
+
 ## 3. z 코딩 에이전트 비교의 증거 경계
 
 저장소 안에는 z 코딩 에이전트의 실제 `find`/`grep` 재작성 구현이 없다. 따라서 z의 구체적인 알고리즘은 **Unknown**이다.
