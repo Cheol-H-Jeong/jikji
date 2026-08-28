@@ -42,6 +42,7 @@ pub(crate) fn rows_from_cards(
     }
     file_cards
         .iter()
+        .filter(|card| card.get("status").and_then(Value::as_str) != Some("deleted"))
         .filter_map(|card| row_from_card(root, card, &chunks_by_path))
         .collect()
 }

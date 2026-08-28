@@ -38,6 +38,19 @@ fn search_brief_graph_and_find_return_python_contract_fields() {
 }
 
 #[test]
+fn refresh_removes_deleted_filename_from_search_index() {
+    let root = temp_root("deleted-filename-search");
+    let root_arg = root_arg(&root);
+    fs::write(root.join("remove-me.txt"), "temporary searchable marker").expect("write file");
+    json_cmd(&["prepare", &root_arg, "--json"]);
+    fs::remove_file(root.join("remove-me.txt")).expect("remove source");
+    json_cmd(&["refresh", &root_arg, "--json"]);
+    let found = json_cmd(&["find", &root_arg, "remove-me.txt", "--json"]);
+    assert!(found["answer_paths"].as_array().is_some_and(Vec::is_empty));
+    assert!(found["paths"].as_array().is_some_and(Vec::is_empty));
+}
+
+#[test]
 fn missing_index_requires_exactly_one_jikji_retry_before_raw_fallback() {
     let root = temp_root("missing-index-recovery-contract");
     let root_arg = root_arg(&root);
