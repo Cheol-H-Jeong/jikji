@@ -27,11 +27,12 @@ Required fields include:
   relative path, size, and `mtime_ns` only
 
 `owned_paths` lists the generated artifact surface the Rust CLI may regenerate
-or clean, including `.jikji/wiki/sources/`, `.jikji/doc_text/`,
-`.jikji/doc_meta/`, root `.jikji_agent_map.md`, legacy
-`000_JIKJI_AGENT_MAP.md`, and Jikji routing blocks in `AGENTS.md`, `CLAUDE.md`,
-and `.cursorrules`. Prepare replaces symlinks at generated directory paths
-without following them.
+or clean. For the current central-storage layout, JSONL maps, parser caches,
+Markdown/wiki pages, graph routes, and manifests live under
+`data_dir()/jikji/roots/<root_id>/`; the root may receive `.jikji_agent_map.md`,
+legacy `000_JIKJI_AGENT_MAP.md`, and Jikji routing blocks in `AGENTS.md`,
+`CLAUDE.md`, and `.cursorrules`. Root-local `.jikji/` paths are legacy migration
+inputs and are not the current write target.
 
 ## file_index.jsonl
 
@@ -88,31 +89,42 @@ parsing produced body text; exact wording, ordering, and metadata formatting are
 parser implementation details. Search, route rows, and CLI candidate ordering
 validate user-visible discovery behavior.
 
-## search_index.sqlite
+## Central search database
 
-Generated SQLite accelerator for instant local search. It is not the source of
-truth; it can be rebuilt from `file_cards.jsonl` and `chunk_map.jsonl`.
+The authoritative search index is the central `data_dir()/jikji/index.sqlite`,
+root-scoped by `roots.canonical_root` and related `root_id` columns. It contains
+the generated search tables below and is rebuilt transactionally from the current
+artifact rows:
 
-- `meta`: schema/version/counts
-- `docs`: one JSON search row per file
-- `terms`: prebuilt lexical inverted index
-- `filename_keys`: compact filename lookup keys
-- `idf`: deterministic term weights
-- `field_terms`: term-frequency rows by `path`, `name`, `ext`, `body`, `meta`, and `semantic` fields
-- `field_lengths`: per-document field lengths
-- `field_idf`: BM25 IDF for fielded terms
-- `field_avg`: average field lengths for BM25 normalization
+- `search_meta`: schema/version/counts
+- `search_docs`: one JSON search row per file
+- `search_terms`: prebuilt lexical inverted index
+- `search_filename_keys`: compact filename lookup keys
+- `search_idf`: deterministic term weights
+- `search_field_terms`: term-frequency rows by `path`, `name`, `ext`, `body`, `meta`, and `semantic` fields
+- `search_field_lengths`: per-document field lengths
+- `search_field_idf`: BM25 IDF for fielded terms
+- `search_field_avg`: average field lengths for BM25 normalization
 
+The central per-root cache under `data_dir()/jikji/roots/<root_id>/` still stores
+JSONL maps, document text/metadata caches, Markdown/wiki files, graph routes, and
+manifest artifacts. A root-local `.jikji/search_index.sqlite`, when present, is
+read only by the legacy migration compatibility path and is not the current write
+target.
 ## LLM Wiki and knowledge graph artifacts
 
-Jikji also compiles a deterministic local LLM Wiki layer during `prepare`:
+Jikji also compiles a deterministic local LLM Wiki layer during `prepare` in the
+central per-root cache:
 
-- `.jikji/wiki/index.md`: Markdown wiki entry point for agents.
-- `.jikji/wiki/sources/*.md`: one compact, grounded Markdown page per source file.
-- `.jikji/knowledge_graph.json`: typed graph with corpus/source/folder/term/intent/duplicate nodes.
-- `.jikji/graph_routes.jsonl`: one low-token candidate route row per source.
-- `.jikji/llm_wiki_schema.md`: local schema/safety contract.
+- `wiki/index.md`: Markdown wiki entry point for agents.
+- `wiki/sources/*.md`: one compact, grounded Markdown page per source file.
+- `knowledge_graph.json`: typed graph with corpus/source/folder/term/intent/duplicate nodes.
+- `graph_routes.jsonl`: one low-token candidate route row per source.
+- `llm_wiki_schema.md`: local schema/safety contract.
 
+These paths are relative to `data_dir()/jikji/roots/<root_id>/`, not a new
+root-local `.jikji/` directory. The root-local paths remain documented only for
+legacy migration compatibility.
 This follows the common raw-source → markdown wiki → graph/context-pack pattern used by recent local LLM Wiki projects, but Jikji's default compiler is fully local and deterministic: no LLM calls, embeddings, cloud APIs, or network access are required.
 
 `graph_routes.jsonl` rows include:

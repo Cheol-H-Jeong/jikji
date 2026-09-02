@@ -38,8 +38,10 @@ Jikji prepares an explicit local folder so AI agents can find files, folders,
 metadata, and parsed document text without repeatedly crawling the original
 filesystem.
 
-Jikji does not move, rename, delete, or reorganize user files. It creates
-generated maps and caches under `.jikji/` plus `.jikji_agent_map.md`.
+Jikji does not move, rename, delete, or reorganize user files. The authoritative
+search index is stored in the central `data_dir()/jikji/index.sqlite`; Jikji also
+maintains per-root JSON/JSONL maps, parser caches, Markdown/wiki artifacts, and
+the root `.jikji_agent_map.md` guide.
 
 This repository is currently a monorepo during the Rust port. The Rust
 workspace under `crates/` is the active CLI implementation, while the Python
@@ -62,10 +64,9 @@ and query guessing.
 
 Jikji is faster because the expensive discovery work is done before the agent is
 asked to find a file:
-
 - **No parse-at-search-time loop:** PDF, HWP/HWPX, Office, text, subtitles, HTML,
-  archives, and opt-in media OCR/ASR are parsed into `.jikji/doc_text/` and
-  metadata caches during `prepare`.
+  archives, and opt-in media OCR/ASR are parsed into the central per-root Jikji
+  cache during `prepare`.
 - **No repeated path wandering:** folder profiles, file cards, duplicate hints,
   route rows, and `.jikji_agent_map.md` turn a messy tree into an agent-readable
   file map.
@@ -75,8 +76,7 @@ asked to find a file:
 - **LLM Wiki for agents:** each source gets a compact grounded wiki page, so the
   agent can inspect a short source summary instead of opening large raw files.
 - **Knowledge graph routes:** source, folder, term, intent, and duplicate nodes
-  are prebuilt into `.jikji/knowledge_graph.json` and `.jikji/graph_routes.jsonl`
-  for low-token candidate routing.
+  are prebuilt into the central root cache for low-token candidate routing.
 - **Multi-route candidate slate:** `jikji find` generates query variants, gathers
   top-k candidates from metadata, file-map, wiki/cache, graph, and text routes,
   deduplicates by path, then returns one slate for bounded agent judgment.
@@ -209,18 +209,18 @@ jikji skill-export --dest /path/to/that-agent/skills/jikji/SKILL.md --json
 
 ## What Jikji Creates
 
+The search source of truth is the central `data_dir()/jikji/index.sqlite`, keyed
+by each canonical root. Jikji also maintains generated files in the central
+per-root cache for maps, parser text, Markdown/wiki pages, and metadata. The root
+itself receives `.jikji_agent_map.md` and routing blocks; a root-local
+`.jikji/search_index.sqlite` is only a legacy migration input, not the current
+write path.
+
 ```text
 .jikji_agent_map.md         root guide for humans and agents
 AGENTS.md / CLAUDE.md / .cursorrules  routing block pointing agents to `jikji find`
-.jikji/search_index.sqlite  instant lexical/content/metadata search index
-.jikji/doc_text/            parsed PDF/HWP/HWPX/Office/etc. text cache
-.jikji/file_cards.jsonl     per-file cards, tags, parse status, evidence
-.jikji/folder_profile.jsonl folder roles and navigation context
-.jikji/agent_routes.md      safe fallback route for autonomous agents
-.jikji/wiki/index.md        deterministic local LLM Wiki entry point
-.jikji/wiki/sources/*.md    compact grounded Markdown page per source
-.jikji/knowledge_graph.json source/folder/term/intent/duplicate graph
-.jikji/graph_routes.jsonl   low-token route rows
+central jikji/index.sqlite  authoritative root-scoped lexical/content/metadata search index
+central jikji/roots/<id>/   JSONL maps, parsed document cache, wiki, graph, and manifest
 ```
 
 ## Repository Layout
