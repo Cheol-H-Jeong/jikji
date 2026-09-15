@@ -244,3 +244,36 @@ pub(crate) fn is_cjk(ch: char) -> bool {
         || ('゠'..='ヿ').contains(&ch)
         || ('一'..='鿿').contains(&ch)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::query_terms;
+
+    #[test]
+    fn query_terms_keeps_document_extensions() {
+        let hwp = query_terms("hwp");
+        assert!(hwp.contains("hwp"), "{hwp:?}");
+        assert!(query_terms("hwpx").contains("hwpx"));
+        assert!(query_terms(".HWP").contains("hwp"));
+        assert!(query_terms("pdf").contains("pdf"));
+    }
+
+    #[test]
+    fn query_terms_keeps_extension_in_mixed_korean_query() {
+        let terms = query_terms("범정부 hwp");
+        assert!(terms.contains("hwp"), "{terms:?}");
+        assert!(
+            terms.contains("범정부") || terms.iter().any(|term| term.contains("범정")),
+            "{terms:?}"
+        );
+    }
+
+    #[test]
+    fn query_terms_still_drops_linguistic_stopwords() {
+        assert!(query_terms("파일").is_empty());
+        assert!(query_terms("찾아줘").is_empty());
+        let terms = query_terms("hwp 파일");
+        assert!(terms.contains("hwp"), "{terms:?}");
+        assert!(!terms.contains("파일"), "{terms:?}");
+    }
+}

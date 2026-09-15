@@ -1,7 +1,7 @@
 use std::fs;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::thread;
 use std::time::Duration;
@@ -134,10 +134,31 @@ fn public_cli_surfaces_network_and_invalid_limit_errors() {
 }
 
 fn run<const N: usize>(args: [&str; N]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_jikji"))
-        .args(args)
-        .output()
-        .expect("run jikji")
+    let mut command = Command::new(env!("CARGO_BIN_EXE_jikji"));
+    command.args(args);
+    if let Some(root) = args.get(1).copied().filter(|arg| !arg.starts_with('-')) {
+        command.env("JIKJI_DATA_DIR", isolated_data_dir(root));
+    }
+    command.output().expect("run jikji")
+}
+
+fn isolated_data_dir(root: &str) -> PathBuf {
+    use std::hash::{Hash, Hasher};
+
+    let path = PathBuf::from(root);
+    let key = path
+        .ancestors()
+        .find(|ancestor| {
+            ancestor
+                .file_name()
+                .is_some_and(|name| name.to_string_lossy().starts_with(".tmp"))
+        })
+        .unwrap_or(path.as_path());
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    key.to_string_lossy().hash(&mut hasher);
+    let data = std::env::temp_dir().join(format!("jikji-cli-test-db-{:016x}", hasher.finish()));
+    fs::create_dir_all(&data).expect("jikji test data dir");
+    data
 }
 
 fn assert_success(output: &Output) {

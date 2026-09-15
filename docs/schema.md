@@ -102,7 +102,7 @@ artifact rows:
 - `search_filename_keys`: compact filename lookup keys
 - `search_idf`: deterministic term weights
 - `search_field_terms`: term-frequency rows by `path`, `name`, `ext`, `body`, `meta`, and `semantic` fields
-- `search_field_lengths`: per-document field lengths
+- `search_field_lengths`: per-document field lengths, indexed by `(root_id, doc_id, field)` for BM25 lookups
 - `search_field_idf`: BM25 IDF for fielded terms
 - `search_field_avg`: average field lengths for BM25 normalization
 

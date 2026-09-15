@@ -112,6 +112,7 @@ _POST_INSTALL_COMMON_RELS = (
     "OneDrive/Documents",
     "OneDrive/문서",
     "Google Drive",
+    "GoogleDrive",
     "Dropbox",
     "iCloud Drive",
     "Downloads/Telegram Desktop",
@@ -120,6 +121,8 @@ _POST_INSTALL_COMMON_RELS = (
     "Documents/KakaoTalk Downloads",
     "Documents/카카오톡 받은 파일",
 )
+_CLOUD_LIBRARY_DIR_NAMES = {"GoogleDrive", "Google Drive"}
+_CLOUD_SKIP_CHILDREN = {"kaggle", "node_modules"}
 
 
 def _config_from_args(args) -> Config:
@@ -1479,8 +1482,13 @@ def _select_default_post_install_roots() -> tuple[list[Path], dict[str, object]]
     max_roots = int(policy["max_default_roots"])
     home = _post_install_home()
     common_roots = _common_post_install_roots(home)
-    document_roots, scanned = _document_heavy_post_install_roots(home, common_roots, max_roots=max(0, max_roots - len(common_roots)))
-    roots = _dedupe_roots([*common_roots, *document_roots])[:max_roots]
+    document_roots, scanned = _document_heavy_post_install_roots(
+        home,
+        common_roots,
+        max_roots=max(0, max_roots - len(common_roots)),
+    )
+    combined = _dedupe_roots([*common_roots, *document_roots])
+    roots = combined[: max(max_roots, len(common_roots))]
     selection = {
         "source": "auto_common_and_document_roots",
         "home": str(home),
@@ -1494,7 +1502,7 @@ def _select_default_post_install_roots() -> tuple[list[Path], dict[str, object]]
 
 def _common_post_install_roots(home: Path) -> list[Path]:
     candidates = [home / rel for rel in _POST_INSTALL_COMMON_RELS]
-    return _dedupe_roots([path for path in candidates if path.is_dir()])
+    return _expand_cloud_library_roots(_dedupe_roots([path for path in candidates if path.is_dir()]))
 
 
 def _dedupe_roots(candidates: list[Path]) -> list[Path]:
@@ -1512,6 +1520,60 @@ def _dedupe_roots(candidates: list[Path]) -> list[Path]:
         seen.add(root)
         roots.append(root)
     return roots
+
+
+def _expand_cloud_library_roots(roots: list[Path]) -> list[Path]:
+    expanded: list[Path] = []
+    for root in roots:
+        if root.name in _CLOUD_LIBRARY_DIR_NAMES and root.is_dir():
+            expanded.extend(_cloud_child_roots(root))
+        expanded.append(root)
+    return expanded
+
+
+def _cloud_child_roots(root: Path) -> list[Path]:
+    children: list[Path] = []
+    try:
+        with os.scandir(root) as it:
+            for entry in it:
+                if not entry.is_dir(follow_symlinks=False):
+                    continue
+                if entry.name.startswith(".") or entry.name in _CLOUD_SKIP_CHILDREN:
+                    continue
+                children.append(Path(entry.path))
+    except OSError:
+        return []
+    children.sort(key=lambda path: (not _cloud_child_looks_document_heavy(path), path.name.lower()))
+    return children
+
+
+def _cloud_child_looks_document_heavy(path: Path) -> bool:
+    try:
+        with os.scandir(path) as it:
+            for entry in it:
+                if not entry.is_file(follow_symlinks=False):
+                    continue
+                if Path(entry.name).suffix.lower() in _POST_INSTALL_DOCUMENT_EXTS:
+                    return True
+    except OSError:
+        return False
+    return False
+
+
+def _child_dir_excludes(root: Path, selected: list[Path]) -> list[str]:
+    names: list[str] = []
+    try:
+        root_res = root.expanduser().resolve()
+    except (OSError, RuntimeError):
+        return names
+    for other in selected:
+        try:
+            other_res = other.expanduser().resolve()
+        except (OSError, RuntimeError):
+            continue
+        if other_res != root_res and _is_relative_to(other_res, root_res):
+            names.append(other_res.name)
+    return names
 
 
 def _is_relative_to(path: Path, parent: Path) -> bool:
@@ -1555,7 +1617,7 @@ def _document_heavy_post_install_roots(
             if Path(filename).suffix.lower() in _POST_INSTALL_DOCUMENT_EXTS:
                 count += 1
                 document_files += 1
-        if count >= 3:
+        if count >= 3 and current != home:
             scores[current] = count
     ranked = sorted(scores.items(), key=lambda item: (-item[1], len(item[0].parts), str(item[0])))[:max_roots]
     roots = _dedupe_roots([path for path, _count in ranked])
@@ -1583,6 +1645,7 @@ def _prepare_roots_foreground(
         cfg = Config()
         cfg.max_files = max_files
         cfg.parse_timeout_s = parse_timeout
+        cfg.ignore_patterns.extend(_child_dir_excludes(root, roots))
         try:
             result = build_agent_index(root, cfg)
             prepared.append({

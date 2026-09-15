@@ -19,3 +19,4 @@ __pycache__/
 # piper tts voices (downloaded locally for media benchmark)
 *.onnx
 *.onnx.json
+tent.[1-5]/

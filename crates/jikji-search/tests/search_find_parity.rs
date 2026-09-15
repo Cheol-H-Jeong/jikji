@@ -1,11 +1,14 @@
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::{Mutex, MutexGuard};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use jikji_search::{SearchOptions, search};
 
+static DATA_DIR_LOCK: Mutex<()> = Mutex::new(());
 #[test]
-fn search_reports_corrupted_sqlite_index_as_malformed_input() {
+fn search_skips_root_local_legacy_sqlite_for_registered_roots() {
+    let _data = IsolatedData::new("corrupt-sqlite");
     let root = temp_root("corrupt-sqlite");
     let index_dir = root.join(".jikji");
     fs::create_dir_all(&index_dir).expect("create index dir");
@@ -15,8 +18,10 @@ fn search_reports_corrupted_sqlite_index_as_malformed_input() {
     )
     .expect("write corrupted sqlite");
 
-    let error = search(&root, "ACME", SearchOptions { top_k: 3 }).expect_err("malformed sqlite");
-    assert!(error.to_string().contains("search_index.sqlite"));
+    let hits = search(&root, "ACME", SearchOptions { top_k: 3 })
+        .expect("search must not attach root-local sqlite");
+    assert!(hits.is_empty(), "{hits:?}");
+    let _ = jikji_core::storage::delete_root(&root);
 }
 
 struct TempRoot {
@@ -48,4 +53,46 @@ fn temp_root(label: &str) -> TempRoot {
     ));
     fs::create_dir_all(&root).expect("create temp root");
     TempRoot { path: root }
+}
+
+struct IsolatedData {
+    path: PathBuf,
+    previous: Option<std::ffi::OsString>,
+    _lock: MutexGuard<'static, ()>,
+}
+
+impl IsolatedData {
+    fn new(label: &str) -> Self {
+        let lock = DATA_DIR_LOCK.lock().expect("data dir lock");
+        let previous = std::env::var_os("JIKJI_DATA_DIR");
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time")
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!(
+            "jikji-search-data-{label}-{}-{nonce}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&path).expect("create isolated data dir");
+        unsafe {
+            std::env::set_var("JIKJI_DATA_DIR", &path);
+        }
+        Self {
+            path,
+            previous,
+            _lock: lock,
+        }
+    }
+}
+
+impl Drop for IsolatedData {
+    fn drop(&mut self) {
+        unsafe {
+            match &self.previous {
+                Some(value) => std::env::set_var("JIKJI_DATA_DIR", value),
+                None => std::env::remove_var("JIKJI_DATA_DIR"),
+            }
+        }
+        let _ = fs::remove_dir_all(&self.path);
+    }
 }

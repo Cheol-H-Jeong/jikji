@@ -4,6 +4,7 @@ mod helpers;
 use std::fs;
 use std::io::{Read, Write};
 use std::net::TcpListener;
+use std::path::Path;
 use std::thread;
 
 use helpers::{GuiChild, assert_rejected, json_cmd, path_str, run_fail, run_ok};
@@ -333,6 +334,141 @@ fn gui_find_candidates_include_preview_snippets() {
             .as_str()
             .expect("snippet")
             .contains("payment terms")
+    );
+}
+
+#[test]
+fn gui_find_keeps_indexed_hits_without_full_query_substring() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let root = temp.path().join("root");
+    fs::create_dir(&root).expect("root");
+    fs::write(
+        root.join("cascade_notes.txt"),
+        "Adaptive Jikji discovery cascade for local retrieval.",
+    )
+    .expect("fixture");
+    json_cmd(["prepare", path_str(&root).as_str(), "--json"]);
+
+    let gui = GuiChild::start(&root);
+    let found = response_json(&gui.get("/api/find?q=adaptive%20discovery%20cascade"));
+    let candidates = found["candidates"].as_array().expect("candidates");
+    assert!(
+        !candidates.is_empty(),
+        "GUI find should keep BM25 hits even when the full query is not a contiguous substring: {found}"
+    );
+    assert_eq!(candidates[0]["p"], "cascade_notes.txt");
+    assert_eq!(candidates[0]["path"], "cascade_notes.txt");
+    assert_ne!(found["answerability"], "no_match");
+}
+
+#[test]
+fn gui_find_includes_hits_from_indexed_library_roots() {
+    use std::process::Command;
+
+    let temp = tempfile::tempdir().expect("tempdir");
+    let data_dir = temp.path().join("data");
+    let home = temp.path().join("home");
+    let active = home.join("projects/app");
+    let documents = home.join("Documents");
+    fs::create_dir_all(&active).expect("active");
+    fs::create_dir_all(&documents).expect("documents");
+    fs::write(active.join("readme.txt"), "active workspace readme").expect("readme");
+    fs::write(
+        documents.join("library_invoice.txt"),
+        "unique library invoice token zebra-cascade-42",
+    )
+    .expect("invoice");
+
+    for root in [&active, &documents] {
+        let output = Command::new(env!("CARGO_BIN_EXE_jikji"))
+            .env("JIKJI_DATA_DIR", &data_dir)
+            .args(["prepare", path_str(root).as_str(), "--json"])
+            .output()
+            .expect("prepare");
+        assert!(
+            output.status.success(),
+            "prepare failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    let gui = GuiChild::start_with_env(
+        &active,
+        &[
+            ("JIKJI_DATA_DIR", data_dir.as_os_str()),
+            ("JIKJI_POST_INSTALL_HOME", home.as_os_str()),
+        ],
+    );
+    let found = response_json(&gui.get("/api/find?q=zebra-cascade-42"));
+    let candidates = found["candidates"].as_array().expect("candidates");
+    assert!(
+        candidates.iter().any(|item| {
+            item["p"] == "library_invoice.txt" || item["path"] == "library_invoice.txt"
+        }),
+        "library document should be searchable from a non-library GUI root: {found}"
+    );
+    let hit = candidates
+        .iter()
+        .find(|item| item["p"] == "library_invoice.txt" || item["path"] == "library_invoice.txt")
+        .expect("hit");
+    let root = hit["root"].as_str().expect("root");
+    assert!(
+        Path::new(root).ends_with("Documents"),
+        "candidate root should be the Documents library folder, got {root}"
+    );
+}
+
+#[test]
+fn gui_find_keeps_nested_drive_root_when_parent_is_indexed() {
+    use std::process::Command;
+
+    let temp = tempfile::tempdir().expect("tempdir");
+    let data_dir = temp.path().join("data");
+    let home = temp.path().join("home");
+    let active = home.join("projects/app");
+    let drive = home.join("GoogleDrive");
+    let nested = drive.join("마커");
+    fs::create_dir_all(&active).expect("active");
+    fs::create_dir_all(&nested).expect("nested drive");
+    fs::write(active.join("readme.txt"), "active workspace readme").expect("readme");
+    fs::write(drive.join("top-note.txt"), "parent drive token").expect("parent note");
+    fs::write(
+        nested.join("nested-note.txt"),
+        "unique nested drive token nested-drive-token-99",
+    )
+    .expect("nested note");
+
+    for root in [&active, &drive, &nested] {
+        let output = Command::new(env!("CARGO_BIN_EXE_jikji"))
+            .env("JIKJI_DATA_DIR", &data_dir)
+            .args(["prepare", path_str(root).as_str(), "--json"])
+            .output()
+            .expect("prepare");
+        assert!(
+            output.status.success(),
+            "prepare failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    let gui = GuiChild::start_with_env(
+        &active,
+        &[
+            ("JIKJI_DATA_DIR", data_dir.as_os_str()),
+            ("JIKJI_POST_INSTALL_HOME", home.as_os_str()),
+        ],
+    );
+    let found = response_json(&gui.get("/api/find?q=nested-drive-token-99"));
+    let candidates = found["candidates"].as_array().expect("candidates");
+    assert!(
+        candidates.iter().any(|item| {
+            let nested_hit = item["p"] == "nested-note.txt" || item["path"] == "nested-note.txt";
+            let nested_root = item["root"]
+                .as_str()
+                .is_some_and(|root| Path::new(root).ends_with("마커"));
+            nested_hit && nested_root
+        }),
+        "nested GoogleDrive child root must stay searchable after parent is indexed: {found}"
     );
 }
 

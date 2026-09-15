@@ -11,18 +11,23 @@ use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Instant, UNIX_EPOCH};
 
 use super::http::{
-    HttpRequest, HttpResponse, malformed_request, query_bool, query_value, query_values,
+    HttpRequest, HttpResponse, malformed_request, query_bool, query_flag, query_value, query_values,
 };
 use super::jobs::{JobRegistry, snapshot_response};
+use super::scenarios;
 use super::token::ManagementToken;
 use jikji_core::PrepareOptions;
 use jikji_core::storage::{
     clear_artifact, database_path, delete_root_by_key, indexed_roots, load_artifact,
-    load_artifacts, migrate_legacy, register_root, remove_artifacts_under, root_key,
-    root_statistics, store_artifact,
+    load_artifact_by_path, load_artifacts, migrate_legacy, register_root, remove_artifacts_under,
+    root_key, root_statistics, searchable_root_paths, searchable_root_paths_for_extensions,
+    store_artifact,
 };
-use jikji_index::{doctor, prepare};
-use jikji_search::{DiscoverOptions, SearchOptions, discover, search};
+use jikji_index::{CleanOptions, clean, doctor, prepare, read_map};
+use jikji_search::{
+    BriefOptions, DiscoverOptions, SearchOptions, brief_payload, discover, explain_source,
+    graph_query, graph_status, search, search_index_status,
+};
 use serde_json::json;
 
 #[derive(Clone)]
@@ -35,6 +40,7 @@ pub(crate) struct GuiState {
 
 impl GuiState {
     pub(crate) fn new(root: PathBuf, manage_token: ManagementToken) -> Self {
+        crate::post_install_commands::enqueue_missing_library_root_prepares();
         Self {
             root: Arc::new(RwLock::new(root)),
             mutation: Arc::new(Mutex::new(())),
@@ -100,11 +106,17 @@ pub(crate) fn route_request(
             with_root(state, |root| indexed_files_response(root, &request.query))
         }
         ("GET", "/api/search") => with_root(state, |root| search_response(root, &request.query)),
-        ("GET", "/api/find") | ("GET", "/api/discover") => {
-            with_root(state, |root| discover_response(root, &request.query))
-        }
-        ("GET", "/api/preview") => with_root(state, |root| preview_response(root, &request.query)),
-        ("GET", "/download") => with_root(state, |root| download_response(root, &request.query)),
+        ("GET", "/api/find") | ("GET", "/api/discover") => discover_response(state, &request.query),
+        ("GET", "/api/scenarios") => HttpResponse::json(200, scenarios::list()),
+        ("GET", "/api/scenario-run") => scenario_response(state, &request.query),
+        ("GET", "/api/preview") => preview_response(state, &request.query),
+        ("GET", "/api/preview/file") => preview_file_response(state, &request.query),
+        ("GET", "/api/doctor") => with_root(state, doctor_response),
+        ("GET", "/api/map") => with_root(state, map_response),
+        ("GET", "/api/graph") => with_root(state, |root| graph_response(root, &request.query)),
+        ("GET", "/api/brief") => with_root(state, |root| brief_response(root, &request.query)),
+        ("POST", "/api/clean") => management_response(state, &request.query, clean_response),
+        ("GET", "/download") => download_response(state, &request.query),
         ("POST", "/open") => management_response(state, &request.query, open_response),
         ("POST", "/reveal") => management_response(state, &request.query, reveal_response),
         ("POST", "/api/refresh") => management_response(state, &request.query, refresh_response),
@@ -169,9 +181,231 @@ fn roots_response(state: &GuiState) -> HttpResponse {
         Ok(root) => root,
         Err(response) => return response,
     };
+    let library_roots = crate::post_install_commands::library_search_prefixes(
+        &crate::post_install_commands::post_install_home(),
+    );
     match indexed_roots() {
-        Ok(roots) => HttpResponse::json(200, json!({"active_root": active_root, "roots": roots})),
+        Ok(mut roots) => {
+            roots.retain(|item| keep_listed_root(&item.root, &active_root));
+            roots.sort_by(|left, right| {
+                root_list_rank(&right.root, &active_root, &library_roots)
+                    .cmp(&root_list_rank(&left.root, &active_root, &library_roots))
+                    .then_with(|| left.root.cmp(&right.root))
+            });
+            HttpResponse::json(
+                200,
+                json!({
+                    "active_root": active_root,
+                    "roots": roots,
+                    "library_roots": library_roots,
+                }),
+            )
+        }
         Err(error) => HttpResponse::json(500, json!({"error": error.to_string()})),
+    }
+}
+
+fn keep_listed_root(path: &Path, active: &Path) -> bool {
+    if path == active {
+        return true;
+    }
+    let tmp = std::env::temp_dir();
+    if path.starts_with(&tmp) {
+        if path
+            .components()
+            .any(|component| component.as_os_str().to_string_lossy().starts_with("jikji"))
+        {
+            return false;
+        }
+        return path.is_dir();
+    }
+    true
+}
+
+fn library_rank(path: &Path, library: &[PathBuf]) -> u8 {
+    u8::from(
+        library
+            .iter()
+            .any(|root| path == root || path.starts_with(root)),
+    )
+}
+
+fn root_list_rank(path: &Path, active: &Path, library: &[PathBuf]) -> u8 {
+    if path == active {
+        2
+    } else {
+        library_rank(path, library)
+    }
+}
+
+fn search_roots_for_query(active: &Path) -> Vec<PathBuf> {
+    let mut roots = Vec::new();
+    push_unique_search_root(&mut roots, active);
+    let home = crate::post_install_commands::post_install_home();
+    let mut extras: Vec<PathBuf> = searchable_root_paths()
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|path| crate::post_install_commands::is_library_search_path(path, &home))
+        .collect();
+    extras.sort_by_key(|path| path.components().count());
+    for path in extras {
+        push_unique_search_root(&mut roots, &path);
+    }
+    roots
+}
+
+fn discover_roots_for_query(active: &Path, extensions: &[String]) -> Vec<PathBuf> {
+    let roots = search_roots_for_query(active);
+    if extensions.is_empty() {
+        return roots;
+    }
+    let matching = searchable_root_paths_for_extensions(extensions).unwrap_or_default();
+    let roots = filter_roots_by_matching_extensions(roots, active, &matching);
+    drop_redundant_nested_search_roots(roots, active)
+}
+
+fn filter_roots_by_matching_extensions(
+    roots: Vec<PathBuf>,
+    active: &Path,
+    matching: &[PathBuf],
+) -> Vec<PathBuf> {
+    roots
+        .into_iter()
+        .filter(|root| {
+            root == active
+                || matching
+                    .iter()
+                    .any(|candidate| paths_refer_to_same_root(root, candidate))
+        })
+        .collect()
+}
+
+fn drop_redundant_nested_search_roots(roots: Vec<PathBuf>, active: &Path) -> Vec<PathBuf> {
+    roots
+        .iter()
+        .filter(|root| {
+            if *root == active {
+                return true;
+            }
+            !roots
+                .iter()
+                .any(|other| other != *root && other != active && root.starts_with(other))
+        })
+        .cloned()
+        .collect()
+}
+
+const DISCOVER_ROOT_CONCURRENCY: usize = 32;
+
+fn collect_discover_payloads(
+    roots: &[PathBuf],
+    query: &str,
+    top_k: usize,
+    retry_exhausted: bool,
+    retry_proof: &str,
+    active: &Path,
+) -> (Vec<serde_json::Value>, Option<jikji_core::JikjiError>) {
+    let mut payloads = Vec::new();
+    let mut last_error = None;
+    let active = active.to_path_buf();
+    for chunk in roots.chunks(DISCOVER_ROOT_CONCURRENCY) {
+        std::thread::scope(|scope| {
+            let mut joins = Vec::new();
+            for root in chunk {
+                let root = root.clone();
+                let q = query.to_owned();
+                let proof = retry_proof.to_owned();
+                let active = active.clone();
+                joins.push(scope.spawn(move || {
+                    let started = Instant::now();
+                    let lite = !paths_look_like_same_root(&root, &active);
+                    discover(
+                        &root,
+                        &q,
+                        DiscoverOptions {
+                            top_k,
+                            retry_exhausted,
+                            retry_proof: proof,
+                            lite,
+                        },
+                    )
+                    .map(|mut payload| {
+                        annotate_candidates_with_root(&root, &mut payload);
+                        payload["root"] = json!(root.to_string_lossy());
+                        payload["root_elapsed_ms"] = json!(started.elapsed().as_millis());
+                        payload
+                    })
+                }));
+            }
+            for join in joins {
+                match join.join() {
+                    Ok(Ok(payload)) => payloads.push(payload),
+                    Ok(Err(error)) => last_error = Some(error),
+                    Err(_) => {
+                        last_error = Some(jikji_core::io_error(
+                            "<gui-find>",
+                            std::io::Error::other("discover thread panicked"),
+                        ));
+                    }
+                }
+            }
+        });
+    }
+    (payloads, last_error)
+}
+
+fn push_unique_search_root(roots: &mut Vec<PathBuf>, path: &Path) {
+    // Do not canonicalize or STAT: rclone FUSE lookups of a busy Drive child
+    // (e.g. 마커) block the entire GUI /api/find handler.
+    if roots.iter().any(|existing| existing == path) {
+        return;
+    }
+    roots.push(path.to_path_buf());
+}
+
+fn requested_search_root(
+    state: &GuiState,
+    query: &str,
+) -> std::result::Result<PathBuf, HttpResponse> {
+    let active = state.root()?;
+    let Some(raw) = query_value(query, "root").filter(|value| !value.is_empty()) else {
+        return Ok(active);
+    };
+    let requested = PathBuf::from(raw);
+    if searchable_root_contains(&search_roots_for_query(&active), &requested) {
+        Ok(requested)
+    } else {
+        Err(HttpResponse::json(
+            403,
+            json!({"error": "path traversal is not allowed"}),
+        ))
+    }
+}
+
+fn searchable_root_contains(roots: &[PathBuf], requested: &Path) -> bool {
+    roots
+        .iter()
+        .any(|root| paths_refer_to_same_root(root, requested))
+}
+
+fn paths_look_like_same_root(left: &Path, right: &Path) -> bool {
+    if left == right {
+        return true;
+    }
+    let normalize = |path: &Path| path.to_string_lossy().trim_end_matches('/').to_owned();
+    normalize(left) == normalize(right)
+}
+fn paths_refer_to_same_root(left: &Path, right: &Path) -> bool {
+    if left == right {
+        return true;
+    }
+    let normalize = |path: &Path| path.to_string_lossy().trim_end_matches('/').to_owned();
+    if normalize(left) == normalize(right) {
+        return true;
+    }
+    match (left.canonicalize(), right.canonicalize()) {
+        (Ok(left), Ok(right)) => left == right,
+        _ => false,
     }
 }
 
@@ -204,7 +438,8 @@ fn root_status(root: &Path) -> HttpResponse {
     )
 }
 
-const MAX_PREVIEW_BYTES: u64 = 256 * 1024;
+const MAX_TEXT_PREVIEW_BYTES: u64 = 256 * 1024;
+const MAX_BINARY_PREVIEW_BYTES: u64 = 16 * 1024 * 1024;
 const MAX_SNIPPET_CHARS: usize = 240;
 
 fn files_response(root: &Path, query: &str) -> HttpResponse {
@@ -253,9 +488,7 @@ fn files_response(root: &Path, query: &str) -> HttpResponse {
         } else {
             "unindexed".to_owned()
         };
-        let status = if file_type == "file" && scope != "unindexed" {
-            "current"
-        } else if file_type == "directory" {
+        let status = if file_type == "directory" || (file_type == "file" && scope != "unindexed") {
             "current"
         } else if file_type == "file" {
             "unindexed"
@@ -319,11 +552,12 @@ fn indexed_files_response(root: &Path, query: &str) -> HttpResponse {
         .to_owned();
     let mut entries = Vec::new();
     let mut folders = std::collections::BTreeSet::new();
+    let statuses = indexed_file_statuses(root);
     for row in load_artifacts(root, "files").unwrap_or_default() {
         let Some(path) = row.get("path").and_then(serde_json::Value::as_str) else {
             continue;
         };
-        if !prefix.is_empty() && !(path == prefix || path.starts_with(&format!("{prefix}/"))) {
+        if !(prefix.is_empty() || path == prefix || path.starts_with(&format!("{prefix}/"))) {
             continue;
         }
         let relative = path.strip_prefix(&prefix).unwrap_or(path).trim_matches('/');
@@ -341,7 +575,7 @@ fn indexed_files_response(root: &Path, query: &str) -> HttpResponse {
             folders.insert(folder);
             let _ = rest;
         } else {
-            let scope = indexed_file_statuses(root)
+            let scope = statuses
                 .get(path)
                 .cloned()
                 .unwrap_or_else(|| "basic".to_owned());
@@ -377,12 +611,15 @@ fn indexed_files_response(root: &Path, query: &str) -> HttpResponse {
         json!({"root": root, "path": prefix, "entries": entries, "source": "jikji_index"}),
     )
 }
-
-fn preview_response(root: &Path, query: &str) -> HttpResponse {
-    let Some(rel) = query_value(query, "path") else {
+fn preview_response(state: &GuiState, query: &str) -> HttpResponse {
+    let root = match requested_search_root(state, query) {
+        Ok(root) => root,
+        Err(response) => return response,
+    };
+    let Some(rel) = query_value(query, "path").or_else(|| query_value(query, "p")) else {
         return HttpResponse::json(400, json!({"error": "missing path"}));
     };
-    let path = match resolve_root_path(root, &rel) {
+    let path = match resolve_root_path(&root, &rel) {
         Ok(path) => path,
         Err(response) => return response,
     };
@@ -393,11 +630,17 @@ fn preview_response(root: &Path, query: &str) -> HttpResponse {
         Ok(metadata) => metadata,
         Err(source) => return HttpResponse::json(500, json!({"error": source.to_string()})),
     };
+    let renderer = preview_renderer(&path);
     let mut payload = json!({
-        "path": relative_display_path(root, &path),
+        "path": relative_display_path(&root, &path),
         "type": "file",
         "size": metadata.len(),
         "mtime": metadata.modified().ok().and_then(|time| time.duration_since(UNIX_EPOCH).ok()).map(|duration| duration.as_secs()),
+        "extension": path.extension().and_then(|value| value.to_str()).unwrap_or_default().to_ascii_lowercase(),
+        "renderer": renderer.name,
+        "renderer_available": renderer.available,
+        "media_type": renderer.media_type,
+        "binary_url": format!("/api/preview/file?{}", query),
     });
     match read_text_preview(&path, metadata.len()) {
         Ok(Some(content)) => {
@@ -411,8 +654,12 @@ fn preview_response(root: &Path, query: &str) -> HttpResponse {
             HttpResponse::json(200, payload)
         }
         Ok(None) => {
-            payload["supported"] = json!(false);
-            payload["reason"] = json!(if metadata.len() > MAX_PREVIEW_BYTES {
+            payload["supported"] = json!(renderer.available && renderer.media_type.is_some());
+            payload["reason"] = json!(if !renderer.available {
+                "renderer_unavailable"
+            } else if renderer.media_type.is_some() {
+                "binary"
+            } else if metadata.len() > MAX_TEXT_PREVIEW_BYTES {
                 "too_large"
             } else {
                 "binary"
@@ -423,13 +670,225 @@ fn preview_response(root: &Path, query: &str) -> HttpResponse {
     }
 }
 
+struct PreviewRenderer {
+    name: &'static str,
+    available: bool,
+    media_type: Option<&'static str>,
+}
+
+fn preview_renderer(path: &Path) -> PreviewRenderer {
+    let extension = path
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    match extension.as_str() {
+        "hwp" | "hwpx" => {
+            let rwhp = executable_available("rwhp");
+            PreviewRenderer {
+                name: if rwhp { "rwhp" } else { "libreoffice-fallback" },
+                available: rwhp
+                    || executable_available("libreoffice")
+                    || executable_available("soffice"),
+                media_type: Some("application/pdf"),
+            }
+        }
+        "pdf" => PreviewRenderer {
+            name: "browser-pdf",
+            available: true,
+            media_type: Some("application/pdf"),
+        },
+        "doc" | "docx" | "ppt" | "pptx" | "xls" | "xlsx" | "odt" | "ods" | "odp" => {
+            PreviewRenderer {
+                name: "libreoffice",
+                available: executable_available("libreoffice") || executable_available("soffice"),
+                media_type: Some("application/pdf"),
+            }
+        }
+        "png" => PreviewRenderer {
+            name: "browser-image",
+            available: true,
+            media_type: Some("image/png"),
+        },
+        "jpg" | "jpeg" => PreviewRenderer {
+            name: "browser-image",
+            available: true,
+            media_type: Some("image/jpeg"),
+        },
+        "gif" => PreviewRenderer {
+            name: "browser-image",
+            available: true,
+            media_type: Some("image/gif"),
+        },
+        "webp" => PreviewRenderer {
+            name: "browser-image",
+            available: true,
+            media_type: Some("image/webp"),
+        },
+        _ => PreviewRenderer {
+            name: "text",
+            available: true,
+            media_type: None,
+        },
+    }
+}
+
+fn executable_available(name: &str) -> bool {
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        executable_on_path(name).is_some()
+    }
+    #[cfg(any(target_os = "macos", windows))]
+    {
+        std::env::var_os("PATH")
+            .is_some_and(|path| std::env::split_paths(&path).any(|dir| dir.join(name).is_file()))
+    }
+}
+
+fn preview_file_response(state: &GuiState, query: &str) -> HttpResponse {
+    let root = match requested_search_root(state, query) {
+        Ok(root) => root,
+        Err(response) => return response,
+    };
+    let Some(rel) = query_value(query, "path").or_else(|| query_value(query, "p")) else {
+        return HttpResponse::json(400, json!({"error":"missing path"}));
+    };
+    let path = match resolve_root_path(&root, &rel) {
+        Ok(path) => path,
+        Err(response) => return response,
+    };
+    if !path.is_file() {
+        return HttpResponse::json(400, json!({"error":"preview target is not a file"}));
+    }
+    let renderer = preview_renderer(&path);
+    let Some(media_type) = renderer.media_type else {
+        return HttpResponse::json(415, json!({"error":"no binary renderer for file"}));
+    };
+    if !renderer.available {
+        return HttpResponse::json(
+            503,
+            json!({"error":"renderer unavailable","renderer":renderer.name}),
+        );
+    }
+    let extension = path
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    let rendered = if media_type == "application/pdf" && extension != "pdf" {
+        convert_document_to_pdf(&path, renderer.name == "rwhp")
+    } else {
+        fs::read(&path).map_err(|error| error.to_string())
+    };
+    match rendered {
+        Ok(body) if body.len() as u64 <= MAX_BINARY_PREVIEW_BYTES => {
+            HttpResponse::binary(200, body, media_type)
+        }
+        Ok(_) => HttpResponse::json(413, json!({"error":"preview target is too large"})),
+        Err(error) => HttpResponse::json(
+            422,
+            json!({"error":"preview conversion failed","renderer":renderer.name,"detail":error}),
+        ),
+    }
+}
+
+fn convert_document_to_pdf(path: &Path, prefer_rwhp: bool) -> std::result::Result<Vec<u8>, String> {
+    let mut errors = Vec::new();
+    if prefer_rwhp && executable_available("rwhp") {
+        match convert_with_rwhp(path) {
+            Ok(body) => return Ok(body),
+            Err(error) => errors.push(format!("rwhp: {error}")),
+        }
+    }
+    match convert_with_libreoffice(path) {
+        Ok(body) => Ok(body),
+        Err(error) => {
+            errors.push(format!("libreoffice: {error}"));
+            Err(errors.join("; "))
+        }
+    }
+}
+
+fn convert_with_rwhp(path: &Path) -> std::result::Result<Vec<u8>, String> {
+    let temp = tempfile::tempdir().map_err(|error| error.to_string())?;
+    let output_pdf = temp.path().join("preview.pdf");
+    let attempts = [
+        vec![
+            "to-pdf".to_owned(),
+            path.display().to_string(),
+            output_pdf.display().to_string(),
+        ],
+        vec![
+            "convert".to_owned(),
+            path.display().to_string(),
+            output_pdf.display().to_string(),
+        ],
+    ];
+    let mut last_error = String::from("rwhp produced no PDF");
+    for args in attempts {
+        let output = Command::new("rwhp")
+            .args(&args)
+            .current_dir(temp.path())
+            .output()
+            .map_err(|error| error.to_string())?;
+        if output_pdf.is_file() {
+            return fs::read(&output_pdf).map_err(|error| error.to_string());
+        }
+        if let Some(stem) = path.file_stem() {
+            let fallback = temp.path().join(stem).with_extension("pdf");
+            if fallback.is_file() {
+                return fs::read(fallback).map_err(|error| error.to_string());
+            }
+        }
+        last_error = String::from_utf8_lossy(&output.stderr).trim().to_owned();
+        if last_error.is_empty() {
+            last_error = String::from_utf8_lossy(&output.stdout).trim().to_owned();
+        }
+        if last_error.is_empty() {
+            last_error = format!("rwhp exited {}", output.status);
+        }
+    }
+    Err(last_error)
+}
+
+fn libreoffice_program() -> Option<&'static str> {
+    if executable_available("libreoffice") {
+        Some("libreoffice")
+    } else if executable_available("soffice") {
+        Some("soffice")
+    } else {
+        None
+    }
+}
+
+fn convert_with_libreoffice(path: &Path) -> std::result::Result<Vec<u8>, String> {
+    let temp = tempfile::tempdir().map_err(|error| error.to_string())?;
+    let Some(program) = libreoffice_program() else {
+        return Err("libreoffice/soffice is not available".to_owned());
+    };
+    let output = Command::new(program)
+        .args(["--headless", "--convert-to", "pdf", "--outdir"])
+        .arg(temp.path())
+        .arg(path)
+        .output()
+        .map_err(|error| error.to_string())?;
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).trim().to_owned());
+    }
+    let stem = path
+        .file_stem()
+        .ok_or_else(|| "preview target has no file stem".to_owned())?;
+    let pdf = temp.path().join(stem).with_extension("pdf");
+    fs::read(pdf).map_err(|error| error.to_string())
+}
+
 fn read_text_preview(path: &Path, size: u64) -> std::io::Result<Option<String>> {
-    if size > MAX_PREVIEW_BYTES {
+    if size > MAX_TEXT_PREVIEW_BYTES {
         return Ok(None);
     }
     let mut bytes = Vec::with_capacity(size as usize);
     File::open(path)?
-        .take(MAX_PREVIEW_BYTES + 1)
+        .take(MAX_TEXT_PREVIEW_BYTES + 1)
         .read_to_end(&mut bytes)?;
     if bytes.contains(&0)
         || bytes
@@ -480,37 +939,297 @@ fn search_response(root: &Path, query: &str) -> HttpResponse {
     }
 }
 
-fn discover_response(root: &Path, query: &str) -> HttpResponse {
+fn discover_response(state: &GuiState, query: &str) -> HttpResponse {
     let q = query_value(query, "q").unwrap_or_default();
     if q.trim().is_empty() {
         return HttpResponse::json(400, json!({"error": "missing q"}));
     }
+    let extension = query_value(query, "extension").unwrap_or_default();
+    let extensions = parse_extensions(&extension);
     let top_k = query_value(query, "top_k")
         .and_then(|value| value.parse::<usize>().ok())
         .unwrap_or(20)
         .clamp(1, 100);
-    match discover(
-        root,
-        &q,
-        DiscoverOptions {
-            top_k,
-            ..DiscoverOptions::default()
-        },
-    ) {
-        Ok(mut payload) => {
-            payload["mode"] = json!("find");
-            payload["command"] = json!("jikji find");
-            filter_candidates_to_index(root, &q, &mut payload);
-            add_candidate_snippets(root, &q, &mut payload);
-            HttpResponse::json(200, payload)
+    let fetch_k = top_k;
+    let handler_start = Instant::now();
+    let active = match state.root() {
+        Ok(root) => root,
+        Err(response) => return response,
+    };
+    let mut prepared_status = None;
+    if query_bool(query, "fresh") || query_bool(query, "auto_prepare") {
+        let options = prepare_options_from_query(query);
+        let stale_after_seconds = query_i64(query, "stale_after_seconds").unwrap_or(86_400);
+        match crate::search_commands::maybe_prepare_for_search(
+            &active,
+            query_bool(query, "fresh"),
+            query_bool(query, "auto_prepare") && !query_bool(query, "no_auto_prepare"),
+            stale_after_seconds,
+            &options,
+            !query_bool(query, "no_background_refresh"),
+        ) {
+            Ok(mut prepared) => {
+                crate::search_commands::start_deferred_background_refresh(
+                    &mut prepared,
+                    &active,
+                    &options,
+                );
+                prepared_status = Some(prepared);
+            }
+            Err(error) => {
+                return HttpResponse::json(500, json!({"error": error.to_string()}));
+            }
         }
-        Err(error) => HttpResponse::json(500, json!({"error": error.to_string()})),
+    }
+    let retry_exhausted = query_bool(query, "after_jikji_retry");
+    let retry_proof = query_value(query, "retry_proof").unwrap_or_default();
+    let t_pre_roots = handler_start.elapsed();
+    let roots = discover_roots_for_query(&active, &extensions);
+    let t_after_roots = handler_start.elapsed();
+    let (payloads, last_error) =
+        collect_discover_payloads(&roots, &q, fetch_k, retry_exhausted, &retry_proof, &active);
+    let t_after_collect = handler_start.elapsed();
+    if payloads.is_empty() {
+        return match last_error {
+            Some(error) => HttpResponse::json(500, json!({"error": error.to_string()})),
+            None => HttpResponse::json(500, json!({"error": "no searchable roots"})),
+        };
+    }
+    let search_root_elapsed_ms: Vec<serde_json::Value> = payloads
+        .iter()
+        .map(|item| {
+            json!({
+                "root": item.get("root").cloned().unwrap_or(json!(null)),
+                "elapsed_ms": item.get("root_elapsed_ms").cloned().unwrap_or(json!(null)),
+            })
+        })
+        .collect();
+    let mut payload = merge_discover_payloads(&q, fetch_k, payloads);
+    let t_after_merge = handler_start.elapsed();
+    payload["mode"] = json!("find");
+    payload["command"] = json!("jikji find");
+    payload["search_roots"] = json!(
+        roots
+            .iter()
+            .map(|path| path.to_string_lossy().into_owned())
+            .collect::<Vec<_>>()
+    );
+    payload["search_root_count"] = json!(roots.len());
+    payload["search_root_elapsed_ms"] = json!(search_root_elapsed_ms);
+    if let Some(prepared) = prepared_status {
+        payload["index_status"] = json!(prepared.status.as_str());
+        payload["foreground_prepared"] = json!(prepared.foreground_prepared);
+        payload["background_refresh_started"] = json!(prepared.background_refresh_started);
+    }
+
+    filter_candidates_to_index(&active, &mut payload);
+    let t_after_filter_index = handler_start.elapsed();
+    filter_candidates_by_extension(&mut payload, &extension);
+    let t_after_filter_ext = handler_start.elapsed();
+    if query_bool(query, "first") {
+        apply_first_result(&mut payload);
+    } else {
+        truncate_payload_candidates(&mut payload, top_k);
+    }
+    add_candidate_snippets(&active, &q, &mut payload);
+    let t_after_snippets = handler_start.elapsed();
+    let handler_ms = t_after_snippets.as_millis();
+    payload["phase_timings_ms"] = json!({
+        "pre_roots_ms": t_pre_roots.as_millis(),
+        "roots_ms": (t_after_roots - t_pre_roots).as_millis(),
+        "collect_ms": (t_after_collect - t_after_roots).as_millis(),
+        "merge_ms": (t_after_merge - t_after_collect).as_millis(),
+        "filter_index_ms": (t_after_filter_index - t_after_merge).as_millis(),
+        "filter_ext_ms": (t_after_filter_ext - t_after_filter_index).as_millis(),
+        "snippets_ms": (t_after_snippets - t_after_filter_ext).as_millis(),
+        "handler_ms": handler_ms,
+    });
+    HttpResponse::json(200, payload)
+}
+
+fn scenario_response(state: &GuiState, query: &str) -> HttpResponse {
+    let mut q = query_value(query, "query")
+        .or_else(|| query_value(query, "q"))
+        .unwrap_or_default();
+    let mut extension = query_value(query, "extension").unwrap_or_default();
+    if let Some(id) = query_value(query, "id").filter(|value| !value.is_empty()) {
+        match scenarios::get(&id) {
+            Some(scenario) => {
+                if q.trim().is_empty() {
+                    q = scenario.query.to_owned();
+                }
+                if extension.trim().is_empty() {
+                    extension = scenario.extension.to_owned();
+                }
+            }
+            None => {
+                return HttpResponse::json(404, json!({"error":"scenario not found","id":id}));
+            }
+        }
+    }
+    if q.trim().is_empty() {
+        return HttpResponse::json(400, json!({"error":"missing query"}));
+    }
+    let top_k = query_value(query, "top_k")
+        .and_then(|value| value.parse::<usize>().ok())
+        .unwrap_or(10)
+        .clamp(1, 100);
+    let mut discover_query = format!("q={}&top_k={top_k}", percent_encode_query(&q));
+    if !extension.trim().is_empty() {
+        discover_query.push_str(&format!("&extension={}", percent_encode_query(&extension)));
+    }
+    append_find_option_flags(&mut discover_query, query);
+    discover_response(state, &discover_query)
+}
+
+fn append_find_option_flags(out: &mut String, query: &str) {
+    for name in [
+        "first",
+        "after_jikji_retry",
+        "fresh",
+        "auto_prepare",
+        "no_auto_prepare",
+        "no_background_refresh",
+        "include_hidden",
+        "include_sensitive",
+    ] {
+        if query_bool(query, name) {
+            out.push_str(&format!("&{name}=1"));
+        }
+    }
+    if let Some(proof) = query_value(query, "retry_proof").filter(|value| !value.is_empty()) {
+        out.push_str(&format!("&retry_proof={}", percent_encode_query(&proof)));
+    }
+    for name in [
+        "exclude",
+        "max_files",
+        "stale_after_seconds",
+        "max_hash_bytes",
+        "parse_timeout",
+    ] {
+        for value in query_values(query, name) {
+            if !value.trim().is_empty() {
+                out.push_str(&format!("&{name}={}", percent_encode_query(&value)));
+            }
+        }
     }
 }
 
-fn filter_candidates_to_index(root: &Path, query: &str, payload: &mut serde_json::Value) {
-    let indexed = indexed_file_statuses(root);
-    let normalized_query = query.to_lowercase();
+fn percent_encode_query(value: &str) -> String {
+    value
+        .bytes()
+        .flat_map(|byte| match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                vec![byte as char]
+            }
+            _ => format!("%{byte:02X}").chars().collect(),
+        })
+        .collect()
+}
+fn annotate_candidates_with_root(root: &Path, payload: &mut serde_json::Value) {
+    let Some(candidates) = payload
+        .get_mut("candidates")
+        .and_then(serde_json::Value::as_array_mut)
+    else {
+        return;
+    };
+    let root_value = json!(root.to_string_lossy().as_ref());
+    for candidate in candidates {
+        candidate["root"] = root_value.clone();
+        if let Some(name) = candidate_rel_path(candidate)
+            .and_then(|rel| Path::new(rel).file_name())
+            .and_then(|value| value.to_str())
+            .map(str::to_owned)
+        {
+            candidate["name"] = json!(name);
+        }
+    }
+}
+
+fn merge_discover_payloads(
+    query: &str,
+    top_k: usize,
+    payloads: Vec<serde_json::Value>,
+) -> serde_json::Value {
+    let mut merged = payloads.first().cloned().unwrap_or_else(|| json!({}));
+    let mut candidates = Vec::new();
+    for payload in &payloads {
+        if let Some(rows) = payload
+            .get("candidates")
+            .and_then(serde_json::Value::as_array)
+        {
+            candidates.extend(rows.iter().cloned());
+        }
+    }
+    candidates.sort_by(|left, right| {
+        let right_score = right
+            .get("s")
+            .and_then(serde_json::Value::as_f64)
+            .unwrap_or(0.0);
+        let left_score = left
+            .get("s")
+            .and_then(serde_json::Value::as_f64)
+            .unwrap_or(0.0);
+        right_score
+            .partial_cmp(&left_score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+    let mut seen = std::collections::HashSet::new();
+    candidates.retain(|candidate| {
+        seen.insert((
+            candidate
+                .get("root")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or_default()
+                .to_owned(),
+            candidate_rel_path(candidate).unwrap_or_default().to_owned(),
+        ))
+    });
+    candidates.truncate(top_k);
+    let answer_paths: Vec<serde_json::Value> = candidates
+        .iter()
+        .filter_map(candidate_rel_path)
+        .map(|path| json!(path))
+        .collect();
+    let has_hits = !candidates.is_empty();
+    merged["query"] = json!(query);
+    merged["candidates"] = json!(candidates);
+    merged["answer_paths"] = json!(answer_paths);
+    if has_hits {
+        merged["answerability"] = json!("answerable_from_payload");
+        merged["handoff_action"] = json!("direct_use");
+        if merged
+            .get("confidence")
+            .and_then(serde_json::Value::as_str)
+            .is_none_or(|value| value == "none")
+        {
+            merged["confidence"] = json!("medium_high");
+        }
+    } else {
+        merged["answerability"] = json!("no_match");
+        merged["confidence"] = json!("none");
+    }
+    merged
+}
+
+fn candidate_rel_path(candidate: &serde_json::Value) -> Option<&str> {
+    candidate
+        .get("p")
+        .and_then(serde_json::Value::as_str)
+        .or_else(|| candidate.get("path").and_then(serde_json::Value::as_str))
+}
+
+#[cfg(test)]
+fn keep_indexed_find_candidate(
+    candidate: &serde_json::Value,
+    indexed: &std::collections::HashMap<String, String>,
+) -> bool {
+    candidate_rel_path(candidate).is_some_and(|path| indexed.contains_key(path))
+}
+
+fn filter_candidates_to_index(fallback_root: &Path, payload: &mut serde_json::Value) {
+    let mut indexed_by_root =
+        std::collections::HashMap::<PathBuf, std::collections::HashMap<String, bool>>::new();
     let Some(candidates) = payload
         .get_mut("candidates")
         .and_then(serde_json::Value::as_array_mut)
@@ -518,25 +1237,120 @@ fn filter_candidates_to_index(root: &Path, query: &str, payload: &mut serde_json
         return;
     };
     candidates.retain(|candidate| {
-        let Some(path) = candidate.get("p").and_then(serde_json::Value::as_str) else {
+        let root = candidate
+            .get("root")
+            .and_then(serde_json::Value::as_str)
+            .map(PathBuf::from)
+            .unwrap_or_else(|| fallback_root.to_path_buf());
+        let Some(path) = candidate_rel_path(candidate) else {
             return false;
         };
-        if !indexed.contains_key(path) {
-            return false;
+        let indexed = indexed_by_root.entry(root.clone()).or_default();
+        if let Some(known) = indexed.get(path) {
+            return *known;
         }
-        if path.to_lowercase().contains(&normalized_query) {
-            return true;
-        }
-        resolve_root_path(root, path)
+        let exists = load_artifact_by_path(&root, "files", path)
             .ok()
-            .and_then(|file| file.metadata().ok().map(|metadata| (file, metadata.len())))
-            .and_then(|(file, size)| read_text_preview(&file, size).ok().flatten())
-            .is_some_and(|content| content.to_lowercase().contains(&normalized_query))
+            .flatten()
+            .is_some();
+        indexed.insert(path.to_owned(), exists);
+        exists
     });
-    if candidates.is_empty() {
+    let kept: Vec<String> = candidates
+        .iter()
+        .filter_map(candidate_rel_path)
+        .map(str::to_owned)
+        .collect();
+    if let Some(answer_paths) = payload
+        .get_mut("answer_paths")
+        .and_then(serde_json::Value::as_array_mut)
+    {
+        answer_paths.retain(|value| {
+            value
+                .as_str()
+                .is_some_and(|path| kept.iter().any(|kept_path| kept_path == path))
+        });
+    }
+    if kept.is_empty() {
         payload["answerability"] = json!("no_match");
         payload["confidence"] = json!("none");
     }
+}
+
+fn parse_extensions(raw: &str) -> Vec<String> {
+    raw.split(',')
+        .map(|part| part.trim().trim_start_matches('.').to_ascii_lowercase())
+        .filter(|part| !part.is_empty())
+        .collect()
+}
+
+fn candidate_matches_extensions(candidate: &serde_json::Value, extensions: &[String]) -> bool {
+    if extensions.is_empty() {
+        return true;
+    }
+    candidate_rel_path(candidate).is_some_and(|path| {
+        Path::new(path)
+            .extension()
+            .and_then(|value| value.to_str())
+            .is_some_and(|ext| {
+                let ext = ext.to_ascii_lowercase();
+                extensions.iter().any(|wanted| wanted == &ext)
+            })
+    })
+}
+
+fn filter_candidates_by_extension(payload: &mut serde_json::Value, raw: &str) {
+    let extensions = parse_extensions(raw);
+    if extensions.is_empty() {
+        return;
+    }
+    let Some(candidates) = payload
+        .get_mut("candidates")
+        .and_then(serde_json::Value::as_array_mut)
+    else {
+        return;
+    };
+    candidates.retain(|candidate| candidate_matches_extensions(candidate, &extensions));
+    let kept: Vec<String> = candidates
+        .iter()
+        .filter_map(candidate_rel_path)
+        .map(str::to_owned)
+        .collect();
+    if let Some(answer_paths) = payload
+        .get_mut("answer_paths")
+        .and_then(serde_json::Value::as_array_mut)
+    {
+        answer_paths.retain(|value| {
+            value
+                .as_str()
+                .is_some_and(|path| kept.iter().any(|kept_path| kept_path == path))
+        });
+    }
+    if kept.is_empty() {
+        payload["answerability"] = json!("no_match");
+        payload["confidence"] = json!("none");
+    }
+}
+
+fn truncate_payload_candidates(payload: &mut serde_json::Value, top_k: usize) {
+    if let Some(candidates) = payload
+        .get_mut("candidates")
+        .and_then(serde_json::Value::as_array_mut)
+    {
+        candidates.truncate(top_k);
+    }
+}
+
+fn apply_first_result(payload: &mut serde_json::Value) {
+    for key in ["answer_paths", "paths", "candidates", "evidence_pack"] {
+        if let Some(array) = payload
+            .get_mut(key)
+            .and_then(serde_json::Value::as_array_mut)
+        {
+            array.truncate(1);
+        }
+    }
+    payload["first"] = json!(true);
 }
 
 fn add_candidate_snippets(root: &Path, query: &str, payload: &mut serde_json::Value) {
@@ -559,17 +1373,35 @@ fn add_candidate_snippets(root: &Path, query: &str, payload: &mut serde_json::Va
             .get("s")
             .cloned()
             .unwrap_or(serde_json::Value::Null);
-        let snippet = resolve_root_path(root, &relative)
-            .ok()
-            .and_then(|path| path.metadata().ok().map(|metadata| (path, metadata.len())))
-            .and_then(|(path, size)| read_text_preview(&path, size).ok().flatten())
-            .map(|content| preview_snippet(&content, query))
-            .or_else(|| {
-                candidate
-                    .get("ev")
-                    .and_then(serde_json::Value::as_str)
-                    .map(str::to_owned)
-            });
+        let snippet_root = candidate
+            .get("root")
+            .and_then(serde_json::Value::as_str)
+            .map(PathBuf::from)
+            .unwrap_or_else(|| root.to_path_buf());
+        let on_fuse_drive = snippet_root.components().any(|component| {
+            matches!(
+                component.as_os_str().to_str(),
+                Some("GoogleDrive" | "Google Drive")
+            )
+        });
+        let snippet = if on_fuse_drive {
+            candidate
+                .get("ev")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_owned)
+        } else {
+            resolve_root_path(&snippet_root, &relative)
+                .ok()
+                .and_then(|path| path.metadata().ok().map(|metadata| (path, metadata.len())))
+                .and_then(|(path, size)| read_text_preview(&path, size).ok().flatten())
+                .or_else(|| {
+                    candidate
+                        .get("ev")
+                        .and_then(serde_json::Value::as_str)
+                        .map(str::to_owned)
+                })
+        }
+        .map(|content| preview_snippet(&content, query));
         candidate["preview_snippet"] =
             snippet.map_or(serde_json::Value::Null, serde_json::Value::String);
     }
@@ -600,11 +1432,15 @@ fn preview_snippet(content: &str, query: &str) -> String {
     snippet
 }
 
-fn download_response(root: &Path, query: &str) -> HttpResponse {
+fn download_response(state: &GuiState, query: &str) -> HttpResponse {
+    let root = match requested_search_root(state, query) {
+        Ok(root) => root,
+        Err(response) => return response,
+    };
     let Some(path_value) = query_value(query, "path") else {
         return HttpResponse::json(400, json!({"error": "missing path"}));
     };
-    let path = match resolve_root_path(root, &path_value) {
+    let path = match resolve_root_path(&root, &path_value) {
         Ok(path) => path,
         Err(response) => return response,
     };
@@ -618,34 +1454,38 @@ fn download_response(root: &Path, query: &str) -> HttpResponse {
 }
 
 fn open_response(state: &GuiState, query: &str) -> HttpResponse {
-    with_root(state, |root| {
-        let path = match action_path(root, query) {
-            Ok(path) => path,
-            Err(response) => return response,
-        };
-        match open_local_path(&path) {
-            Ok(()) => HttpResponse::json(200, json!({"ok": true, "path": path})),
-            Err(error) => HttpResponse::json(500, json!({"error": error})),
-        }
-    })
+    let root = match requested_search_root(state, query) {
+        Ok(root) => root,
+        Err(response) => return response,
+    };
+    let path = match action_path(&root, query) {
+        Ok(path) => path,
+        Err(response) => return response,
+    };
+    match open_local_path(&path) {
+        Ok(()) => HttpResponse::json(200, json!({"ok": true, "path": path})),
+        Err(error) => HttpResponse::json(500, json!({"error": error})),
+    }
 }
 
 fn reveal_response(state: &GuiState, query: &str) -> HttpResponse {
-    with_root(state, |root| {
-        let path = match action_path(root, query) {
-            Ok(path) => path,
-            Err(response) => return response,
-        };
-        let reveal_path = if path.is_dir() {
-            path.clone()
-        } else {
-            path.parent().unwrap_or(root).to_path_buf()
-        };
-        match open_local_path(&reveal_path) {
-            Ok(()) => HttpResponse::json(200, json!({"ok": true, "path": reveal_path})),
-            Err(error) => HttpResponse::json(500, json!({"error": error})),
-        }
-    })
+    let root = match requested_search_root(state, query) {
+        Ok(root) => root,
+        Err(response) => return response,
+    };
+    let path = match action_path(&root, query) {
+        Ok(path) => path,
+        Err(response) => return response,
+    };
+    let reveal_path = if path.is_dir() {
+        path.clone()
+    } else {
+        path.parent().unwrap_or(&root).to_path_buf()
+    };
+    match open_local_path(&reveal_path) {
+        Ok(()) => HttpResponse::json(200, json!({"ok": true, "path": reveal_path})),
+        Err(error) => HttpResponse::json(500, json!({"error": error})),
+    }
 }
 
 fn action_path(root: &Path, query: &str) -> std::result::Result<PathBuf, HttpResponse> {
@@ -707,11 +1547,129 @@ fn spawn_opener<'a>(
 }
 
 fn refresh_response(state: &GuiState, query: &str) -> HttpResponse {
-    prepare_operation_response(state, query, PrepareOptions::default(), false)
+    prepare_operation_response(state, query, prepare_options_from_query(query), false)
 }
 
 fn reindex_response(state: &GuiState, query: &str) -> HttpResponse {
-    prepare_operation_response(state, query, PrepareOptions::default(), false)
+    prepare_operation_response(state, query, prepare_options_from_query(query), false)
+}
+
+fn prepare_options_from_query(query: &str) -> PrepareOptions {
+    let mut options = PrepareOptions {
+        include_hidden: query_bool(query, "include_hidden"),
+        include_sensitive: query_bool(query, "include_sensitive"),
+        max_files: crate::prepare_commands::normalize_max_files(query_usize(query, "max_files")),
+        ..Default::default()
+    };
+    let exclude = parse_exclude_patterns(query);
+    if !exclude.is_empty() {
+        options.exclude_patterns = exclude;
+    }
+    if let Some(max_hash_bytes) = query_u64(query, "max_hash_bytes") {
+        options.max_hash_bytes = max_hash_bytes;
+    }
+    if let Some(parse_timeout) = query_f64(query, "parse_timeout") {
+        options.parse_timeout_seconds = parse_timeout;
+    }
+    options
+}
+
+fn parse_exclude_patterns(query: &str) -> Vec<String> {
+    query_values(query, "exclude")
+        .into_iter()
+        .flat_map(|value| {
+            value
+                .split([',', '\n'])
+                .map(|part| part.trim().to_string())
+                .filter(|part| !part.is_empty())
+                .collect::<Vec<_>>()
+        })
+        .collect()
+}
+
+fn doctor_response(root: &Path) -> HttpResponse {
+    match doctor(root) {
+        Ok(report) => HttpResponse::json(200, json!(report)),
+        Err(error) => HttpResponse::json(500, json!({"error": error.to_string()})),
+    }
+}
+
+fn map_response(root: &Path) -> HttpResponse {
+    match read_map(root) {
+        Ok(markdown) => HttpResponse::json(200, json!({"root": root, "markdown": markdown})),
+        Err(error) => HttpResponse::json(404, json!({"error": error.to_string()})),
+    }
+}
+
+fn graph_response(root: &Path, query: &str) -> HttpResponse {
+    let command = query_value(query, "command").unwrap_or_else(|| "status".to_owned());
+    match command.as_str() {
+        "status" => HttpResponse::json(200, graph_status(root)),
+        "query" => {
+            let q = query_value(query, "q").unwrap_or_default();
+            let top_k = query_value(query, "top_k")
+                .and_then(|value| value.parse::<usize>().ok())
+                .unwrap_or(20)
+                .clamp(1, 100);
+            match graph_query(root, &q, top_k) {
+                Ok(candidates) => HttpResponse::json(
+                    200,
+                    json!({"root": root, "query": q, "candidates": candidates}),
+                ),
+                Err(error) => HttpResponse::json(500, json!({"error": error.to_string()})),
+            }
+        }
+        "explain" => {
+            let path = query_value(query, "path").unwrap_or_default();
+            HttpResponse::json(200, explain_source(root, &path))
+        }
+        _ => HttpResponse::json(400, json!({"error": "unknown graph command"})),
+    }
+}
+
+fn brief_response(root: &Path, query: &str) -> HttpResponse {
+    let q = query_value(query, "q").unwrap_or_default();
+    if q.trim().is_empty() {
+        return HttpResponse::json(400, json!({"error": "missing q"}));
+    }
+    let top_k = query_value(query, "top_k")
+        .and_then(|value| value.parse::<usize>().ok())
+        .unwrap_or(10)
+        .clamp(1, 100);
+    let stale_after_seconds = query_value(query, "stale_after_seconds")
+        .and_then(|value| value.parse::<i64>().ok())
+        .unwrap_or(24 * 60 * 60);
+    let status = search_index_status(root, stale_after_seconds);
+    match search(root, &q, SearchOptions { top_k }) {
+        Ok(candidates) => HttpResponse::json(
+            200,
+            brief_payload(
+                root,
+                &q,
+                status.status.as_str(),
+                BriefOptions {
+                    top_k,
+                    foreground_prepared: false,
+                    background_refresh_started: false,
+                },
+                &candidates,
+            ),
+        ),
+        Err(error) => HttpResponse::json(500, json!({"error": error.to_string()})),
+    }
+}
+
+fn clean_response(state: &GuiState, query: &str) -> HttpResponse {
+    let root = match state.root() {
+        Ok(root) => root,
+        Err(response) => return response,
+    };
+    let force = query_bool(query, "force");
+    let dry_run = query_flag(query, "dry_run").unwrap_or(!force);
+    match clean(&root, CleanOptions { dry_run, force }) {
+        Ok(result) => HttpResponse::json(200, json!(result)),
+        Err(error) => HttpResponse::json(500, json!({"error": error.to_string()})),
+    }
 }
 
 fn prepare_operation_response(
@@ -789,6 +1747,9 @@ fn query_usize(query: &str, name: &str) -> Option<usize> {
     query_u64(query, name).and_then(|value| usize::try_from(value).ok())
 }
 fn query_f64(query: &str, name: &str) -> Option<f64> {
+    query_value(query, name)?.parse().ok()
+}
+fn query_i64(query: &str, name: &str) -> Option<i64> {
     query_value(query, name)?.parse().ok()
 }
 
@@ -1024,13 +1985,23 @@ fn resolve_root_path(root: &Path, rel_path: &str) -> std::result::Result<PathBuf
     let resolved = joined
         .canonicalize()
         .map_err(|source| HttpResponse::json(404, json!({"error": source.to_string()})))?;
-    if !resolved.starts_with(root) {
+    if !path_is_within_root(root, &resolved) {
         return Err(HttpResponse::json(
             403,
             json!({"error": "path escapes root"}),
         ));
     }
     Ok(resolved)
+}
+
+fn path_is_within_root(root: &Path, resolved: &Path) -> bool {
+    if resolved.starts_with(root) {
+        return true;
+    }
+    match root.canonicalize() {
+        Ok(canonical) => resolved.starts_with(canonical),
+        Err(_) => false,
+    }
 }
 
 #[cfg(all(test, unix, not(target_os = "macos")))]
@@ -1061,6 +2032,251 @@ mod tests {
         assert_eq!(
             executable_in_path("xdg-open", &search_path),
             Some(executable)
+        );
+    }
+}
+
+#[cfg(test)]
+mod find_filter_tests {
+    use super::{
+        append_find_option_flags, apply_first_result, candidate_matches_extensions,
+        candidate_rel_path, keep_indexed_find_candidate, keep_listed_root, parse_exclude_patterns,
+        parse_extensions, paths_look_like_same_root, paths_refer_to_same_root,
+        percent_encode_query, prepare_options_from_query, preview_renderer,
+    };
+    use std::collections::HashMap;
+
+    use serde_json::json;
+
+    #[test]
+    fn indexed_find_candidate_does_not_require_full_query_substring() {
+        let mut indexed = HashMap::new();
+        indexed.insert("notes/cascade.md".to_owned(), "content".to_owned());
+        let hit = json!({"p": "notes/cascade.md", "s": 12.5});
+        let unindexed = json!({"p": "tmp/unindexed.md", "s": 99.0});
+        let path_only = json!({"path": "notes/cascade.md"});
+
+        assert_eq!(candidate_rel_path(&hit), Some("notes/cascade.md"));
+        assert!(keep_indexed_find_candidate(&hit, &indexed));
+        assert!(keep_indexed_find_candidate(&path_only, &indexed));
+        assert!(!keep_indexed_find_candidate(&unindexed, &indexed));
+        assert!(!keep_indexed_find_candidate(&json!({"s": 1.0}), &indexed));
+    }
+
+    #[test]
+    fn nested_searchable_root_is_kept_when_parent_is_selected() {
+        use super::push_unique_search_root;
+        use std::path::PathBuf;
+
+        let parent = PathBuf::from("/tmp/jikji-drive-parent");
+        let nested = parent.join("마커").join("nested-root");
+        let mut roots = Vec::new();
+        push_unique_search_root(&mut roots, &parent);
+        let mut extras = vec![parent.clone(), nested.clone()];
+        extras.sort_by_key(|path| path.components().count());
+        for path in extras {
+            push_unique_search_root(&mut roots, &path);
+        }
+        assert!(
+            roots.iter().any(|path| path == &nested),
+            "nested searchable root must stay searchable after parent is selected: {roots:?}"
+        );
+    }
+
+    #[test]
+    fn drop_redundant_nested_extras_keeps_nested_when_parent_is_active() {
+        use super::drop_redundant_nested_search_roots;
+        use std::path::PathBuf;
+
+        let active = PathBuf::from("/tmp/jikji-drive-parent");
+        let nested = active.join("마커");
+        let other = PathBuf::from("/tmp/jikji-downloads");
+        let filtered = drop_redundant_nested_search_roots(
+            vec![active.clone(), nested.clone(), other.clone()],
+            &active,
+        );
+        assert_eq!(filtered, vec![active, nested, other]);
+    }
+
+    #[test]
+    fn drop_redundant_nested_extras_skips_child_when_parent_is_also_extra() {
+        use super::drop_redundant_nested_search_roots;
+        use std::path::PathBuf;
+
+        let active = PathBuf::from("/tmp/jikji-active-root");
+        let parent = PathBuf::from("/tmp/jikji-drive-parent");
+        let nested = parent.join("마커");
+        let filtered = drop_redundant_nested_search_roots(
+            vec![active.clone(), parent.clone(), nested],
+            &active,
+        );
+        assert_eq!(filtered, vec![active, parent]);
+    }
+
+    #[test]
+    fn filter_roots_by_matching_extensions_keeps_active_and_nested_hits() {
+        use super::filter_roots_by_matching_extensions;
+        use std::path::PathBuf;
+
+        let active = PathBuf::from("/tmp/jikji-active-root");
+        let nested = PathBuf::from("/tmp/jikji-drive-parent/마커/nested-root");
+        let other = PathBuf::from("/tmp/jikji-no-hwp");
+        let roots = vec![active.clone(), nested.clone(), other];
+        let matching = vec![nested.clone()];
+        let filtered = filter_roots_by_matching_extensions(roots, &active, &matching);
+        assert_eq!(filtered, vec![active, nested]);
+    }
+
+    #[test]
+    fn parse_exclude_patterns_splits_commas_and_repeats() {
+        let values = parse_exclude_patterns("exclude=tmp/**&exclude=.git,node_modules");
+        assert_eq!(
+            values,
+            vec![
+                "tmp/**".to_owned(),
+                ".git".to_owned(),
+                "node_modules".to_owned()
+            ]
+        );
+    }
+
+    #[test]
+    fn prepare_options_from_query_maps_find_prepare_flags() {
+        let options = prepare_options_from_query(
+            "include_hidden=1&include_sensitive=1&max_files=12&exclude=tmp/**&parse_timeout=2.5&max_hash_bytes=1024",
+        );
+        assert!(options.include_hidden);
+        assert!(options.include_sensitive);
+        assert_eq!(options.max_files, Some(12));
+        assert_eq!(options.exclude_patterns, vec!["tmp/**".to_owned()]);
+        assert_eq!(options.parse_timeout_seconds, 2.5);
+        assert_eq!(options.max_hash_bytes, 1024);
+    }
+
+    #[test]
+    fn append_find_option_flags_forwards_retry_proof_and_exclude() {
+        let mut out = String::from("q=hwp&top_k=3");
+        append_find_option_flags(
+            &mut out,
+            "after_jikji_retry=1&retry_proof=proof-1&exclude=tmp/**&fresh=0",
+        );
+        assert!(out.contains("after_jikji_retry=1"));
+        assert!(out.contains("retry_proof=proof-1"));
+        assert!(out.contains(&format!("exclude={}", percent_encode_query("tmp/**"))));
+        assert!(!out.contains("fresh=1"));
+    }
+
+    #[test]
+    fn append_find_option_flags_forwards_first_auto_prepare_and_max_hash_bytes() {
+        let mut out = String::from("q=hello&top_k=5");
+        append_find_option_flags(
+            &mut out,
+            "first=1&auto_prepare=1&no_auto_prepare=1&max_hash_bytes=1024",
+        );
+        assert!(out.contains("first=1"));
+        assert!(out.contains("auto_prepare=1"));
+        assert!(out.contains("no_auto_prepare=1"));
+        assert!(out.contains("max_hash_bytes=1024"));
+    }
+
+    #[test]
+    fn apply_first_result_truncates_find_payload_arrays() {
+        let mut payload = json!({
+            "candidates": [{"p": "a"}, {"p": "b"}],
+            "paths": ["a", "b"],
+            "answer_paths": ["a", "b"],
+            "evidence_pack": [1, 2],
+        });
+        apply_first_result(&mut payload);
+        assert_eq!(payload["candidates"].as_array().unwrap().len(), 1);
+        assert_eq!(payload["paths"].as_array().unwrap().len(), 1);
+        assert_eq!(payload["answer_paths"].as_array().unwrap().len(), 1);
+        assert_eq!(payload["evidence_pack"].as_array().unwrap().len(), 1);
+        assert_eq!(payload["first"], json!(true));
+    }
+
+    #[test]
+    fn keep_listed_root_does_not_require_missing_drive_child_to_exist() {
+        use std::path::PathBuf;
+        let active = PathBuf::from("/tmp/jikji-active-root");
+        let drive = PathBuf::from("/nonexistent-jikji-home/GoogleDrive/마커");
+        assert!(
+            keep_listed_root(&drive, &active),
+            "indexed Drive children must stay listed without STATing FUSE"
+        );
+    }
+
+    #[test]
+    fn extension_filter_keeps_matching_document_types() {
+        let extensions = parse_extensions(".hwp,.hwpx");
+        assert_eq!(extensions, vec!["hwp".to_owned(), "hwpx".to_owned()]);
+        let hwp = json!({"p": "docs/memo.hwp"});
+        let pdf = json!({"path": "docs/memo.pdf"});
+        assert!(candidate_matches_extensions(&hwp, &extensions));
+        assert!(!candidate_matches_extensions(&pdf, &extensions));
+        assert!(candidate_matches_extensions(&pdf, &[]));
+    }
+
+    #[test]
+    fn searchable_roots_match_without_canonicalize() {
+        use std::path::Path;
+        assert!(paths_refer_to_same_root(
+            Path::new("/home/cheol/GoogleDrive/마커"),
+            Path::new("/home/cheol/GoogleDrive/마커")
+        ));
+        assert!(paths_refer_to_same_root(
+            Path::new("/home/cheol/GoogleDrive/마커/"),
+            Path::new("/home/cheol/GoogleDrive/마커")
+        ));
+        assert!(!paths_refer_to_same_root(
+            Path::new("/home/cheol/projects/jikji"),
+            Path::new("/home/cheol/GoogleDrive/마커")
+        ));
+    }
+
+    #[test]
+    fn lite_root_check_does_not_stat_missing_or_fuse_paths() {
+        use std::path::Path;
+        assert!(paths_look_like_same_root(
+            Path::new("/home/cheol/GoogleDrive/마커"),
+            Path::new("/home/cheol/GoogleDrive/마커/")
+        ));
+        assert!(!paths_look_like_same_root(
+            Path::new("/home/cheol/projects/jikji"),
+            Path::new("/home/cheol/GoogleDrive/마커")
+        ));
+        assert!(!paths_look_like_same_root(
+            Path::new("/does/not/exist/a"),
+            Path::new("/does/not/exist/b")
+        ));
+    }
+
+    #[test]
+    fn preview_renderer_maps_hwp_to_pdf() {
+        use std::path::Path;
+        let renderer = preview_renderer(Path::new("memo.hwp"));
+        assert_eq!(renderer.media_type, Some("application/pdf"));
+        assert!(renderer.name == "rwhp" || renderer.name == "libreoffice-fallback");
+        let pdf = preview_renderer(Path::new("memo.pdf"));
+        assert_eq!(pdf.name, "browser-pdf");
+        assert_eq!(pdf.media_type, Some("application/pdf"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn resolve_root_path_accepts_symlink_root() {
+        use super::resolve_root_path;
+        use std::fs;
+        let temp = tempfile::tempdir().expect("tempdir");
+        let real = temp.path().join("real");
+        let link = temp.path().join("link");
+        fs::create_dir(&real).expect("real dir");
+        fs::write(real.join("doc.txt"), "ok").expect("doc");
+        std::os::unix::fs::symlink(&real, &link).expect("symlink");
+        let resolved = resolve_root_path(&link, "doc.txt").unwrap_or_else(|_| panic!("resolve"));
+        assert_eq!(
+            resolved,
+            real.join("doc.txt").canonicalize().expect("canonical doc")
         );
     }
 }

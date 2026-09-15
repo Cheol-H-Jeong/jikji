@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use jikji_core::Result;
+use jikji_core::storage::root_storage_dir;
 use serde_json::Value;
 
 use crate::indexer::{build_graph_artifacts, build_sqlite_index, rows_from_cards};
@@ -20,7 +21,8 @@ pub fn build_search_artifacts(
     folder_profiles: &[Value],
 ) -> Result<SearchArtifactStats> {
     let sqlite = build_sqlite_index(root, file_cards, chunk_rows)?;
-    let rows = rows_from_cards(root, file_cards, chunk_rows);
+    let storage_dir = root_storage_dir(root)?;
+    let rows = rows_from_cards(root, &storage_dir, file_cards, chunk_rows);
     let (graph_nodes, graph_edges) = build_graph_artifacts(root, &rows, folder_profiles)?;
     Ok(SearchArtifactStats {
         rows: sqlite.rows,

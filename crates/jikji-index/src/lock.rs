@@ -44,14 +44,19 @@ impl Drop for LockGuard {
 fn remove_stale_lock(path: &Path) -> Result<bool> {
     let metadata = fs::metadata(path).map_err(|source| io_error(path, source))?;
     let now = unix_seconds_now();
+    let payload = fs::read_to_string(path)
+        .ok()
+        .and_then(|text| serde_json::from_str::<BTreeMap<String, Value>>(&text).ok());
+    if payload.as_ref().is_some_and(lock_holder_is_alive) {
+        return Ok(false);
+    }
     let age_from_mtime = metadata
         .modified()
         .ok()
         .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
         .map_or(0, |duration| now.saturating_sub(duration.as_secs()));
-    let age_from_payload = fs::read_to_string(path)
-        .ok()
-        .and_then(|text| serde_json::from_str::<BTreeMap<String, Value>>(&text).ok())
+    let age_from_payload = payload
+        .as_ref()
         .and_then(|payload| payload.get("started_at_unix").and_then(Value::as_u64))
         .map_or(age_from_mtime, |started| now.saturating_sub(started));
     if age_from_mtime.max(age_from_payload) < 3600 {
@@ -59,4 +64,86 @@ fn remove_stale_lock(path: &Path) -> Result<bool> {
     }
     fs::remove_file(path).map_err(|source| io_error(path, source))?;
     Ok(true)
+}
+
+fn lock_holder_is_alive(payload: &BTreeMap<String, Value>) -> bool {
+    payload
+        .get("pid")
+        .and_then(Value::as_u64)
+        .is_some_and(process_looks_like_live_jikji)
+}
+
+fn process_looks_like_live_jikji(pid: u64) -> bool {
+    #[cfg(target_os = "linux")]
+    {
+        let proc_dir = Path::new("/proc").join(pid.to_string());
+        if !proc_dir.exists() {
+            return false;
+        }
+        match fs::read_to_string(proc_dir.join("comm")) {
+            Ok(comm) => comm.contains("jikji"),
+            Err(_) => true,
+        }
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = pid;
+        false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::LockGuard;
+    use jikji_core::JikjiError;
+    use serde_json::json;
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    struct TempDir(std::path::PathBuf);
+
+    impl Drop for TempDir {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn temp_index(label: &str) -> TempDir {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time")
+            .as_nanos();
+        let path =
+            std::env::temp_dir().join(format!("jikji-lock-{label}-{}-{nonce}", std::process::id()));
+        fs::create_dir_all(&path).expect("temp index");
+        TempDir(path)
+    }
+
+    fn write_lock(dir: &std::path::Path, pid: u32, started_at_unix: u64) {
+        fs::write(
+            dir.join(".lock"),
+            json!({"pid": pid, "started_at_unix": started_at_unix}).to_string(),
+        )
+        .expect("write lock");
+    }
+
+    #[test]
+    fn acquire_does_not_steal_lock_held_by_live_jikji_process() {
+        let dir = temp_index("live");
+        write_lock(&dir.0, std::process::id(), 1);
+        match LockGuard::acquire(&dir.0) {
+            Err(err) => assert!(matches!(err, JikjiError::Locked(_)), "{err:?}"),
+            Ok(_) => panic!("live lock must remain"),
+        }
+        assert!(dir.0.join(".lock").exists());
+    }
+
+    #[test]
+    fn acquire_steals_old_lock_from_dead_pid() {
+        let dir = temp_index("dead");
+        write_lock(&dir.0, u32::MAX, 1);
+        let guard = LockGuard::acquire(&dir.0).expect("steal dead lock");
+        drop(guard);
+        assert!(!dir.0.join(".lock").exists());
+    }
 }

@@ -6,7 +6,8 @@ use jikji_core::{JIKJI_DIR, JikjiError, PrepareOptions, Result, io_error};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
-const DEFAULT_IGNORE_PATTERNS: &[&str] = &["~$*", "Thumbs.db", ".DS_Store", "desktop.ini"];
+const DEFAULT_IGNORE_PATTERNS: &[&str] =
+    &["~$*", "Thumbs.db", ".DS_Store", "desktop.ini", "kaggle"];
 const SENSITIVE_PATTERNS: &[&str] = &[
     ".git",
     ".hg",
@@ -57,7 +58,7 @@ pub fn scan_root(root: &Path, options: &PrepareOptions) -> Result<ScanResult> {
         return Err(JikjiError::NotDirectory(clean_root));
     }
 
-    let mut state = ScanState::new(options.clone());
+    let mut state = ScanState::new(options.clone(), clean_root.clone());
     state.walk(&clean_root)?;
     state.files.sort();
     state.dirs.sort();
@@ -74,15 +75,17 @@ pub fn scan_root(root: &Path, options: &PrepareOptions) -> Result<ScanResult> {
 
 struct ScanState {
     options: PrepareOptions,
+    root: PathBuf,
     files: Vec<PathBuf>,
     dirs: Vec<PathBuf>,
     truncated: bool,
 }
 
 impl ScanState {
-    fn new(options: PrepareOptions) -> Self {
+    fn new(options: PrepareOptions, root: PathBuf) -> Self {
         Self {
             options,
+            root,
             files: Vec::new(),
             dirs: Vec::new(),
             truncated: false,
@@ -108,7 +111,8 @@ impl ScanState {
                 Err(source) => return Err(io_error(current, source)),
             };
             let name = entry.file_name().to_string_lossy().into_owned();
-            if self.skip_name(&name) {
+            let path = entry.path();
+            if self.skip_entry(&path, &name) {
                 continue;
             }
             let file_type = match entry.file_type() {
@@ -118,7 +122,6 @@ impl ScanState {
             if file_type.is_symlink() {
                 continue;
             }
-            let path = entry.path();
             if file_type.is_dir() {
                 self.dirs.push(path.clone());
                 self.walk(&path)?;
@@ -142,13 +145,15 @@ impl ScanState {
         Ok(())
     }
 
-    fn skip_name(&self, name: &str) -> bool {
-        name == JIKJI_DIR
-            || self
-                .options
-                .exclude_patterns
-                .iter()
-                .any(|pattern| glob_match(pattern, name))
+    fn skip_entry(&self, path: &Path, name: &str) -> bool {
+        if name == JIKJI_DIR {
+            return true;
+        }
+        let rel = rel_path(&self.root, path);
+        self.options
+            .exclude_patterns
+            .iter()
+            .any(|pattern| glob_match(pattern, name) || glob_match(pattern, &rel))
             || DEFAULT_IGNORE_PATTERNS
                 .iter()
                 .any(|pattern| glob_match(pattern, name))
@@ -219,16 +224,101 @@ pub(crate) fn metadata_mtime_ns(metadata: &fs::Metadata) -> u128 {
         .map_or(0, |duration| duration.as_nanos())
 }
 
-pub(crate) fn glob_match(pattern: &str, name: &str) -> bool {
+pub(crate) fn glob_match(pattern: &str, value: &str) -> bool {
+    let pattern = pattern.trim_start_matches("./");
+    let value = value.trim_start_matches("./").trim_end_matches('/');
+    if let Some(dir) = pattern.strip_suffix("/**") {
+        let dir = dir.trim_end_matches('/');
+        return !dir.is_empty() && (value == dir || value.starts_with(&format!("{dir}/")));
+    }
+    if let Some(dir) = pattern.strip_suffix("/*") {
+        let dir = dir.trim_end_matches('/');
+        if dir.is_empty() {
+            return !value.contains('/');
+        }
+        if value == dir {
+            return true;
+        }
+        return value
+            .strip_prefix(&format!("{dir}/"))
+            .is_some_and(|rest| !rest.is_empty() && !rest.contains('/'));
+    }
     match (pattern.strip_prefix('*'), pattern.strip_suffix('*')) {
-        (Some(suffix), _) => name.ends_with(suffix),
-        (_, Some(prefix)) => name.starts_with(prefix),
+        (Some(suffix), _) => value.ends_with(suffix),
+        (_, Some(prefix)) => value.starts_with(prefix),
         _ if pattern.contains('*') => {
             let mut parts = pattern.split('*');
             let prefix = parts.next().unwrap_or_default();
             let suffix = parts.next_back().unwrap_or_default();
-            name.starts_with(prefix) && name.ends_with(suffix)
+            value.starts_with(prefix) && value.ends_with(suffix)
         }
-        _ => pattern == name,
+        _ => pattern == value,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{glob_match, scan_root};
+    use jikji_core::PrepareOptions;
+    use std::fs;
+
+    #[test]
+    fn scan_skips_kaggle_dataset_directories() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        fs::write(dir.path().join("brief.pdf"), "%PDF").expect("pdf");
+        fs::create_dir_all(dir.path().join("kaggle/train_images")).expect("kaggle dir");
+        fs::write(
+            dir.path().join("kaggle/train_images/1029778366.jpg"),
+            b"jpeg-bytes",
+        )
+        .expect("jpg");
+        let scan = scan_root(dir.path(), &PrepareOptions::default()).expect("scan");
+        let rels: Vec<String> = scan
+            .files
+            .iter()
+            .map(|path| super::rel_path(dir.path(), path))
+            .collect();
+        assert_eq!(rels, vec!["brief.pdf".to_string()]);
+    }
+
+    #[test]
+    fn glob_match_tmp_starstar_matches_directory_and_descendants() {
+        assert!(glob_match("tmp/**", "tmp"));
+        assert!(glob_match("tmp/**", "tmp/secret.txt"));
+        assert!(glob_match("tmp/**", "tmp/nested/a.txt"));
+        assert!(glob_match("keep/tmp/**", "keep/tmp"));
+        assert!(glob_match("keep/tmp/**", "keep/tmp/secret.txt"));
+        assert!(!glob_match("tmp/**", "keep/hello.txt"));
+        assert!(!glob_match("tmp/**", "secret.txt"));
+        assert!(!glob_match("keep/tmp/**", "tmp"));
+        assert!(glob_match("kaggle", "kaggle"));
+        assert!(glob_match("~$*", "~$book.xlsx"));
+        assert!(glob_match("*.tmp", "foo.tmp"));
+    }
+
+    #[test]
+    fn scan_skips_excluded_tmp_starstar_directories() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        fs::create_dir_all(dir.path().join("keep")).expect("keep");
+        fs::create_dir_all(dir.path().join("tmp/nested")).expect("tmp");
+        fs::write(dir.path().join("keep/hello.txt"), "hello").expect("keep file");
+        fs::write(dir.path().join("tmp/secret.txt"), "secret").expect("tmp file");
+        fs::write(dir.path().join("tmp/nested/hidden.txt"), "hidden").expect("nested tmp");
+        let options = PrepareOptions {
+            exclude_patterns: vec!["tmp/**".to_owned()],
+            ..PrepareOptions::default()
+        };
+        let scan = scan_root(dir.path(), &options).expect("scan");
+        let rels: Vec<String> = scan
+            .files
+            .iter()
+            .map(|path| super::rel_path(dir.path(), path))
+            .collect();
+        assert_eq!(rels, vec!["keep/hello.txt".to_string()]);
+        assert!(
+            !scan.dirs.iter().any(|path| path.ends_with("tmp")),
+            "excluded tmp directory must not be scanned: {:?}",
+            scan.dirs
+        );
     }
 }

@@ -21,18 +21,26 @@ Jikji는 파일을 이동·삭제·개명하지 않고, 사용자가 지정한 �
 
 현재 Rust GUI가 제공하는 주요 경로:
 
-- `GET /` 또는 `/index.html`: embedded HTML SPA
-- `GET /api/status`, `/api/root-status`: active root 및 중앙 DB health
-- `GET /api/roots`: 중앙 DB indexed roots/통계
-- `GET /api/files?path=...`: root-bound explorer entries
-- `GET /api/find?q=...`, `GET /api/search?q=...`: Rust discovery/search
-- `GET /api/preview?path=...&q=...`: root-bound preview 및 match ranges
-- `POST /api/root`: active root 전환/추가
-- `POST /api/refresh`: 현재 root refresh
-- `POST /api/reindex`: 현재 root foreground reindex
-- `POST /api/deep-index`: 현재 root media/archive detailed indexing
-- `POST /api/remove-root`, `DELETE /api/remove-root`: 중앙 DB root/cache 삭제, source 보존
-- `POST /open`, `POST /reveal`: 관리 token 보호 local opener
+| CLI 공개 기능 | GUI 표면 | 상태 |
+|---|---|---|
+| `prepare`, `refresh` | `POST /api/refresh`, 비동기 작업·진행률·취소 | 연결됨 |
+| `deep-index` | `POST /api/deep-index`, 미디어·압축 한도 UI | 연결됨 |
+| `clean` | `POST /api/clean`, 기본 dry-run·강제 실행 확인 | 연결됨 |
+| `map` | `GET /api/map` 운영 결과 대화상자 | 연결됨 |
+| `doctor` | `GET /api/doctor` 운영 결과 대화상자 | 연결됨 |
+| `find`, `discover` | `GET /api/find`, `GET /api/discover`, 동일한 검색 옵션 | 연결됨 |
+| `search` | `GET /api/search` 내부 검색 경로 | 연결됨 |
+| `brief` | `GET /api/brief` 운영 결과 대화상자 | 연결됨 |
+| `graph status/query/explain` | `GET /api/graph` Graph 상태·검색·설명 버튼 | 연결됨 |
+| root/files/indexed-files | 루트 전환, 파일 탐색, 인덱스 범위 | 연결됨 |
+| preview/open/reveal/download | 안전한 미리보기, 원본 열기, 폴더 열기, 다운로드 | 연결됨 |
+| skill install, benchmark/eval/import suites | GUI 미노출; CLI·에이전트 운영 전용 | 의도적 제외 |
+
+관리 변경 요청은 Rust `ManagementToken`과 mutation mutex를 통과하며, GUI는 loopback에서만 bind한다. 파일 경로는 선택된 root 내부로 제한하고, 미리보기 변환은 임시 디렉터리에서 수행한다. 원본 파일 이동·삭제·개명은 하지 않는다.
+
+### 1.3 남은 공개 CLI 구멍
+
+이번 GUI 범위에서 사용자 문서 검색·인덱싱·운영·그래프 조회에 필요한 공개 기능은 모두 연결했다. `PrepareArgs`의 대용량 문서·미디어 세부 한도와 skill/benchmark/eval/import 명령은 GUI에서 직접 실행하지 않고 CLI 전용으로 남겼다. 이는 GUI에 대량 데이터 생성·외부 다운로드·에이전트 설치를 넣지 않는 범위 결정이다. `MapArgs::max_chars`와 `BriefArgs::compact`도 운영 결과의 표시 형식 전용 CLI 옵션이므로 GUI에는 기본 표시만 제공한다.
 
 Mutation route는 Rust `ManagementToken`과 mutation mutex를 통과해야 한다. 외부 공개 bind는 금지하고 loopback upstream + 인증된 내부 proxy만 사용한다.
 

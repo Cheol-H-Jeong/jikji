@@ -10,10 +10,12 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import math
 import os
 import re
 import shutil
 import tempfile
+import threading
 from collections import Counter, defaultdict
 from collections.abc import Callable, Iterable
 from contextlib import contextmanager
@@ -111,6 +113,34 @@ DOCUMENT_CACHE_EXTENSIONS = {
     ".txz",
     ".7z",
     ".rar",
+}
+MEDIA_CACHE_EXTENSIONS = {
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".tif",
+    ".tiff",
+    ".webp",
+    ".bmp",
+    ".gif",
+    ".mp3",
+    ".wav",
+    ".m4a",
+    ".flac",
+    ".ogg",
+    ".aac",
+    ".opus",
+    ".wma",
+    ".mp4",
+    ".mov",
+    ".mkv",
+    ".avi",
+    ".webm",
+    ".m4v",
+    ".wmv",
+    ".flv",
+    ".mpg",
+    ".mpeg",
 }
 TEXT_LIKE_EXTENSIONS = SUPPORTED_EXTENSIONS - DOCUMENT_CACHE_EXTENSIONS
 _DEFAULT_TEXT_MAX_CHARS = 2_000_000
@@ -345,6 +375,35 @@ def _sha256(path: Path) -> str:
     return h.hexdigest()
 
 
+def _sha256_with_timeout(path: Path, timeout: float) -> tuple[str | None, str]:
+    """Hash *path* or return ``(None, "timeout"|"failed")``.
+
+    ``timeout <= 0`` or non-finite hashes without a wall clock, matching Rust.
+    """
+    if not math.isfinite(timeout) or timeout <= 0:
+        try:
+            return _sha256(path), "ok"
+        except OSError:
+            return None, "failed"
+    box: list[str | BaseException | None] = [None]
+
+    def worker() -> None:
+        try:
+            box[0] = _sha256(path)
+        except Exception as exc:
+            box[0] = exc
+
+    thread = threading.Thread(target=worker, daemon=True)
+    thread.start()
+    thread.join(timeout)
+    if thread.is_alive():
+        return None, "timeout"
+    value = box[0]
+    if isinstance(value, str):
+        return value, "ok"
+    return None, "failed"
+
+
 def _hash_allowed(path: Path, max_hash_bytes: int) -> bool:
     if max_hash_bytes <= 0:
         return True
@@ -409,13 +468,15 @@ def _body_keyword_text(text: str) -> str:
     return "\n".join(lines)
 
 
-def _parser_required(path: Path, ext: str) -> bool:
+def _parser_required(path: Path, ext: str, *, enable_media_index: bool = False) -> bool:
     """Return True when Jikji should create a reusable text cache.
 
     Some archive formats have compound suffixes (``.tar.gz``) that
     ``Path.suffix`` sees as ``.gz``.  Delegate that detection to the archive
     parser so member-name listings are cached just like PDF/Office text.
     """
+    if ext in MEDIA_CACHE_EXTENSIONS and not enable_media_index:
+        return False
     if ext in DOCUMENT_CACHE_EXTENSIONS:
         return True
     return _is_archive_path(path)
@@ -1093,9 +1154,11 @@ def _build_agent_index_unlocked(
     result = AgentIndexResult(files=len(files), folders=len(dirs), deleted=len(deleted_rows), index_dir=index_dir)
     text_max = int(getattr(config, "agent_doc_text_max_chars", _DEFAULT_TEXT_MAX_CHARS) or _DEFAULT_TEXT_MAX_CHARS)
     chunk_chars = int(getattr(config, "agent_doc_text_chunk_chars", _DEFAULT_CHUNK_CHARS) or _DEFAULT_CHUNK_CHARS)
-    parse_timeout = float(getattr(config, "parse_timeout_s", 5.0) or 5.0)
+    raw_parse_timeout = getattr(config, "parse_timeout_s", 5.0)
+    hash_timeout = 5.0 if raw_parse_timeout is None else float(raw_parse_timeout)
+    parse_timeout = hash_timeout if math.isfinite(hash_timeout) and hash_timeout > 0 else 5.0
     max_hash_bytes = int(getattr(config, "max_hash_bytes", 512 * 1024 * 1024) or 0)
-
+    media_index_enabled = bool(getattr(config, "enable_media_index", False))
     for idx, path in enumerate(files, 1):
         check()
         rel_path = _rel(root, path)
@@ -1120,7 +1183,7 @@ def _build_agent_index_unlocked(
             and prev.get("status", "present") == "present"
         )
         ext = entry.ext.lower()
-        parser_required = _parser_required(path, ext)
+        parser_required = _parser_required(path, ext, enable_media_index=media_index_enabled)
         text_cache_path = prev.get("text_cache_path", "") if unchanged else ""
         doc_meta_path = prev.get("doc_meta_path", "") if unchanged else ""
         content_hash = prev.get("sha256", "") if unchanged else ""
@@ -1145,59 +1208,76 @@ def _build_agent_index_unlocked(
                 text_cache_path = ""
                 doc_meta_path = ""
             else:
-                try:
-                    content_hash = _sha256(path)
-                    text_cache_path = f"{AGENT_DIR_NAME}/doc_text/sha256_{content_hash}.txt"
-                    doc_meta_path = f"{AGENT_DIR_NAME}/doc_meta/sha256_{content_hash}.json"
-                    text_path = root / text_cache_path
-                    cached_text = _read_cached_doc_text(text_path)
-                    if cached_text is not None:
-                        parsed_text_sample = cached_text
-                        parse_status = "success" if cached_text.strip() else "empty"
-                        result.docs_reused += 1
-                    else:
-                        parsed_text = extract_excerpt(path, max_chars=text_max, timeout=parse_timeout)
-                        parsed_text_sample = parsed_text
-                        if parsed_text.strip():
-                            header = (
-                                f"# Source: {rel_path}\n"
-                                f"# File ID: sha256:{content_hash}\n"
-                                f"# Parsed by: Jikji\n\n"
-                            )
-                            if len(parsed_text) > chunk_chars:
-                                chunk_dir = root / f"{AGENT_DIR_NAME}/doc_text/sha256_{content_hash}"
-                                if chunk_dir.exists() and chunk_dir.is_file():
-                                    chunk_dir.unlink()
-                                chunk_dir.mkdir(parents=True, exist_ok=True)
-                                for old in chunk_dir.glob("chunk_*.txt"):
-                                    old.unlink()
-                                for n, start in enumerate(range(0, len(parsed_text), chunk_chars), 1):
-                                    chunk = parsed_text[start:start + chunk_chars]
-                                    _atomic_write_text(chunk_dir / f"chunk_{n:04d}.txt", header + chunk)
-                                text_cache_path = f"{AGENT_DIR_NAME}/doc_text/sha256_{content_hash}"
-                            else:
-                                _atomic_write_text(text_path, header + parsed_text)
-                            parse_status = "archive_listing" if _is_archive_path(path) else "success"
-                            result.docs_parsed += 1
+                content_hash, hash_status = _sha256_with_timeout(path, hash_timeout)
+                if hash_status != "ok" or not content_hash:
+                    parse_status = "timeout" if hash_status == "timeout" else "failed"
+                    result.docs_failed += 1
+                    parse_errors.append({
+                        "path": rel_path,
+                        "code": parse_status,
+                        "error": (
+                            f"document hash timed out after {hash_timeout}s"
+                            if parse_status == "timeout"
+                            else "document hash failed"
+                        ),
+                        "stage": "hash",
+                    })
+                    content_hash = ""
+                    text_cache_path = ""
+                    doc_meta_path = ""
+                else:
+                    try:
+                        text_cache_path = f"{AGENT_DIR_NAME}/doc_text/sha256_{content_hash}.txt"
+                        doc_meta_path = f"{AGENT_DIR_NAME}/doc_meta/sha256_{content_hash}.json"
+                        text_path = root / text_cache_path
+                        cached_text = _read_cached_doc_text(text_path)
+                        if cached_text is not None:
+                            parsed_text_sample = cached_text
+                            parse_status = "success" if cached_text.strip() else "empty"
+                            result.docs_reused += 1
                         else:
-                            parse_status = "empty"
+                            parsed_text = extract_excerpt(path, max_chars=text_max, timeout=parse_timeout)
+                            parsed_text_sample = parsed_text
+                            if parsed_text.strip():
+                                header = (
+                                    f"# Source: {rel_path}\n"
+                                    f"# File ID: sha256:{content_hash}\n"
+                                    f"# Parsed by: Jikji\n\n"
+                                )
+                                if len(parsed_text) > chunk_chars:
+                                    chunk_dir = root / f"{AGENT_DIR_NAME}/doc_text/sha256_{content_hash}"
+                                    if chunk_dir.exists() and chunk_dir.is_file():
+                                        chunk_dir.unlink()
+                                    chunk_dir.mkdir(parents=True, exist_ok=True)
+                                    for old in chunk_dir.glob("chunk_*.txt"):
+                                        old.unlink()
+                                    for n, start in enumerate(range(0, len(parsed_text), chunk_chars), 1):
+                                        chunk = parsed_text[start:start + chunk_chars]
+                                        _atomic_write_text(chunk_dir / f"chunk_{n:04d}.txt", header + chunk)
+                                    text_cache_path = f"{AGENT_DIR_NAME}/doc_text/sha256_{content_hash}"
+                                else:
+                                    _atomic_write_text(text_path, header + parsed_text)
+                                parse_status = "archive_listing" if _is_archive_path(path) else "success"
+                                result.docs_parsed += 1
+                            else:
+                                parse_status = "empty"
+                                result.docs_failed += 1
+                        if parsed_text_sample:
+                            keyword_text = _body_keyword_text(parsed_text_sample)[:4000]
+                            keywords = _tokens_from_text(f"{entry.name}\n{keyword_text}")
+                            summary = parsed_text_sample.strip().replace("\n", " ")[:240]
+                    except Exception as exc:  # parser failure should not abort indexing
+                        if parse_status != "hash_oversize":
+                            parse_status = "failed"
                             result.docs_failed += 1
-                    if parsed_text_sample:
-                        keyword_text = _body_keyword_text(parsed_text_sample)[:4000]
-                        keywords = _tokens_from_text(f"{entry.name}\n{keyword_text}")
-                        summary = parsed_text_sample.strip().replace("\n", " ")[:240]
-                except Exception as exc:  # parser/hash failure should not abort indexing
-                    if parse_status != "hash_oversize":
-                        parse_status = "failed"
-                        result.docs_failed += 1
-                        parse_errors.append({
-                            "path": rel_path,
-                            "code": "parser_crashed",
-                            "error": str(exc),
-                            "stage": "parse",
-                        })
-                    if not content_hash:
-                        content_hash = ""
+                            parse_errors.append({
+                                "path": rel_path,
+                                "code": "parser_crashed",
+                                "error": str(exc),
+                                "stage": "parse",
+                            })
+                        if not content_hash:
+                            content_hash = ""
         elif ext in TEXT_LIKE_EXTENSIONS:
             keywords = _tokens_from_text(entry.name)
             parse_status = "native_text"
@@ -1205,20 +1285,6 @@ def _build_agent_index_unlocked(
             keywords = _tokens_from_text(entry.name)
             parse_status = "not_required"
 
-        if not content_hash and not unchanged:
-            # Hash every new/changed file so moves can be correlated later.
-            try:
-                if _hash_allowed(path, max_hash_bytes):
-                    content_hash = _sha256(path)
-                else:
-                    parse_errors.append({
-                        "path": rel_path,
-                        "code": "hash_oversize",
-                        "error": f"file exceeds max_hash_bytes={max_hash_bytes}",
-                        "stage": "hash",
-                    })
-            except OSError:
-                content_hash = ""
 
         row = {
             "status": "present",
@@ -1294,9 +1360,7 @@ def _build_agent_index_unlocked(
     search_terms = _build_search_terms(folder_rows, file_rows_sorted, doc_rows_sorted)
     _remove_path_quietly(index_dir / "search_terms.json")
     _remove_path_quietly(index_dir / "search_terms.jsonl")
-    media_exts = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".webp", ".bmp", ".gif", ".mp3", ".wav", ".m4a", ".flac", ".ogg", ".aac", ".opus", ".wma", ".mp4", ".mov", ".mkv", ".avi", ".webm", ".m4v", ".wmv", ".flv", ".mpg", ".mpeg"}
-    media_file_count = sum(1 for p in files if p.suffix.lower() in media_exts)
-    media_index_enabled = bool(getattr(config, "enable_media_index", False))
+    media_file_count = sum(1 for p in files if p.suffix.lower() in MEDIA_CACHE_EXTENSIONS)
     manifest = {
         "schema_version": 1,
         "search_index_schema_version": INSTANT_SEARCH_SCHEMA_VERSION,

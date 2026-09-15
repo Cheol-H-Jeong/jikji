@@ -5,9 +5,9 @@ use jikji_core::storage::{database_path, load_artifact, root_key};
 use serde_json::{Value, json};
 
 use crate::answer_pack::handoff_policy;
-use crate::discover::DiscoverOptions;
-use crate::discover::discover;
-use crate::graph::graph_query;
+use crate::discover_contract::confidence_for;
+use crate::discover_query::classify_query;
+use crate::graph::graph_route_for_path;
 use crate::searcher::SearchCandidate;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -102,22 +102,19 @@ pub fn compact_brief_payload(
     options: BriefOptions,
     candidates: &[SearchCandidate],
 ) -> Result<Value> {
-    let discover = discover(
-        root,
-        query,
-        DiscoverOptions {
-            top_k: options.top_k,
-            retry_exhausted: false,
-            retry_proof: String::new(),
-        },
-    )?;
+    let query_type = classify_query(query);
+    let confidence = confidence_for(&query_type, candidates);
+    let action = if confidence == "low" {
+        "jikji_retry"
+    } else {
+        "direct_use"
+    };
     let compact = candidates
         .iter()
         .enumerate()
         .map(|(idx, item)| {
-            let route = graph_query(root, &item.path, 1)
-                .ok()
-                .and_then(|mut rows| rows.pop())
+            let route = graph_route_for_path(root, &item.path)
+                .unwrap_or(None)
                 .unwrap_or_else(|| json!({}));
             json!({
                 "r": idx + 1,
@@ -127,7 +124,10 @@ pub fn compact_brief_payload(
                 "terms": item.matched_terms.iter().take(8).collect::<Vec<_>>(),
                 "intents": item.matched_intents.iter().take(4).collect::<Vec<_>>(),
                 "wiki": route.get("wiki_path").cloned().unwrap_or(Value::String(String::new())),
-                "cache": route.get("text_cache_path").cloned().unwrap_or(Value::String(String::new())),
+                "cache": route
+                    .get("text_cache_path")
+                    .cloned()
+                    .unwrap_or(Value::String(String::new())),
                 "ev": item.evidence.first().cloned().unwrap_or_default(),
                 "next_read": {"kind":"original","path":item.path},
             })
@@ -143,8 +143,8 @@ pub fn compact_brief_payload(
         "prepared": options.foreground_prepared,
         "refreshing": options.background_refresh_started,
         "policy": "Use candidates[].p first. Read candidates[].wiki/cache only if ambiguous. Open original only for final verification. Do not browse whole filesystem first.",
-        "handoff_action": discover["handoff_action"].clone(),
-        "handoff_policy": discover.get("handoff_policy").cloned().unwrap_or_else(|| handoff_policy("adaptive", "direct_use")),
+        "handoff_action": action,
+        "handoff_policy": handoff_policy(&query_type, action),
         "artifacts": {
             "storage": "central_sqlite",
             "database": database_path().ok().map(|path| path.display().to_string()),

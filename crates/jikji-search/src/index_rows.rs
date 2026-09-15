@@ -1,6 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
+use jikji_core::storage::cloud_drive_path_blocked;
+
 use serde_json::{Value, json};
 
 use crate::cache_text::{read_cache_text, read_source_text};
@@ -29,11 +31,11 @@ pub(crate) struct IndexRow {
 }
 
 pub(crate) fn rows_from_cards(
-    index_dir: &Path,
+    root: &Path,
+    storage_dir: &Path,
     file_cards: &[Value],
     chunk_rows: &[Value],
 ) -> Vec<IndexRow> {
-    let root = index_dir;
     let mut chunks_by_path = BTreeMap::<String, Vec<&Value>>::new();
     for chunk in chunk_rows {
         if let Some(path) = value_str(chunk, "path") {
@@ -43,12 +45,13 @@ pub(crate) fn rows_from_cards(
     file_cards
         .iter()
         .filter(|card| card.get("status").and_then(Value::as_str) != Some("deleted"))
-        .filter_map(|card| row_from_card(root, card, &chunks_by_path))
+        .filter_map(|card| row_from_card(root, storage_dir, card, &chunks_by_path))
         .collect()
 }
 
 fn row_from_card(
     root: &Path,
+    storage_dir: &Path,
     card: &Value,
     chunks_by_path: &BTreeMap<String, Vec<&Value>>,
 ) -> Option<IndexRow> {
@@ -66,7 +69,14 @@ fn row_from_card(
     let ext = value_str(card, "ext").unwrap_or_default();
     let text_cache_path = value_str(card, "text_cache_path").unwrap_or_default();
     let summary = value_str(card, "summary").unwrap_or_default();
-    let body = body_for(root, &path, &ext, &text_cache_path, chunks_by_path);
+    let body = body_for(
+        root,
+        storage_dir,
+        &path,
+        &ext,
+        &text_cache_path,
+        chunks_by_path,
+    );
     let chunks = chunks_by_path
         .get(&path)
         .into_iter()
@@ -117,14 +127,17 @@ fn row_from_card(
 
 fn body_for(
     root: &Path,
+    storage_dir: &Path,
     path: &str,
     ext: &str,
     text_cache_path: &str,
     chunks_by_path: &BTreeMap<String, Vec<&Value>>,
 ) -> String {
     let mut body_parts = Vec::new();
-    body_parts.push(read_cache_text(root, text_cache_path, 64_000));
-    if is_native_text_ext(ext) {
+    let cached = read_cache_text(storage_dir, text_cache_path, 64_000);
+    let cache_empty = cached.is_empty();
+    body_parts.push(cached);
+    if cache_empty && is_native_text_ext(ext) && allow_native_source_read(root, path) {
         body_parts.push(read_source_text(root.join(path), 24_000));
     }
     for chunk in chunks_by_path.get(path).into_iter().flatten().take(48) {
@@ -184,6 +197,9 @@ pub(crate) fn evidence_for(body: &str, summary: &str, fallback: &str) -> Vec<Str
     let mut out = Vec::new();
     for line in joined.split(['\n', '.', '!', '?']) {
         let compact = line.split_whitespace().collect::<Vec<_>>().join(" ");
+        if compact.starts_with('#') {
+            continue;
+        }
         if compact.chars().count() >= 12 {
             out.push(compact.chars().take(240).collect());
         }
@@ -287,4 +303,301 @@ fn is_native_text_ext(ext: &str) -> bool {
             | "sass"
             | "less"
     )
+}
+
+fn allow_native_source_read(root: &Path, rel: &str) -> bool {
+    !cloud_drive_path_blocked(root) && !cloud_drive_path_blocked(&root.join(rel))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    struct TempTree(std::path::PathBuf);
+
+    impl Drop for TempTree {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    fn rows_from_cards_reads_cache_from_storage_not_scan_root() {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time")
+            .as_nanos();
+        let tmp = TempTree(
+            std::env::temp_dir().join(format!("jikji-index-rows-{}-{nonce}", std::process::id())),
+        );
+        let scan_root = tmp.0.join("GoogleDrive/마커");
+        let storage = tmp.0.join("data/jikji/roots/601");
+        let rel = ".jikji/doc_text/sha256_deadbeef.txt";
+        fs::create_dir_all(scan_root.join(".jikji/doc_text")).expect("scan cache dir");
+        fs::create_dir_all(storage.join("doc_text")).expect("storage cache dir");
+        fs::write(scan_root.join(rel), "FUSE_BODY").expect("fuse decoy");
+        fs::write(storage.join("doc_text/sha256_deadbeef.txt"), "CENTRAL_BODY").expect("central");
+
+        let cards = [json!({
+            "path": "paper.pdf",
+            "name": "paper.pdf",
+            "ext": "pdf",
+            "text_cache_path": rel,
+            "summary": "paper",
+        })];
+        let rows = rows_from_cards(&scan_root, &storage, &cards, &[]);
+        assert_eq!(rows.len(), 1);
+        assert!(rows[0].body.contains("CENTRAL_BODY"), "{}", rows[0].body);
+        assert!(!rows[0].body.contains("FUSE_BODY"), "{}", rows[0].body);
+    }
+
+    #[test]
+    fn rows_from_cards_skips_native_source_when_storage_cache_exists() {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time")
+            .as_nanos();
+        let tmp = TempTree(std::env::temp_dir().join(format!(
+            "jikji-index-rows-cache-{}-{nonce}",
+            std::process::id()
+        )));
+        let scan_root = tmp.0.join("GoogleDrive/마커");
+        let storage = tmp.0.join("data/jikji/roots/601");
+        fs::create_dir_all(&scan_root).expect("scan root");
+        fs::create_dir_all(storage.join("doc_text")).expect("storage cache dir");
+        fs::write(scan_root.join("sensor.txt"), "NATIVE_FUSE_BODY").expect("native source");
+        fs::write(
+            storage.join("doc_text/sha256_cached.txt"),
+            "CENTRAL_CACHE_BODY",
+        )
+        .expect("central cache");
+
+        let cards = [json!({
+            "path": "sensor.txt",
+            "name": "sensor.txt",
+            "ext": "txt",
+            "text_cache_path": ".jikji/doc_text/sha256_cached.txt",
+            "summary": "sensor",
+        })];
+        let rows = rows_from_cards(&scan_root, &storage, &cards, &[]);
+        assert_eq!(rows.len(), 1);
+        assert!(
+            rows[0].body.contains("CENTRAL_CACHE_BODY"),
+            "{}",
+            rows[0].body
+        );
+        assert!(
+            !rows[0].body.contains("NATIVE_FUSE_BODY"),
+            "{}",
+            rows[0].body
+        );
+    }
+
+    #[test]
+    fn rows_from_cards_reads_native_source_when_cache_is_empty() {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time")
+            .as_nanos();
+        let tmp = TempTree(std::env::temp_dir().join(format!(
+            "jikji-index-rows-native-{}-{nonce}",
+            std::process::id()
+        )));
+        let scan_root = tmp.0.join("Documents/notes");
+        let storage = tmp.0.join("data/jikji/roots/601");
+        fs::create_dir_all(&scan_root).expect("scan root");
+        fs::create_dir_all(&storage).expect("storage");
+        fs::write(scan_root.join("note.txt"), "NATIVE_ONLY_BODY").expect("native source");
+
+        let cards = [json!({
+            "path": "note.txt",
+            "name": "note.txt",
+            "ext": "txt",
+            "text_cache_path": "",
+            "summary": "note",
+        })];
+        let rows = rows_from_cards(&scan_root, &storage, &cards, &[]);
+        assert_eq!(rows.len(), 1);
+        assert!(
+            rows[0].body.contains("NATIVE_ONLY_BODY"),
+            "{}",
+            rows[0].body
+        );
+    }
+
+    #[test]
+    fn rows_from_cards_skips_native_source_on_google_drive_cache_miss() {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time")
+            .as_nanos();
+        let tmp = TempTree(std::env::temp_dir().join(format!(
+            "jikji-index-rows-drive-skip-{}-{nonce}",
+            std::process::id()
+        )));
+        let scan_root = tmp.0.join("GoogleDrive/마커");
+        let storage = tmp.0.join("data/jikji/roots/601");
+        fs::create_dir_all(&scan_root).expect("scan root");
+        fs::create_dir_all(&storage).expect("storage");
+        fs::write(scan_root.join("note.txt"), "NATIVE_FUSE_BODY").expect("native source");
+
+        let cards = [json!({
+            "path": "note.txt",
+            "name": "note.txt",
+            "ext": "txt",
+            "text_cache_path": "",
+            "summary": "note",
+        })];
+        let rows = rows_from_cards(&scan_root, &storage, &cards, &[]);
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].name, "note.txt");
+        assert!(
+            !rows[0].body.contains("NATIVE_FUSE_BODY"),
+            "{}",
+            rows[0].body
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn rows_from_cards_skips_native_source_through_symlink_into_google_drive() {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time")
+            .as_nanos();
+        let tmp = TempTree(std::env::temp_dir().join(format!(
+            "jikji-index-rows-drive-link-{}-{nonce}",
+            std::process::id()
+        )));
+        let real = tmp.0.join("GoogleDrive/마커");
+        let link = tmp.0.join("Drive");
+        let storage = tmp.0.join("data/jikji/roots/601");
+        fs::create_dir_all(&real).expect("real drive root");
+        fs::create_dir_all(&storage).expect("storage");
+        std::os::unix::fs::symlink(&real, &link).expect("drive symlink");
+        fs::write(real.join("note.txt"), "NATIVE_FUSE_BODY").expect("native source");
+
+        let cards = [json!({
+            "path": "note.txt",
+            "name": "note.txt",
+            "ext": "txt",
+            "text_cache_path": "",
+            "summary": "note",
+        })];
+        let rows = rows_from_cards(&link, &storage, &cards, &[]);
+        assert_eq!(rows.len(), 1);
+        assert!(
+            !rows[0].body.contains("NATIVE_FUSE_BODY"),
+            "{}",
+            rows[0].body
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn rows_from_cards_skips_native_source_through_parent_drive_symlink() {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time")
+            .as_nanos();
+        let tmp = TempTree(std::env::temp_dir().join(format!(
+            "jikji-index-rows-drive-parent-{}-{nonce}",
+            std::process::id()
+        )));
+        let real = tmp.0.join("GoogleDrive/마커");
+        let link_parent = tmp.0.join("Drive");
+        let scan_root = link_parent.join("마커");
+        let storage = tmp.0.join("data/jikji/roots/601");
+        fs::create_dir_all(&real).expect("real drive root");
+        fs::create_dir_all(&storage).expect("storage");
+        std::os::unix::fs::symlink(tmp.0.join("GoogleDrive"), &link_parent)
+            .expect("parent drive symlink");
+        fs::write(real.join("note.txt"), "NATIVE_FUSE_BODY").expect("native source");
+
+        let cards = [json!({
+            "path": "note.txt",
+            "name": "note.txt",
+            "ext": "txt",
+            "text_cache_path": "",
+            "summary": "note",
+        })];
+        let rows = rows_from_cards(&scan_root, &storage, &cards, &[]);
+        assert_eq!(rows.len(), 1);
+        assert!(
+            !rows[0].body.contains("NATIVE_FUSE_BODY"),
+            "{}",
+            rows[0].body
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn rows_from_cards_skips_native_source_when_file_is_symlink_into_google_drive() {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time")
+            .as_nanos();
+        let tmp = TempTree(std::env::temp_dir().join(format!(
+            "jikji-index-rows-file-link-{}-{nonce}",
+            std::process::id()
+        )));
+        let scan_root = tmp.0.join("Documents/notes");
+        let real = tmp.0.join("GoogleDrive/마커/secret.txt");
+        let storage = tmp.0.join("data/jikji/roots/601");
+        fs::create_dir_all(&scan_root).expect("scan root");
+        fs::create_dir_all(real.parent().expect("parent")).expect("drive file parent");
+        fs::create_dir_all(&storage).expect("storage");
+        fs::write(&real, "NATIVE_FUSE_BODY").expect("native source");
+        std::os::unix::fs::symlink(&real, scan_root.join("note.txt")).expect("file symlink");
+
+        let cards = [json!({
+            "path": "note.txt",
+            "name": "note.txt",
+            "ext": "txt",
+            "text_cache_path": "",
+            "summary": "note",
+        })];
+        let rows = rows_from_cards(&scan_root, &storage, &cards, &[]);
+        assert_eq!(rows.len(), 1);
+        assert!(
+            !rows[0].body.contains("NATIVE_FUSE_BODY"),
+            "{}",
+            rows[0].body
+        );
+    }
+
+    #[test]
+    fn rows_from_cards_skips_native_source_on_rclone_drive_mount_names() {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time")
+            .as_nanos();
+        for (idx, mount) in ["gdrive", "google-drive", "GDrive"].iter().enumerate() {
+            let tmp = TempTree(std::env::temp_dir().join(format!(
+                "jikji-index-rows-rclone-{idx}-{}-{nonce}",
+                std::process::id()
+            )));
+            let scan_root = tmp.0.join(mount).join("마커");
+            let storage = tmp.0.join("data/jikji/roots/601");
+            fs::create_dir_all(&scan_root).expect("scan root");
+            fs::create_dir_all(&storage).expect("storage");
+            fs::write(scan_root.join("note.txt"), "NATIVE_FUSE_BODY").expect("native source");
+            let cards = [json!({
+                "path": "note.txt",
+                "name": "note.txt",
+                "ext": "txt",
+                "text_cache_path": "",
+                "summary": "note",
+            })];
+            let rows = rows_from_cards(&scan_root, &storage, &cards, &[]);
+            assert_eq!(rows.len(), 1, "{mount}");
+            assert!(
+                !rows[0].body.contains("NATIVE_FUSE_BODY"),
+                "{mount}: {}",
+                rows[0].body
+            );
+        }
+    }
 }

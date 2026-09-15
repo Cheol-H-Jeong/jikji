@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use jikji_core::Result;
+use jikji_core::storage::root_storage_dir;
 use serde_json::Value;
 
 pub(crate) use crate::graph_artifacts::build_graph_artifacts;
@@ -19,7 +20,8 @@ pub(crate) fn build_sqlite_index(
     file_cards: &[Value],
     chunk_rows: &[Value],
 ) -> Result<BuildStats> {
-    let rows = rows_from_cards(root, file_cards, chunk_rows);
+    let storage_dir = root_storage_dir(root)?;
+    let rows = rows_from_cards(root, &storage_dir, file_cards, chunk_rows);
     write_sqlite(root, &rows)?;
     Ok(BuildStats {
         rows: rows.len(),

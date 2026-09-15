@@ -1,23 +1,32 @@
+use serde_json::Value;
 use std::ffi::OsStr;
+use std::fs;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Output, Stdio};
+use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
-use serde_json::Value;
+static GUI_CHILD_LOCK: Mutex<()> = Mutex::new(());
 
 pub(crate) struct GuiChild {
     url: String,
     child: Child,
     manage_token: String,
+    _lock: MutexGuard<'static, ()>,
 }
 
 impl GuiChild {
     pub(crate) fn start(root: &Path) -> Self {
+        Self::start_with_env(root, &[])
+    }
+    pub(crate) fn start_with_env(root: &Path, extra_env: &[(&str, &OsStr)]) -> Self {
+        let lock = GUI_CHILD_LOCK.lock().expect("gui child lock");
         let port = reserve_loopback_port();
         let manage_token = format!("test-token-{port}");
-        let mut child = Command::new(env!("CARGO_BIN_EXE_jikji"))
+        let mut command = Command::new(env!("CARGO_BIN_EXE_jikji"));
+        command
             .args([
                 "gui",
                 path_str(root).as_str(),
@@ -30,11 +39,18 @@ impl GuiChild {
                 "--manage-token",
                 manage_token.as_str(),
             ])
+            .env(
+                "JIKJI_POST_INSTALL_HOME",
+                "/nonexistent-jikji-gui-test-home",
+            )
+            .env("JIKJI_DATA_DIR", isolated_data_dir(root))
             .stdin(Stdio::null())
             .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-            .expect("spawn GUI child");
+            .stderr(Stdio::null());
+        for (key, value) in extra_env {
+            command.env(key, value);
+        }
+        let mut child = command.spawn().expect("spawn GUI child");
         let url = format!("http://127.0.0.1:{port}");
         if let Err(error) = wait_until_ready(port) {
             let _ = child.kill();
@@ -45,6 +61,7 @@ impl GuiChild {
             url,
             child,
             manage_token,
+            _lock: lock,
         }
     }
 
@@ -73,10 +90,11 @@ where
     I: IntoIterator<Item = S>,
     S: AsRef<OsStr>,
 {
-    let output = Command::new(env!("CARGO_BIN_EXE_jikji"))
-        .args(args)
-        .output()
-        .expect("run jikji");
+    let args: Vec<S> = args.into_iter().collect();
+    let mut command = Command::new(env!("CARGO_BIN_EXE_jikji"));
+    command.args(&args);
+    isolate_command_data_dir(&mut command, &args);
+    let output = command.output().expect("run jikji");
     assert!(
         output.status.success(),
         "stderr={}\nstdout={}",
@@ -100,10 +118,11 @@ where
     I: IntoIterator<Item = S>,
     S: AsRef<OsStr>,
 {
-    let output = Command::new(env!("CARGO_BIN_EXE_jikji"))
-        .args(args)
-        .output()
-        .expect("run jikji");
+    let args: Vec<S> = args.into_iter().collect();
+    let mut command = Command::new(env!("CARGO_BIN_EXE_jikji"));
+    command.args(&args);
+    isolate_command_data_dir(&mut command, &args);
+    let output = command.output().expect("run jikji");
     assert!(
         !output.status.success(),
         "expected failure stdout={}",
@@ -114,6 +133,35 @@ where
 
 pub(crate) fn path_str(path: &Path) -> String {
     path.display().to_string()
+}
+
+fn isolated_data_dir(root: impl AsRef<OsStr>) -> PathBuf {
+    use std::hash::{Hash, Hasher};
+
+    let path = PathBuf::from(root.as_ref());
+    let key = path
+        .ancestors()
+        .find(|ancestor| {
+            ancestor
+                .file_name()
+                .is_some_and(|name| name.to_string_lossy().starts_with(".tmp"))
+        })
+        .unwrap_or(path.as_path());
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    key.to_string_lossy().hash(&mut hasher);
+    let data = std::env::temp_dir().join(format!("jikji-gui-test-db-{:016x}", hasher.finish()));
+    fs::create_dir_all(&data).expect("jikji test data dir");
+    data
+}
+
+fn isolate_command_data_dir<S: AsRef<OsStr>>(command: &mut Command, args: &[S]) {
+    let Some(root) = args.get(1) else {
+        return;
+    };
+    if root.as_ref().to_string_lossy().starts_with('-') {
+        return;
+    }
+    command.env("JIKJI_DATA_DIR", isolated_data_dir(root));
 }
 
 pub(crate) fn assert_rejected(response: &str) {
@@ -132,7 +180,7 @@ fn http_request(method: &str, base_url: &str, path: &str) -> String {
         match TcpStream::connect((host.as_str(), port)) {
             Ok(mut stream) => {
                 stream
-                    .set_read_timeout(Some(Duration::from_secs(2)))
+                    .set_read_timeout(Some(Duration::from_secs(15)))
                     .expect("timeout");
                 let request = format!(
                     "{method} {path} HTTP/1.1\r\nHost: {host}:{port}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n"

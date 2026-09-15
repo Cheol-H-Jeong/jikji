@@ -219,6 +219,7 @@ fn discover_payload(args: &FindArgs) -> jikji_core::Result<serde_json::Value> {
             top_k: args.top_k,
             retry_exhausted: args.after_jikji_retry,
             retry_proof: args.retry_proof.clone(),
+            ..Default::default()
         },
     )
 }
@@ -290,14 +291,14 @@ fn recovery_proof(args: &FindArgs, index_status: &str) -> String {
     )
 }
 
-struct PreparedSearchStatus {
-    status: IndexStatus,
-    foreground_prepared: bool,
-    background_refresh_started: bool,
-    background_refresh_requested: bool,
+pub(crate) struct PreparedSearchStatus {
+    pub(crate) status: IndexStatus,
+    pub(crate) foreground_prepared: bool,
+    pub(crate) background_refresh_started: bool,
+    pub(crate) background_refresh_requested: bool,
 }
 
-fn maybe_prepare_for_search(
+pub(crate) fn maybe_prepare_for_search(
     root: &Path,
     fresh: bool,
     auto_prepare: bool,
@@ -333,7 +334,7 @@ fn maybe_prepare_for_search(
     })
 }
 
-fn start_deferred_background_refresh(
+pub(crate) fn start_deferred_background_refresh(
     prepared: &mut PreparedSearchStatus,
     root: &Path,
     options: &PrepareOptions,

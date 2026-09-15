@@ -22,3 +22,8 @@ def test_python_package_owns_jikji_src_layout() -> None:
     assert package_pyproject["tool"]["setuptools"]["packages"]["find"]["where"] == ["src"]
     assert (ROOT / "python" / "jikji" / "src" / "jikji" / "__main__.py").is_file()
     assert not (ROOT / "src" / "jikji" / "__main__.py").exists()
+    leftover_src = ROOT / "src"
+    if leftover_src.exists():
+        leftover = sorted(path.name for path in leftover_src.iterdir())
+        assert leftover == [], f"root src/ must not keep leftover Python install trees: {leftover}"
+

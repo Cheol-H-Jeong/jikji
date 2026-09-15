@@ -1,8 +1,10 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::path::Path;
 
 use jikji_core::Result;
-use jikji_core::storage::{load_artifact, load_artifacts};
+use jikji_core::storage::{
+    load_artifact, load_artifact_by_path, load_artifact_paths, load_artifacts_matching_terms,
+};
 use serde_json::{Value, json};
 
 use crate::tokenizer::query_terms as tokenize_query_terms;
@@ -29,8 +31,9 @@ pub fn graph_query(root: &Path, query: &str, top_k: usize) -> Result<Vec<Value>>
     if query_terms.is_empty() {
         return Ok(Vec::new());
     }
+    let terms = query_terms.iter().cloned().collect::<Vec<_>>();
     let mut ranked = Vec::new();
-    for row in load_artifacts(root, "graph_routes")? {
+    for row in load_artifacts_matching_terms(root, "graph_routes", &terms, 2000)? {
         let fields = ["path", "folder", "preview", "ext"]
             .iter()
             .filter_map(|key| row.get(key).and_then(Value::as_str))
@@ -67,10 +70,8 @@ pub fn graph_query(root: &Path, query: &str, top_k: usize) -> Result<Vec<Value>>
 }
 
 pub fn explain_source(root: &Path, source_path: &str) -> Value {
-    let route = load_artifacts(root, "graph_routes")
-        .unwrap_or_default()
-        .into_iter()
-        .find(|row| row.get("path").and_then(Value::as_str) == Some(source_path))
+    let route = graph_route_for_path(root, source_path)
+        .unwrap_or(None)
         .unwrap_or_else(|| json!({}));
     let source_id = route.get("source_id").and_then(Value::as_str).unwrap_or("");
     let graph = load_artifact(root, "graph")
@@ -97,6 +98,14 @@ pub fn explain_source(root: &Path, source_path: &str) -> Value {
         }
     }
     json!({"found": !route.as_object().is_none_or(serde_json::Map::is_empty), "route":route,"neighbors":neighbors})
+}
+
+pub fn graph_route_for_path(root: &Path, source_path: &str) -> Result<Option<Value>> {
+    load_artifact_by_path(root, "graph_routes", source_path)
+}
+
+pub fn graph_route_paths(root: &Path) -> Result<HashSet<String>> {
+    load_artifact_paths(root, "graph_routes")
 }
 
 fn array_text(row: &Value, key: &str) -> String {

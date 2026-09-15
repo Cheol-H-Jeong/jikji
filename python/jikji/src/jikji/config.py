@@ -11,7 +11,7 @@ class Config:
     # Caller-provided excludes. Hidden files are handled separately so
     # ``--include-hidden`` does not accidentally opt into sensitive files.
     ignore_patterns: list[str] = field(
-        default_factory=lambda: ["~$*", "Thumbs.db", ".DS_Store", "desktop.ini"]
+        default_factory=lambda: ["~$*", "Thumbs.db", ".DS_Store", "desktop.ini", "kaggle"]
     )
     # Safety deny-list that remains active unless include_sensitive is explicit.
     safety_ignore_patterns: list[str] = field(

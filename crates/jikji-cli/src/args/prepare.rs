@@ -38,6 +38,8 @@ pub(crate) struct PrepareArgs {
     pub(crate) archive_max_total_bytes: u64,
     #[arg(long)]
     pub(crate) no_agent_rules: bool,
+    #[arg(long, hide = true)]
+    pub(crate) search_only: bool,
 }
 
 #[derive(Debug, Parser)]

@@ -79,8 +79,18 @@ pub(crate) fn score_field_hits(
 ) -> Result<()> {
     let avg = field_avg(con)?;
     for term in terms {
+        let idf = field_idf(con, term);
         let mut stmt = con
-            .prepare("SELECT field,doc_id,tf FROM field_terms WHERE term=? LIMIT 5000")
+            .prepare(
+                "SELECT field_terms.field, field_terms.doc_id, field_terms.tf,
+                        COALESCE(field_lengths.length, 1)
+                 FROM field_terms
+                 LEFT JOIN field_lengths
+                   ON field_lengths.doc_id = field_terms.doc_id
+                  AND field_lengths.field = field_terms.field
+                 WHERE field_terms.term = ?
+                 LIMIT 5000",
+            )
             .map_err(|source| sqlite_error(Path::new("search_index.sqlite"), source))?;
         let rows = stmt
             .query_map(params![term], |row| {
@@ -88,40 +98,40 @@ pub(crate) fn score_field_hits(
                     row.get::<_, String>(0)?,
                     row.get::<_, i64>(1)?,
                     row.get::<_, i64>(2)?,
+                    row.get::<_, i64>(3)?,
                 ))
             })
             .map_err(|source| sqlite_error(Path::new("search_index.sqlite"), source))?;
         for row in rows {
             let row =
                 row.map_err(|source| sqlite_error(Path::new("search_index.sqlite"), source))?;
-            score_field_row(con, row, term, &avg, scores, matched, reasons)?;
+            score_field_row(row, term, idf, &avg, scores, matched, reasons);
         }
     }
     Ok(())
 }
 
 fn score_field_row(
-    con: &Connection,
-    row: (String, i64, i64),
+    row: (String, i64, i64, i64),
     term: &str,
+    idf: f64,
     avg: &BTreeMap<String, f64>,
     scores: &mut ScoreMap,
     matched: &mut TermMap,
     reasons: &mut TermMap,
-) -> Result<()> {
-    let (field, doc_id, tf) = row;
-    let len = field_len(con, doc_id, &field);
+) {
+    let (field, doc_id, tf, length) = row;
+    let len = length.max(1) as f64;
     let avg_len = avg.get(&field).copied().unwrap_or(1.0).max(1.0);
     let tf64 = tf.max(1) as f64;
     let denom = tf64 + 1.2 * (1.0 - 0.75 + 0.75 * (len / avg_len));
-    let bm25 = field_idf(con, term) * ((tf64 * 2.2) / denom);
+    let bm25 = idf * ((tf64 * 2.2) / denom);
     *scores.entry(doc_id).or_insert(0.0) += bm25 * field_weight(&field) * 100.0;
     matched.entry(doc_id).or_default().insert(term.to_owned());
     reasons
         .entry(doc_id)
         .or_default()
         .insert("fielded-bm25".to_owned());
-    Ok(())
 }
 
 fn field_idf(con: &Connection, term: &str) -> f64 {
@@ -151,12 +161,37 @@ fn field_avg(con: &Connection) -> Result<BTreeMap<String, f64>> {
     Ok(out)
 }
 
-fn field_len(con: &Connection, doc_id: i64, field: &str) -> f64 {
-    con.query_row(
-        "SELECT length FROM field_lengths WHERE doc_id=? AND field=?",
-        params![doc_id, field],
-        |row| row.get::<_, i64>(0),
-    )
-    .unwrap_or(1)
-    .max(1) as f64
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn score_field_hits_joins_lengths_in_one_query() {
+        let con = Connection::open_in_memory().expect("memory sqlite");
+        con.execute_batch(
+            "CREATE TABLE field_terms(term TEXT, field TEXT, doc_id INTEGER, tf INTEGER);
+             CREATE TABLE field_lengths(doc_id INTEGER, field TEXT, length INTEGER);
+             CREATE TABLE field_idf(term TEXT PRIMARY KEY, value REAL);
+             CREATE TABLE field_avg(field TEXT PRIMARY KEY, value REAL);
+             INSERT INTO field_terms VALUES ('hwp','name',1,2);
+             INSERT INTO field_lengths VALUES (1,'name',4);
+             INSERT INTO field_idf VALUES ('hwp', 1.5);
+             INSERT INTO field_avg VALUES ('name', 4.0);",
+        )
+        .expect("schema");
+        let terms = BTreeSet::from(["hwp".to_owned()]);
+        let mut scores = ScoreMap::new();
+        let mut matched = TermMap::new();
+        let mut reasons = TermMap::new();
+        score_field_hits(&con, &terms, &mut scores, &mut matched, &mut reasons).expect("score");
+        assert!(
+            scores.get(&1).copied().unwrap_or(0.0) > 0.0,
+            "joined BM25 should score the matching doc: {scores:?}"
+        );
+        assert!(
+            reasons
+                .get(&1)
+                .is_some_and(|set| set.contains("fielded-bm25"))
+        );
+    }
 }

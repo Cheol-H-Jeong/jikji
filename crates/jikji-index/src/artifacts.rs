@@ -1,9 +1,10 @@
 use std::collections::BTreeSet;
+use std::io::{Error, ErrorKind};
 use std::path::{Path, PathBuf};
 
 use jikji_core::storage::{load_artifacts, replace_artifacts, root_storage_dir};
-use jikji_core::{PrepareOptions, Result, ensure_generated_dir};
-use jikji_search::build_search_artifacts;
+use jikji_core::{PrepareOptions, Result, ensure_generated_dir, io_error};
+use jikji_search::{SearchArtifactStats, build_search_artifacts};
 use serde::Serialize;
 use serde_json::Value;
 
@@ -33,6 +34,25 @@ pub fn prepare(root: &Path, options: &PrepareOptions) -> Result<PrepareResult> {
     ensure_generated_dir(&index_dir)?;
     let _guard = LockGuard::acquire(&index_dir)?;
     build_artifacts(scan, options)
+}
+
+pub fn reindex_search(root: &Path) -> Result<SearchArtifactStats> {
+    let index_dir = root_storage_dir(root)?;
+    ensure_generated_dir(&index_dir)?;
+    let _guard = LockGuard::acquire(&index_dir)?;
+    let file_rows = load_artifacts(root, "files")?;
+    if file_rows.is_empty() {
+        return Err(io_error(
+            root,
+            Error::new(
+                ErrorKind::InvalidInput,
+                "search-only requires existing files artifacts",
+            ),
+        ));
+    }
+    let chunk_rows = load_artifacts(root, "chunks")?;
+    let folder_rows = load_artifacts(root, "folders")?;
+    build_search_artifacts(root, &file_rows, &chunk_rows, &folder_rows)
 }
 
 fn build_artifacts(scan: ScanResult, options: &PrepareOptions) -> Result<PrepareResult> {

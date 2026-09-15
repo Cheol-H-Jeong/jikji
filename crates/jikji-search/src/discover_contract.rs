@@ -1,8 +1,9 @@
+use std::collections::HashSet;
 use std::path::Path;
 
 use serde_json::{Value, json};
 
-use crate::graph::graph_query;
+use crate::graph::graph_route_paths;
 use crate::searcher::SearchCandidate;
 
 pub(crate) fn confidence_for(query_type: &str, candidates: &[SearchCandidate]) -> &'static str {
@@ -79,22 +80,31 @@ pub(crate) fn search_plan(root: &Path, variants: &[String], top_k: usize) -> Val
         "root": root.display().to_string(),
     })
 }
-
-pub(crate) fn judge_slate(root: &Path, candidates: &[SearchCandidate]) -> Vec<Value> {
+pub(crate) fn judge_slate(
+    candidates: &[SearchCandidate],
+    route_paths: &HashSet<String>,
+) -> Vec<Value> {
     candidates
         .iter()
         .enumerate()
         .map(|(idx, item)| {
-            let graph_hits = graph_query(root, &item.path, 1).unwrap_or_default();
             json!({
                 "rank": idx + 1,
                 "path": item.path,
                 "score": item.discover_score.unwrap_or(item.score),
-                "routes": if graph_hits.is_empty() { vec!["lexical_file_map", "metadata"] } else { vec!["lexical_file_map", "graph_route", "wiki_cache", "metadata"] },
+                "routes": if route_paths.contains(&item.path) {
+                    vec!["lexical_file_map", "graph_route", "wiki_cache", "metadata"]
+                } else {
+                    vec!["lexical_file_map", "metadata"]
+                },
                 "queries": item.queries.iter().take(3).collect::<Vec<_>>(),
                 "evidence": item.evidence.iter().take(2).collect::<Vec<_>>(),
                 "next_read": {"kind":"original","path":item.path},
             })
         })
         .collect()
+}
+
+pub(crate) fn discover_graph_route_paths(root: &Path) -> HashSet<String> {
+    graph_route_paths(root).unwrap_or_default()
 }

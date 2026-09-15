@@ -4,11 +4,12 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import time
 from pathlib import Path
 
 import pytest
 
-from jikji.agent_index import build_agent_index
+from jikji.agent_index import _sha256, _sha256_with_timeout, build_agent_index
 from jikji.config import Config
 
 
@@ -163,6 +164,130 @@ def test_prepare_records_media_opt_in_policy(tmp_path):
     assert manifest["media_index"]["enabled"] is True
     assert manifest["media_index"]["status"] == "enabled_bounded"
     assert manifest["media_index"]["max_mb"] == 1.0
+
+
+def test_prepare_skips_kaggle_dataset_directories(tmp_path):
+    (tmp_path / "brief.pdf").write_bytes(b"%PDF")
+    kaggle = tmp_path / "kaggle" / "train_images"
+    kaggle.mkdir(parents=True)
+    (kaggle / "1029778366.jpg").write_bytes(b"jpeg-bytes")
+
+    result = build_agent_index(tmp_path, Config())
+    paths = {row["path"] for row in _jsonl(tmp_path / ".jikji" / "file_index.jsonl")}
+
+    assert result.files == 1
+    assert "brief.pdf" in paths
+    assert not any(path.startswith("kaggle/") for path in paths)
+
+
+def test_prepare_default_does_not_hash_media_files(tmp_path):
+    (tmp_path / "photo.jpg").write_bytes(b"fake-jpeg-bytes")
+    build_agent_index(tmp_path, Config())
+    rows = _jsonl(tmp_path / ".jikji" / "file_index.jsonl")
+    assert rows[0]["path"] == "photo.jpg"
+    assert rows[0]["sha256"] == ""
+    assert rows[0]["parse_status"] == "not_required"
+
+
+def test_prepare_skips_file_inventory_hash_for_binaries(tmp_path):
+    (tmp_path / "notes.txt").write_text("hello inventory", encoding="utf-8")
+    (tmp_path / "blob.bin").write_bytes(b"\x00\x01\x02not-a-document")
+    build_agent_index(tmp_path, Config())
+    rows = {row["path"]: row for row in _jsonl(tmp_path / ".jikji" / "file_index.jsonl")}
+    assert rows["blob.bin"]["sha256"] == ""
+    assert rows["notes.txt"]["parse_status"] == "native_text"
+
+
+def test_sha256_with_timeout_returns_timeout_for_blocked_fifo(tmp_path):
+    if not hasattr(os, "mkfifo"):
+        pytest.skip("os.mkfifo is required")
+    fifo = tmp_path / "stuck.pdf"
+    os.mkfifo(fifo)
+    started = time.monotonic()
+    digest, status = _sha256_with_timeout(fifo, 0.3)
+    assert digest is None
+    assert status == "timeout"
+    assert time.monotonic() - started < 3
+
+
+def test_sha256_with_timeout_maps_oserror_to_failed(tmp_path):
+    missing = tmp_path / "missing.pdf"
+    digest, status = _sha256_with_timeout(missing, 0.3)
+    assert digest is None
+    assert status == "failed"
+
+
+def test_sha256_with_timeout_zero_hashes_unbounded(tmp_path):
+    path = tmp_path / "ok.pdf"
+    path.write_bytes(b"%PDF-1.4\n%")
+    digest, status = _sha256_with_timeout(path, 0)
+    assert status == "ok"
+    assert digest == _sha256(path)
+
+
+def test_prepare_hash_timeout_skips_blocked_document_and_keeps_others(tmp_path, monkeypatch):
+    from jikji import agent_index as idx
+
+    (tmp_path / "ok.pdf").write_bytes(b"%PDF-1.4\n%")
+    (tmp_path / "stuck.pdf").write_bytes(b"%PDF-1.4\n%")
+    original = idx._sha256
+
+    def fake_sha256(path):
+        if path.name == "stuck.pdf":
+            time.sleep(30)
+        return original(path)
+
+    monkeypatch.setattr(idx, "_sha256", fake_sha256)
+    cfg = Config()
+    cfg.parse_timeout_s = 0.3
+    started = time.monotonic()
+    build_agent_index(tmp_path, cfg)
+    assert time.monotonic() - started < 5
+    rows = {row["path"]: row for row in _jsonl(tmp_path / ".jikji" / "document_index.jsonl")}
+    assert rows["stuck.pdf"]["parse_status"] == "timeout"
+    assert rows["stuck.pdf"]["sha256"] == ""
+    assert "ok.pdf" in rows
+
+
+def test_prepare_hash_io_error_skips_file_as_failed(tmp_path, monkeypatch):
+    from jikji import agent_index as idx
+
+    (tmp_path / "ok.pdf").write_bytes(b"%PDF-1.4\n%")
+    (tmp_path / "bad.pdf").write_bytes(b"%PDF-1.4\n%")
+    original = idx._sha256
+
+    def fake_sha256(path):
+        if path.name == "bad.pdf":
+            raise OSError("fuse eio")
+        return original(path)
+
+    monkeypatch.setattr(idx, "_sha256", fake_sha256)
+    cfg = Config()
+    cfg.parse_timeout_s = 0.3
+    build_agent_index(tmp_path, cfg)
+    rows = {row["path"]: row for row in _jsonl(tmp_path / ".jikji" / "document_index.jsonl")}
+    assert rows["bad.pdf"]["parse_status"] == "failed"
+    assert rows["bad.pdf"]["sha256"] == ""
+    assert "ok.pdf" in rows
+
+
+def test_prepare_parse_timeout_zero_passes_unbounded_hash_timeout(tmp_path, monkeypatch):
+    from jikji import agent_index as idx
+
+    (tmp_path / "ok.pdf").write_bytes(b"%PDF-1.4\n%")
+    seen: list[float] = []
+    original = idx._sha256_with_timeout
+
+    def capture(path, timeout):
+        seen.append(timeout)
+        return original(path, timeout)
+
+    monkeypatch.setattr(idx, "_sha256_with_timeout", capture)
+    cfg = Config()
+    cfg.parse_timeout_s = 0.0
+    build_agent_index(tmp_path, cfg)
+    assert seen
+    assert seen[0] == 0.0
 
 
 def test_compact_brief_uses_graph_routes_and_is_smaller(tmp_path, capsys):
@@ -1453,6 +1578,14 @@ def test_agent_skill_install_queues_common_and_document_heavy_roots(tmp_path, ca
     documents = home / "Documents"
     documents.mkdir(parents=True)
     (documents / "brief.pdf").write_text("common documents root", encoding="utf-8")
+    google_drive = home / "GoogleDrive"
+    google_drive.mkdir()
+    (google_drive / "drive-note.pdf").write_text("google drive root", encoding="utf-8")
+    marker = google_drive / "마커"
+    marker.mkdir()
+    (marker / "child-note.pdf").write_text("google drive child root", encoding="utf-8")
+    (google_drive / "kaggle").mkdir()
+    (google_drive / "kaggle" / "train.jpg").write_bytes(b"fake-jpeg")
     outside = home / "Projects" / "ClientDocs"
     outside.mkdir(parents=True)
     for name in ("a.pdf", "b.hwpx", "c.xlsx"):
@@ -1479,9 +1612,49 @@ def test_agent_skill_install_queues_common_and_document_heavy_roots(tmp_path, ca
     assert payload["post_install_prepare"]["mode"] == "background"
     queued = {item["root"] for item in payload["post_install_prepare"]["roots"]}
     assert str(documents.resolve()) in queued
+    assert str(google_drive.resolve()) in queued
+    assert str(marker.resolve()) in queued
+    assert not any(path.endswith("kaggle") for path in queued)
     assert str(outside.resolve()) in queued
     assert payload["post_install_prepare"]["selection"]["source"] == "auto_common_and_document_roots"
     assert calls
+
+
+def test_agent_skill_install_does_not_queue_home_as_document_root(tmp_path, capsys, monkeypatch):
+    from jikji import __main__ as cli
+
+    class FakePopen:
+        pid = 12345
+
+        def __init__(self, cmd, **kwargs):
+            stdout = kwargs.get("stdout")
+            if stdout:
+                stdout.close()
+
+    home = tmp_path / "home"
+    home.mkdir()
+    for name in ("a.pdf", "b.pdf", "c.pdf"):
+        (home / name).write_text("home-level document", encoding="utf-8")
+    dest = tmp_path / "agent" / "SKILL.md"
+    monkeypatch.setenv("JIKJI_POST_INSTALL_HOME", str(home))
+    monkeypatch.setattr(cli.subprocess, "Popen", FakePopen)
+    monkeypatch.setattr(cli, "_post_install_load_policy", lambda: {
+        "cpu_count": 8,
+        "memory_gib": 16,
+        "max_default_roots": 5,
+        "concurrency": 1,
+        "note": "test policy",
+    })
+
+    assert cli.main([
+        "agent-skill-install",
+        "--dest",
+        str(dest),
+        "--json",
+    ]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    queued = {item["root"] for item in payload["post_install_prepare"]["roots"]}
+    assert str(home.resolve()) not in queued
 
 
 def test_agent_skill_install_foreground_prepare_for_explicit_root(tmp_path, capsys):
@@ -1664,7 +1837,7 @@ def test_video_metadata_is_cached_and_searchable(tmp_path, monkeypatch, capsys):
     video = tmp_path / "launch_demo.mp4"
     video.write_bytes(b"fake video bytes; ffprobe is monkeypatched")
 
-    assert main(["prepare", str(tmp_path), "--json"]) == 0
+    assert main(["prepare", str(tmp_path), "--enable-media-index", "--json"]) == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["docs_parsed"] == 1
 
@@ -1707,7 +1880,7 @@ def test_prepare_searches_image_metadata_without_tesseract(tmp_path, monkeypatch
     image = tmp_path / "visual.png"
     _write_minimal_png(image, width=13, height=21)
 
-    assert main(["prepare", str(tmp_path), "--json"]) == 0
+    assert main(["prepare", str(tmp_path), "--enable-media-index", "--json"]) == 0
     capsys.readouterr()
 
     rows = _jsonl(tmp_path / ".jikji" / "document_index.jsonl")

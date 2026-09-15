@@ -1,12 +1,16 @@
 use std::process::ExitCode;
 
 use jikji_core::PrepareOptions;
-use jikji_index::{CleanOptions, clean, prepare};
+use jikji_index::{CleanOptions, clean, prepare, reindex_search};
+use serde_json::json;
 
 use crate::args::{CleanArgs, PrepareArgs};
 use crate::output::print_json;
 
 pub(crate) fn run_prepare(args: PrepareArgs) -> jikji_core::Result<ExitCode> {
+    if args.search_only {
+        return run_search_only(args);
+    }
     let options = prepare_options_from_args(&args);
     let result = prepare(&args.root, &options)?;
     if !args.no_agent_rules {
@@ -21,6 +25,23 @@ pub(crate) fn run_prepare(args: PrepareArgs) -> jikji_core::Result<ExitCode> {
             result.files, result.folders, result.deleted
         );
         println!("- map={}", result.agent_map.display());
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+fn run_search_only(args: PrepareArgs) -> jikji_core::Result<ExitCode> {
+    let stats = reindex_search(&args.root)?;
+    if args.json {
+        print_json(&json!({
+            "root": args.root,
+            "search_rows": stats.rows,
+            "search_terms": stats.terms,
+            "graph_nodes": stats.graph_nodes,
+            "graph_edges": stats.graph_edges,
+        }))?;
+    } else {
+        println!("Jikji search reindexed: {}", args.root.display());
+        println!("- search_rows={} terms={}", stats.rows, stats.terms);
     }
     Ok(ExitCode::SUCCESS)
 }

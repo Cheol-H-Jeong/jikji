@@ -200,6 +200,10 @@ impl GuiChild {
                 &token,
             ])
             .env("JIKJI_DATA_DIR", data_dir)
+            .env(
+                "JIKJI_POST_INSTALL_HOME",
+                "/nonexistent-jikji-gui-test-home",
+            )
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null())

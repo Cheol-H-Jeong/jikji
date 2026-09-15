@@ -2,6 +2,9 @@ use std::collections::BTreeSet;
 use std::fs::{self, File};
 use std::io::Read;
 use std::path::Path;
+use std::sync::mpsc;
+use std::thread;
+use std::time::Duration;
 
 use jikji_core::{PrepareOptions, Result, io_error, json_error};
 use jikji_media_bridge::{MediaBridgeOutcome, MediaBridgeStatus};
@@ -10,7 +13,7 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
 use crate::doc_chunks::chunk_rows;
-use crate::doc_media::{CacheEntry, DocumentCacheRuntime, SourceDocument};
+use crate::doc_media::{CacheEntry, DocumentCacheRuntime, MEDIA_EXTENSIONS, SourceDocument};
 use crate::doc_text_cache::{
     text_cache_path_for, write_doc_text_cache, write_generated_cache_file,
 };
@@ -62,14 +65,24 @@ pub(crate) fn document_rows(
         if !DOCUMENT_EXTENSIONS.contains(&ext.as_str()) {
             continue;
         }
+        if !options.enable_media_index && MEDIA_EXTENSIONS.contains(&ext.as_str()) {
+            continue;
+        }
         let rel = rel_path(&scan.root, path);
         let metadata = fs::metadata(path).map_err(|source| io_error(path, source))?;
         if hash_oversize(metadata.len(), options.max_hash_bytes) {
-            rows.push(hash_oversize_document_row(&rel, ext.as_str()));
+            rows.push(skipped_document_row(&rel, ext.as_str(), "hash_oversize"));
             failed += 1;
             continue;
         }
-        let digest = sha256_file(path)?;
+        let digest = match sha256_file_with_timeout(path, options.parse_timeout_seconds) {
+            Ok(digest) => digest,
+            Err(status) => {
+                rows.push(skipped_document_row(&rel, ext.as_str(), status));
+                failed += 1;
+                continue;
+            }
+        };
         live_digests.insert(digest.clone());
         let source = SourceDocument {
             path,
@@ -132,14 +145,14 @@ fn document_row(record: &DocumentRecord<'_>) -> Value {
     })
 }
 
-fn hash_oversize_document_row(rel: &str, ext: &str) -> Value {
+fn skipped_document_row(rel: &str, ext: &str, parse_status: &str) -> Value {
     json!({
         "path": rel,
         "file_id": "",
         "name": Path::new(rel).file_name().and_then(|name| name.to_str()).unwrap_or(""),
         "ext": dotted_ext(ext),
         "sha256": "",
-        "parse_status": "hash_oversize",
+        "parse_status": parse_status,
         "parser": "",
         "media_bridge_status": null,
         "text_cache_path": "",
@@ -162,6 +175,26 @@ fn write_doc_meta(doc_meta_dir: &Path, record: &DocumentRecord<'_>) -> Result<()
     });
     let text = serde_json::to_string_pretty(&value).map_err(|source| json_error(&path, source))?;
     write_generated_cache_file(&path, text.as_bytes())
+}
+
+fn sha256_file_with_timeout(
+    path: &Path,
+    timeout_seconds: f64,
+) -> std::result::Result<String, &'static str> {
+    if !timeout_seconds.is_finite() || timeout_seconds <= 0.0 {
+        return sha256_file(path).map_err(|_| "failed");
+    }
+    let path = path.to_path_buf();
+    let timeout = Duration::from_secs_f64(timeout_seconds);
+    let (sender, receiver) = mpsc::channel();
+    thread::spawn(move || {
+        let _ = sender.send(sha256_file(&path));
+    });
+    match receiver.recv_timeout(timeout) {
+        Ok(Ok(digest)) => Ok(digest),
+        Ok(Err(_)) => Err("failed"),
+        Err(_) => Err("timeout"),
+    }
 }
 
 fn sha256_file(path: &Path) -> Result<String> {
@@ -236,4 +269,67 @@ fn media_bridge_meta(outcome: &MediaBridgeOutcome) -> Value {
         "metadata": outcome.metadata,
         "error": outcome.error
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{CacheDirs, document_rows};
+    use crate::scan::scan_root;
+    use jikji_core::PrepareOptions;
+    use std::fs;
+    use std::time::{Duration, Instant};
+
+    #[cfg(unix)]
+    #[test]
+    fn document_hash_timeout_skips_blocked_file_and_keeps_others() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        fs::write(dir.path().join("ok.pdf"), b"%PDF-1.4\n%").expect("ok pdf");
+        let fifo = dir.path().join("stuck.pdf");
+        let status = std::process::Command::new("mkfifo")
+            .arg(&fifo)
+            .status()
+            .expect("mkfifo");
+        assert!(status.success(), "mkfifo {fifo:?}");
+
+        let mut scan = scan_root(dir.path(), &PrepareOptions::default()).expect("scan");
+        scan.files.push(fifo);
+
+        let cache = dir.path().join("cache");
+        let text = cache.join("doc_text");
+        let meta = cache.join("doc_meta");
+        fs::create_dir_all(&text).expect("text cache");
+        fs::create_dir_all(&meta).expect("meta cache");
+
+        let options = PrepareOptions {
+            parse_timeout_seconds: 0.3,
+            ..PrepareOptions::default()
+        };
+        let started = Instant::now();
+        let docs = document_rows(
+            &scan,
+            CacheDirs {
+                text: &text,
+                meta: &meta,
+            },
+            &options,
+        )
+        .expect("document rows");
+        assert!(
+            started.elapsed() < Duration::from_secs(3),
+            "blocked FIFO hash must not stall document indexing"
+        );
+
+        let stuck = docs
+            .rows
+            .iter()
+            .find(|row| row["path"] == "stuck.pdf")
+            .expect("stuck row");
+        assert_eq!(stuck["parse_status"], "timeout");
+        assert_eq!(stuck["sha256"], "");
+        assert!(
+            docs.rows.iter().any(|row| row["path"] == "ok.pdf"),
+            "other documents should still be indexed: {:?}",
+            docs.rows
+        );
+    }
 }

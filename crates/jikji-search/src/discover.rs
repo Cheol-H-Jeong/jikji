@@ -1,25 +1,28 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::io::Write;
 use std::path::Path;
 use std::process::{Command, Stdio};
-
-use jikji_core::Result;
-use serde_json::{Value, json};
+use std::thread;
+use std::time::{Duration, Instant};
 
 use crate::answer_pack::{answer_pack_for, handoff_budget, handoff_policy, tool_call_policy};
 use crate::discover_contract::{
-    confidence_factors, confidence_for, judge_slate, next_commands, recommended_action, search_plan,
+    confidence_factors, confidence_for, discover_graph_route_paths, judge_slate, next_commands,
+    recommended_action, search_plan,
 };
 use crate::discover_query::{
     anchor_tokens, classify_query, retry_proof_for, strategy_variants, strip_shell_noise,
 };
 use crate::searcher::{SearchCandidate, SearchOptions, search};
+use jikji_core::Result;
+use serde_json::{Value, json};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DiscoverOptions {
     pub top_k: usize,
     pub retry_exhausted: bool,
     pub retry_proof: String,
+    pub lite: bool,
 }
 
 impl Default for DiscoverOptions {
@@ -28,6 +31,7 @@ impl Default for DiscoverOptions {
             top_k: 20,
             retry_exhausted: false,
             retry_proof: String::new(),
+            lite: false,
         }
     }
 }
@@ -65,15 +69,31 @@ fn run_llm_judge(input: &Value, candidates: &mut Vec<SearchCandidate>) -> Value 
     {
         return json!({"status":"failed","error":"judge stdin write failed","fallback":"merged_candidates"});
     }
-    let output = match child.wait_with_output() {
-        Ok(output) if output.status.success() => output,
-        Ok(output) => {
-            return json!({"status":"failed","error":format!("judge exited with {}", output.status),"fallback":"merged_candidates"});
+    drop(child.stdin.take());
+    let deadline = Instant::now() + Duration::from_secs(30);
+    loop {
+        match child.try_wait() {
+            Ok(Some(_)) => break,
+            Ok(None) if Instant::now() >= deadline => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return json!({"status":"failed","error":"judge timed out after 30 seconds","fallback":"merged_candidates"});
+            }
+            Ok(None) => thread::sleep(Duration::from_millis(25)),
+            Err(error) => {
+                return json!({"status":"failed","error":error.to_string(),"fallback":"merged_candidates"});
+            }
         }
+    }
+    let output = match child.wait_with_output() {
+        Ok(output) => output,
         Err(error) => {
             return json!({"status":"failed","error":error.to_string(),"fallback":"merged_candidates"});
         }
     };
+    if !output.status.success() {
+        return json!({"status":"failed","error":format!("judge exited with {}", output.status),"fallback":"merged_candidates"});
+    }
     let response: Value = match serde_json::from_slice(&output.stdout) {
         Ok(value) => value,
         Err(error) => {
@@ -99,18 +119,26 @@ fn run_llm_judge(input: &Value, candidates: &mut Vec<SearchCandidate>) -> Value 
 
 pub fn discover(root: &Path, query: &str, options: DiscoverOptions) -> Result<Value> {
     let request = DiscoverRequest::from(root, query, &options);
-    let mut candidates = if request.retrieval_query.is_empty() {
-        Vec::new()
+    let (mut candidates, strategies) = if request.retrieval_query.is_empty() {
+        (Vec::new(), Vec::new())
     } else {
         merge_candidates(root, &request.variants, options.top_k)?
     };
-    let strategies = strategy_results(root, &request.variants, options.top_k);
+    let route_paths = if options.lite {
+        HashSet::new()
+    } else {
+        discover_graph_route_paths(root)
+    };
     let judge_input = json!({
         "original_query": query,
         "strategies": strategies,
-        "merged_candidates": judge_slate(root, &candidates),
+        "merged_candidates": judge_slate(&candidates, &route_paths),
     });
-    let judge_result = run_llm_judge(&judge_input, &mut candidates);
+    let judge_result = if options.lite {
+        json!({"status":"skipped","selected_path":null,"fallback":"merged_candidates"})
+    } else {
+        run_llm_judge(&judge_input, &mut candidates)
+    };
     let confidence = confidence_for(&request.query_type, &candidates);
     let action = handoff_action(confidence, request.verified_retry);
     let answer_pack = answer_pack_for(&request.query_type, confidence, &candidates);
@@ -146,7 +174,7 @@ pub fn discover(root: &Path, query: &str, options: DiscoverOptions) -> Result<Va
         "max_raw_fallback_commands": budget["max_raw_fallback_commands"].clone(),
         "max_verification_reads": budget["max_verification_reads"].clone(),
         "raw_fallback_allowed": budget["raw_fallback_allowed"].clone(),
-        "query_variants": request.variants,
+        "query_variants": request.variants.iter().map(|(_, query)| query).collect::<Vec<_>>(),
         "strategy_metadata": strategy_metadata(&request.variants),
         "strategy_results": strategies,
         "llm_search_plan": {
@@ -157,8 +185,12 @@ pub fn discover(root: &Path, query: &str, options: DiscoverOptions) -> Result<Va
             "candidate_top_k": options.top_k,
             "token_accounting": "query_variants_plus_merged_candidate_slate",
         },
-        "search_plan": search_plan(root, &request.variants, options.top_k),
-        "judge_candidate_slate": judge_slate(root, &candidates),
+        "search_plan": search_plan(
+            root,
+            &request.variants.iter().map(|(_, query)| query.clone()).collect::<Vec<_>>(),
+            options.top_k,
+        ),
+        "judge_candidate_slate": judge_slate(&candidates, &route_paths),
         "llm_judge_input": judge_input,
         "llm_judge_result": judge_result,
         "evidence_pack": answer_pack["evidence_pack"].clone(),
@@ -169,7 +201,7 @@ pub fn discover(root: &Path, query: &str, options: DiscoverOptions) -> Result<Va
 struct DiscoverRequest {
     retrieval_query: String,
     query_type: String,
-    variants: Vec<String>,
+    variants: Vec<(String, String)>,
     retry_query: String,
     retry_command_proof: String,
     verified_retry: bool,
@@ -180,16 +212,15 @@ impl DiscoverRequest {
         let retrieval_query = strip_shell_noise(query);
         let query_type = classify_query(&retrieval_query);
         let variants = if retrieval_query.is_empty() {
-            vec![String::new()]
+            vec![("lexical".to_owned(), String::new())]
+        } else if options.lite {
+            vec![("lexical".to_owned(), retrieval_query.clone())]
         } else {
             strategy_variants(&retrieval_query)
-                .into_iter()
-                .map(|(_, query)| query)
-                .collect()
         };
         let retry_query = variants
             .get(1)
-            .cloned()
+            .map(|(_, query)| query.clone())
             .unwrap_or_else(|| retrieval_query.clone());
         let current_proof = retry_proof_for(root, &retrieval_query, options.top_k);
         let retry_command_proof = retry_proof_for(root, &retry_query, options.top_k);
@@ -204,6 +235,52 @@ impl DiscoverRequest {
     }
 }
 
+fn merge_candidates(
+    root: &Path,
+    variants: &[(String, String)],
+    top_k: usize,
+) -> Result<(Vec<SearchCandidate>, Vec<Value>)> {
+    let mut merged = BTreeMap::<String, SearchCandidate>::new();
+    let anchors = anchor_tokens(variants.first().map_or("", |(_, query)| query));
+    let mut strategy_results = Vec::new();
+    for (variant_idx, (strategy, variant)) in variants.iter().enumerate() {
+        let results = search(
+            root,
+            variant,
+            SearchOptions {
+                top_k: top_k.max(20) * 3,
+            },
+        )?;
+        strategy_results.push(json!({
+            "strategy": strategy,
+            "query": variant,
+            "top_k": results.iter().take(top_k.max(1)).map(|candidate| json!({
+                "path": candidate.path,
+                "name": candidate.name,
+                "score": candidate.score,
+                "reasons": candidate.reasons,
+                "matched_terms": candidate.matched_terms,
+                "evidence": candidate.evidence,
+            })).collect::<Vec<_>>(),
+        }));
+        for (rank, item) in results.into_iter().enumerate() {
+            merge_candidate(&mut merged, item, variant, variant_idx, rank, &anchors);
+        }
+    }
+    let mut out = merged.into_values().collect::<Vec<_>>();
+    out.sort_by(|left, right| {
+        right
+            .discover_score
+            .unwrap_or(right.score)
+            .partial_cmp(&left.discover_score.unwrap_or(left.score))
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| left.best_query_rank.cmp(&right.best_query_rank))
+            .then_with(|| left.path.cmp(&right.path))
+    });
+    out.truncate(top_k.max(1));
+    Ok((out, strategy_results))
+}
+
 fn handoff_action(confidence: &str, verified_retry: bool) -> &'static str {
     if confidence == "low" {
         if verified_retry {
@@ -216,20 +293,9 @@ fn handoff_action(confidence: &str, verified_retry: bool) -> &'static str {
     }
 }
 
-fn strategy_metadata(variants: &[String]) -> Vec<Value> {
-    variants.iter().enumerate().map(|(index, query)| json!({
-        "strategy": if index == 0 { "lexical" } else if index == 1 { "lexical_anchors" } else if index == 2 { "semantic" } else { "advanced" },
-        "query": query,
-        "rank": index + 1,
-    })).collect()
-}
-fn strategy_results(root: &Path, variants: &[String], top_k: usize) -> Vec<Value> {
-    variants.iter().enumerate().map(|(index, query)| {
-        let strategy = if index == 0 { "lexical" } else if index == 1 { "lexical_anchors" } else if index == 2 { "semantic" } else { "advanced" };
-        match search(root, query, SearchOptions { top_k: top_k.max(1) }) {
-            Ok(candidates) => json!({"strategy":strategy,"query":query,"top_k":candidates.iter().map(|candidate| json!({"path":candidate.path,"name":candidate.name,"score":candidate.score,"reasons":candidate.reasons,"matched_terms":candidate.matched_terms,"evidence":candidate.evidence})).collect::<Vec<_>>() }),
-            Err(error) => json!({"strategy":strategy,"query":query,"top_k":[],"error":error.to_string(),"degraded":true}),
-        }
+fn strategy_metadata(variants: &[(String, String)]) -> Vec<Value> {
+    variants.iter().enumerate().map(|(index, (strategy, query))| {
+        json!({"strategy": strategy, "query": query, "rank": index + 1})
     }).collect()
 }
 
@@ -259,41 +325,6 @@ fn candidate_paths(candidates: &[SearchCandidate]) -> Vec<String> {
         .filter(|candidate| !candidate.path.is_empty())
         .map(|candidate| candidate.path.clone())
         .collect()
-}
-
-fn merge_candidates(
-    root: &Path,
-    variants: &[String],
-    top_k: usize,
-) -> Result<Vec<SearchCandidate>> {
-    let mut merged = BTreeMap::<String, SearchCandidate>::new();
-    let anchors = anchor_tokens(variants.first().map_or("", String::as_str));
-    for (variant_idx, variant) in variants.iter().enumerate() {
-        let Ok(results) = search(
-            root,
-            variant,
-            SearchOptions {
-                top_k: top_k.max(20) * 3,
-            },
-        ) else {
-            continue;
-        };
-        for (rank, item) in results.into_iter().enumerate() {
-            merge_candidate(&mut merged, item, variant, variant_idx, rank, &anchors);
-        }
-    }
-    let mut out = merged.into_values().collect::<Vec<_>>();
-    out.sort_by(|left, right| {
-        right
-            .discover_score
-            .unwrap_or(right.score)
-            .partial_cmp(&left.discover_score.unwrap_or(left.score))
-            .unwrap_or(std::cmp::Ordering::Equal)
-            .then_with(|| left.best_query_rank.cmp(&right.best_query_rank))
-            .then_with(|| left.path.cmp(&right.path))
-    });
-    out.truncate(top_k.max(1));
-    Ok(out)
 }
 
 fn merge_candidate(
@@ -360,5 +391,39 @@ fn weighted_score(
         weighted * 8.0 + 50_000.0
     } else {
         weighted
+    }
+}
+
+#[cfg(test)]
+mod lite_tests {
+    use super::*;
+    use std::path::Path;
+
+    fn options(lite: bool) -> DiscoverOptions {
+        DiscoverOptions {
+            top_k: 3,
+            retry_exhausted: false,
+            retry_proof: String::new(),
+            lite,
+        }
+    }
+
+    #[test]
+    fn lite_discover_uses_single_lexical_variant() {
+        let request = DiscoverRequest::from(Path::new("/tmp"), "invoice hwp", &options(true));
+        assert_eq!(
+            request.variants,
+            vec![("lexical".to_owned(), "invoice hwp".to_owned())]
+        );
+    }
+
+    #[test]
+    fn full_discover_expands_invoice_query() {
+        let request = DiscoverRequest::from(Path::new("/tmp"), "invoice hwp", &options(false));
+        assert!(
+            request.variants.len() > 1,
+            "expected expanded variants, got {:?}",
+            request.variants
+        );
     }
 }

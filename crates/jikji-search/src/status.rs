@@ -1,4 +1,4 @@
-use jikji_core::storage::load_artifact;
+use jikji_core::storage::{load_artifact, open_database, root_id};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -38,6 +38,12 @@ pub struct SearchIndexStatus {
 
 pub fn search_index_status(root: &Path, stale_after_seconds: i64) -> SearchIndexStatus {
     let Some(manifest) = load_artifact(root, "manifest").ok().flatten() else {
+        if has_search_docs(root) {
+            return SearchIndexStatus {
+                status: IndexStatus::Ready,
+                should_prepare: false,
+            };
+        }
         return SearchIndexStatus {
             status: IndexStatus::Missing,
             should_prepare: true,
@@ -66,6 +72,23 @@ pub fn search_index_status(root: &Path, stale_after_seconds: i64) -> SearchIndex
         status: IndexStatus::Ready,
         should_prepare: false,
     }
+}
+
+fn has_search_docs(root: &Path) -> bool {
+    let Ok(connection) = open_database() else {
+        return false;
+    };
+    let Ok(Some(id)) = root_id(&connection, root) else {
+        return false;
+    };
+    connection
+        .query_row(
+            "SELECT COUNT(*) FROM search_docs WHERE root_id=?1",
+            [id],
+            |row| row.get::<_, i64>(0),
+        )
+        .ok()
+        .is_some_and(|count| count > 0)
 }
 
 fn tree_changed(root: &Path, manifest: &Value) -> bool {

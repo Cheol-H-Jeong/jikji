@@ -40,7 +40,7 @@ impl HttpRequest {
 
 pub(crate) struct HttpResponse {
     status: u16,
-    content_type: &'static str,
+    content_type: String,
     body: Vec<u8>,
 }
 
@@ -49,7 +49,7 @@ impl HttpResponse {
         let body = serde_json::to_vec(&value).unwrap_or_else(|_| b"{\"error\":\"json\"}".to_vec());
         Self {
             status,
-            content_type: "application/json; charset=utf-8",
+            content_type: "application/json; charset=utf-8".to_owned(),
             body,
         }
     }
@@ -57,12 +57,20 @@ impl HttpResponse {
     pub(crate) fn html(status: u16, text: &'static str) -> Self {
         Self {
             status,
-            content_type: "text/html; charset=utf-8",
+            content_type: "text/html; charset=utf-8".to_owned(),
             body: text.as_bytes().to_vec(),
         }
     }
 
     pub(crate) fn binary(status: u16, body: Vec<u8>, content_type: &'static str) -> Self {
+        Self::binary_with_content_type(status, body, content_type.to_owned())
+    }
+
+    pub(crate) fn binary_with_content_type(
+        status: u16,
+        body: Vec<u8>,
+        content_type: String,
+    ) -> Self {
         Self {
             status,
             content_type,
@@ -73,6 +81,7 @@ impl HttpResponse {
     fn to_bytes(&self) -> Vec<u8> {
         let reason = match self.status {
             200 => "OK",
+            202 => "Accepted",
             400 => "Bad Request",
             403 => "Forbidden",
             404 => "Not Found",
@@ -118,11 +127,12 @@ pub(crate) fn query_values(query: &str, name: &str) -> Vec<String> {
         .collect()
 }
 
+pub(crate) fn query_flag(query: &str, name: &str) -> Option<bool> {
+    query_value(query, name).map(|value| matches!(value.as_str(), "1" | "true" | "yes" | "on"))
+}
+
 pub(crate) fn query_bool(query: &str, name: &str) -> bool {
-    matches!(
-        query_value(query, name).as_deref(),
-        Some("1" | "true" | "yes" | "on")
-    )
+    query_flag(query, name).unwrap_or(false)
 }
 
 fn discard_headers(reader: &mut BufReader<TcpStream>) -> jikji_core::Result<()> {
@@ -187,4 +197,39 @@ fn hex_value(byte: u8) -> Option<u8> {
 
 pub(crate) fn malformed_request() -> HttpResponse {
     HttpResponse::json(400, json!({"error": "malformed request"}))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{HttpResponse, query_bool, query_flag};
+    use serde_json::json;
+
+    #[test]
+    fn json_202_uses_accepted_reason() {
+        let bytes = HttpResponse::json(202, json!({"ok": true})).to_bytes();
+        let head = String::from_utf8_lossy(&bytes);
+        assert!(
+            head.starts_with("HTTP/1.1 202 Accepted\r\n"),
+            "unexpected status line: {head:?}"
+        );
+    }
+
+    #[test]
+    fn json_500_keeps_internal_server_error_reason() {
+        let bytes = HttpResponse::json(500, json!({"error": "x"})).to_bytes();
+        let head = String::from_utf8_lossy(&bytes);
+        assert!(
+            head.starts_with("HTTP/1.1 500 Internal Server Error\r\n"),
+            "unexpected status line: {head:?}"
+        );
+    }
+
+    #[test]
+    fn query_flag_accepts_on_and_defaults_cleanly() {
+        assert_eq!(query_flag("dry_run=on", "dry_run"), Some(true));
+        assert_eq!(query_flag("dry_run=0", "dry_run"), Some(false));
+        assert_eq!(query_flag("", "dry_run"), None);
+        assert!(query_bool("dry_run=on", "dry_run"));
+        assert!(!query_bool("", "dry_run"));
+    }
 }

@@ -21,7 +21,7 @@ use std::path::PathBuf;
 
 use jikji_core::{PrepareOptions, WorkspaceRoot, generated_artifact_manifest};
 
-pub use artifacts::{PrepareResult, prepare};
+pub use artifacts::{PrepareResult, prepare, reindex_search};
 pub use clean::{CleanOptions, CleanResult, clean};
 pub use doctor::{DoctorReport, doctor, read_map};
 pub use scan::{ScanResult, scan_root};

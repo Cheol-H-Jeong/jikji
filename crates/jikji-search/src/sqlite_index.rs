@@ -44,7 +44,8 @@ pub(crate) fn initialize(connection: &rusqlite::Connection, path: &Path) -> Resu
          CREATE INDEX IF NOT EXISTS search_terms_lookup ON search_terms(root_id,term);
          CREATE INDEX IF NOT EXISTS search_filename_lookup ON search_filename_keys(root_id,key);
          CREATE INDEX IF NOT EXISTS search_field_terms_lookup ON search_field_terms(root_id,term);
-         CREATE INDEX IF NOT EXISTS search_field_docs_lookup ON search_field_terms(root_id,doc_id);"
+         CREATE INDEX IF NOT EXISTS search_field_docs_lookup ON search_field_terms(root_id,doc_id);
+         CREATE INDEX IF NOT EXISTS search_field_lengths_lookup ON search_field_lengths(root_id, doc_id, field);"
     ).map_err(|source| sqlite_error(path, source))
 }
 
@@ -208,4 +209,40 @@ fn insert_stats(
         .map_err(|source| sqlite_error(path, source))?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rusqlite::Connection;
+
+    #[test]
+    fn initialize_creates_field_lengths_lookup_index() {
+        let connection = Connection::open_in_memory().expect("memory sqlite");
+        connection
+            .execute_batch("CREATE TABLE roots(id INTEGER PRIMARY KEY);")
+            .expect("roots table");
+        initialize(&connection, Path::new("memory.sqlite")).expect("initialize");
+        let names = connection
+            .prepare("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='search_field_lengths'")
+            .expect("prepare")
+            .query_map([], |row| row.get::<_, String>(0))
+            .expect("query")
+            .collect::<rusqlite::Result<Vec<_>>>()
+            .expect("index names");
+        assert!(
+            names
+                .iter()
+                .any(|name| name == "search_field_lengths_lookup"),
+            "{names:?}"
+        );
+        let plan: String = connection
+            .query_row(
+                "EXPLAIN QUERY PLAN SELECT length FROM search_field_lengths WHERE root_id=?1 AND doc_id=?2 AND field=?3",
+                params![1_i64, 1_i64, "body"],
+                |row| row.get(3),
+            )
+            .expect("explain");
+        assert!(plan.contains("search_field_lengths_lookup"), "{plan}");
+    }
 }

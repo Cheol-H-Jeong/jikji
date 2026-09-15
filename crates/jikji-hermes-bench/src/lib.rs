@@ -694,6 +694,7 @@ fn build_prompt(
                 top_k,
                 retry_exhausted: retry,
                 retry_proof: String::new(),
+                ..Default::default()
             },
         )
         .map_err(|error| HermesBenchError::Io {

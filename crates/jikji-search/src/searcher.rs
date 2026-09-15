@@ -51,7 +51,6 @@ pub fn search(root: &Path, query: &str, options: SearchOptions) -> Result<Vec<Se
     let Some(root_id) = root_id(&con, root)? else {
         return Ok(Vec::new());
     };
-    migrate_legacy_search_index(&con, root, root_id, &index_path)?;
     install_root_views(&con, root_id, &index_path)?;
     if !schema_matches(&con)? {
         return Ok(Vec::new());
@@ -68,7 +67,7 @@ pub fn search(root: &Path, query: &str, options: SearchOptions) -> Result<Vec<Se
     let mut candidates = if scores.is_empty() {
         fallback_scan_docs(&con, query)?
     } else {
-        candidates_from_scores(&con, query, scores, matched, reasons)?
+        candidates_from_scores(&con, query, scores, matched, reasons, options.top_k)?
     };
     candidates.sort_by(|left, right| {
         right
@@ -80,50 +79,18 @@ pub fn search(root: &Path, query: &str, options: SearchOptions) -> Result<Vec<Se
     Ok(candidates)
 }
 
-fn migrate_legacy_search_index(
-    con: &Connection,
-    root: &Path,
-    root_id: i64,
-    path: &Path,
-) -> Result<()> {
-    let rows: i64 = con
-        .query_row(
-            "SELECT COUNT(*) FROM search_meta WHERE root_id=?1",
-            [root_id],
-            |row| row.get(0),
-        )
-        .map_err(|source| sqlite_error(path, source))?;
-    if rows > 0 {
-        return Ok(());
-    }
-    let legacy = root.join(".jikji/search_index.sqlite");
-    if !legacy.is_file() {
-        return Ok(());
-    }
-    con.execute(
-        "ATTACH DATABASE ?1 AS legacy_search",
-        [legacy.to_string_lossy().as_ref()],
-    )
-    .map_err(|source| sqlite_error(&legacy, source))?;
-    let result = (|| {
-        con.execute("INSERT INTO search_meta(root_id,key,value) SELECT ?1,key,value FROM legacy_search.meta", [root_id])?;
-        con.execute("INSERT INTO search_docs(root_id,id,path,name,ext,duplicate_group_id,row_json) SELECT ?1,id,path,name,ext,duplicate_group_id,row_json FROM legacy_search.docs", [root_id])?;
-        con.execute("INSERT INTO search_terms(root_id,term,doc_id) SELECT ?1,term,doc_id FROM legacy_search.terms", [root_id])?;
-        con.execute("INSERT INTO search_filename_keys(root_id,key,doc_id) SELECT ?1,key,doc_id FROM legacy_search.filename_keys", [root_id])?;
-        con.execute("INSERT INTO search_idf(root_id,term,value) SELECT ?1,term,value FROM legacy_search.idf", [root_id])?;
-        con.execute("INSERT INTO search_field_terms(root_id,term,field,doc_id,tf) SELECT ?1,term,field,doc_id,tf FROM legacy_search.field_terms", [root_id])?;
-        con.execute("INSERT INTO search_field_lengths(root_id,doc_id,field,length) SELECT ?1,doc_id,field,length FROM legacy_search.field_lengths", [root_id])?;
-        con.execute("INSERT INTO search_field_idf(root_id,term,value) SELECT ?1,term,value FROM legacy_search.field_idf", [root_id])?;
-        con.execute("INSERT INTO search_field_avg(root_id,field,value) SELECT ?1,field,value FROM legacy_search.field_avg", [root_id])?;
-        Ok::<(), rusqlite::Error>(())
-    })();
-    let _ = con.execute_batch("DETACH DATABASE legacy_search");
-    result.map_err(|source| sqlite_error(&legacy, source))
-}
-
 fn install_root_views(con: &Connection, root_id: i64, path: &Path) -> Result<()> {
     con.execute_batch(&format!(
-        "CREATE TEMP VIEW meta AS SELECT key,value FROM search_meta WHERE root_id={root_id};
+        "DROP VIEW IF EXISTS meta;
+         DROP VIEW IF EXISTS docs;
+         DROP VIEW IF EXISTS terms;
+         DROP VIEW IF EXISTS filename_keys;
+         DROP VIEW IF EXISTS idf;
+         DROP VIEW IF EXISTS field_terms;
+         DROP VIEW IF EXISTS field_lengths;
+         DROP VIEW IF EXISTS field_idf;
+         DROP VIEW IF EXISTS field_avg;
+         CREATE TEMP VIEW meta AS SELECT key,value FROM search_meta WHERE root_id={root_id};
          CREATE TEMP VIEW docs AS SELECT id,path,name,ext,duplicate_group_id,row_json FROM search_docs WHERE root_id={root_id};
          CREATE TEMP VIEW terms AS SELECT term,doc_id FROM search_terms WHERE root_id={root_id};
          CREATE TEMP VIEW filename_keys AS SELECT key,doc_id FROM search_filename_keys WHERE root_id={root_id};
@@ -153,12 +120,22 @@ fn candidates_from_scores(
     scores: ScoreMap,
     mut matched: TermMap,
     mut reasons: TermMap,
+    top_k: usize,
 ) -> Result<Vec<SearchCandidate>> {
-    let mut out = Vec::new();
-    for (doc_id, base_score) in scores {
-        if base_score <= 0.0 {
-            continue;
-        }
+    let mut ranked: Vec<(i64, f64)> = scores
+        .into_iter()
+        .filter(|(_, score)| *score > 0.0)
+        .collect();
+    ranked.sort_by(|left, right| {
+        right
+            .1
+            .total_cmp(&left.1)
+            .then_with(|| left.0.cmp(&right.0))
+    });
+    let load_limit = top_k.saturating_mul(2).clamp(top_k.max(1), 200);
+    ranked.truncate(load_limit);
+    let mut out = Vec::with_capacity(ranked.len());
+    for (doc_id, base_score) in ranked {
         let doc = load_doc(con, doc_id)?;
         let (map_score, map_reasons, map_terms) =
             map_rescore::rescore(query, &doc.row_json, base_score);

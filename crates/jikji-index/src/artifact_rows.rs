@@ -10,7 +10,7 @@ use crate::doc_cache::DOCUMENT_EXTENSIONS;
 use crate::file_io::{dotted_ext, extension, unix_seconds_now};
 use crate::scan::{ScanResult, metadata_mtime_ns, rel_path};
 
-pub(crate) fn file_rows(scan: &ScanResult, options: &PrepareOptions) -> Result<Vec<Value>> {
+pub(crate) fn file_rows(scan: &ScanResult, _options: &PrepareOptions) -> Result<Vec<Value>> {
     scan.files
         .iter()
         .map(|path| {
@@ -33,7 +33,7 @@ pub(crate) fn file_rows(scan: &ScanResult, options: &PrepareOptions) -> Result<V
                 "mtime_ns": metadata_mtime_ns(&metadata),
                 "created": created,
                 "modified": modified,
-                "sha256": sha256_file_if_allowed(path, metadata.len(), options.max_hash_bytes)?,
+                "sha256": "",
                 "parser_required": false,
                 "parse_status": parse_status_for(&ext),
                 "text_cache_path": "",
@@ -263,13 +263,6 @@ fn parse_status_for(ext: &str) -> &'static str {
     }
 }
 
-fn sha256_file_if_allowed(path: &Path, byte_len: u64, max_hash_bytes: u64) -> Result<String> {
-    if max_hash_bytes > 0 && byte_len > max_hash_bytes {
-        return Ok(String::new());
-    }
-    sha256_file(path)
-}
-
 fn mime_for(ext: &str) -> &'static str {
     match ext {
         "txt" | "text" | "log" | "md" | "markdown" | "rst" => "text/plain",
@@ -290,22 +283,32 @@ fn mime_for(ext: &str) -> &'static str {
     }
 }
 
-fn sha256_file(path: &Path) -> Result<String> {
-    use std::io::Read as _;
+#[cfg(test)]
+mod tests {
+    use super::file_rows;
+    use crate::scan::scan_root;
+    use jikji_core::PrepareOptions;
+    use std::fs;
 
-    use sha2::{Digest as _, Sha256};
-
-    let mut file = fs::File::open(path).map_err(|source| io_error(path, source))?;
-    let mut hasher = Sha256::new();
-    let mut buffer = [0u8; 8192];
-    loop {
-        let read = file
-            .read(&mut buffer)
-            .map_err(|source| io_error(path, source))?;
-        if read == 0 {
-            break;
-        }
-        hasher.update(&buffer[..read]);
+    #[test]
+    fn default_prepare_does_not_hash_media_files() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        fs::write(dir.path().join("photo.jpg"), b"fake-jpeg-bytes").expect("jpg");
+        let scan = scan_root(dir.path(), &PrepareOptions::default()).expect("scan");
+        let rows = file_rows(&scan, &PrepareOptions::default()).expect("rows");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0]["sha256"], "");
+        assert_eq!(rows[0]["path"], "photo.jpg");
     }
-    Ok(format!("{:x}", hasher.finalize()))
+
+    #[test]
+    fn file_inventory_skips_content_hash_for_documents() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        fs::write(dir.path().join("notes.txt"), b"hello inventory").expect("txt");
+        let scan = scan_root(dir.path(), &PrepareOptions::default()).expect("scan");
+        let rows = file_rows(&scan, &PrepareOptions::default()).expect("rows");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0]["sha256"], "");
+        assert_eq!(rows[0]["path"], "notes.txt");
+    }
 }

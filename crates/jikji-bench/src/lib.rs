@@ -1,4 +1,4 @@
-#![forbid(unsafe_code)]
+#![cfg_attr(not(test), forbid(unsafe_code))]
 
 pub mod benchmark_two_call;
 pub mod benchmark_value;
@@ -38,6 +38,7 @@ pub fn dry_run_report(scenario: &BenchmarkScenario) -> BenchmarkReport {
 mod tests {
     use std::fs;
     use std::path::PathBuf;
+    use std::sync::{Mutex, MutexGuard};
 
     use jikji_core::WorkspaceRoot;
 
@@ -45,6 +46,15 @@ mod tests {
         BenchmarkScenario, ImportOptions, RunOptions, analyze_eval, dry_run_report,
         generate_eval_set, import_fixture_dataset, public_dataset_contract, run_benchmark,
     };
+
+    static DATA_DIR_LOCK: Mutex<()> = Mutex::new(());
+
+    fn isolate_data_dir() -> (MutexGuard<'static, ()>, tempfile::TempDir) {
+        let guard = DATA_DIR_LOCK.lock().expect("data dir lock");
+        let data = tempfile::tempdir().expect("data dir");
+        unsafe { std::env::set_var("JIKJI_DATA_DIR", data.path()) };
+        (guard, data)
+    }
 
     #[test]
     fn dry_run_report_has_no_external_dataset_requirement() {
@@ -62,6 +72,7 @@ mod tests {
     #[test]
     fn eval_generate_run_and_analyze_use_local_fixtures() {
         let dir = tempfile::tempdir().expect("tempdir");
+        let (_lock, _data) = isolate_data_dir();
         fs::write(dir.path().join("ACME_contract.txt"), "ACME payment clause").expect("write");
 
         let generated = generate_eval_set(dir.path(), 5, None).expect("generate");
@@ -105,6 +116,7 @@ mod tests {
     #[test]
     fn bench_run_accepts_python_style_expected_paths() {
         let dir = tempfile::tempdir().expect("tempdir");
+        let (_lock, _data) = isolate_data_dir();
         let eval_dir = tempfile::tempdir().expect("eval tempdir");
         fs::create_dir_all(dir.path().join("docs")).expect("mkdir");
         fs::write(dir.path().join("docs/target.txt"), "needle answer").expect("write target");

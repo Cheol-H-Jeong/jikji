@@ -5,12 +5,11 @@ use std::io::{Error, ErrorKind};
 use std::path::{Path, PathBuf};
 use std::sync::{LazyLock, Mutex};
 
-use rusqlite::{Connection, OptionalExtension, Transaction, params};
+use rusqlite::{Connection, OptionalExtension, Transaction, params, params_from_iter};
 use serde::Serialize;
 use serde_json::Value;
 
 use crate::{JIKJI_DIR, Result, io_error, json_error};
-
 const DATABASE_SCHEMA_VERSION: i64 = 1;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -99,7 +98,10 @@ pub fn root_key(root: &Path) -> Result<String> {
 }
 
 pub fn ensure_root(connection: &Connection, root: &Path) -> Result<i64> {
-    let canonical = root_key(root)?;
+    if let Some(id) = lookup_root_id_by_keys(connection, &unresolved_root_keys(root))? {
+        return Ok(id);
+    }
+    let canonical = registration_root_key(root)?;
     connection.execute(
         "INSERT INTO roots(canonical_root, updated_at) VALUES(?1, unixepoch()) ON CONFLICT(canonical_root) DO UPDATE SET updated_at=unixepoch()",
         [&canonical],
@@ -119,15 +121,128 @@ pub fn register_root(root: &Path) -> Result<i64> {
 }
 
 pub fn root_id(connection: &Connection, root: &Path) -> Result<Option<i64>> {
-    let canonical = root_key(root)?;
-    connection
-        .query_row(
-            "SELECT id FROM roots WHERE canonical_root=?1",
-            [&canonical],
-            |row| row.get(0),
-        )
-        .optional()
-        .map_err(sqlite_error_path)
+    lookup_root_id_by_keys(connection, &unresolved_root_keys(root))
+}
+
+fn unresolved_root_keys(root: &Path) -> Vec<String> {
+    let mut keys = Vec::new();
+    push_unresolved_key(&mut keys, root);
+    if let Ok(absolute) = std::path::absolute(root) {
+        push_unresolved_key(&mut keys, &absolute);
+    }
+    if let Some(target) = read_link_target(root) {
+        push_unresolved_key(&mut keys, &target);
+        if let Ok(absolute) = std::path::absolute(&target) {
+            push_unresolved_key(&mut keys, &absolute);
+        }
+    }
+    keys
+}
+
+fn push_unresolved_key(keys: &mut Vec<String>, path: &Path) {
+    let raw = path.to_string_lossy();
+    let sep = std::path::MAIN_SEPARATOR;
+    let mut trimmed = raw.as_ref();
+    while trimmed.len() > 1 && trimmed.ends_with(sep) {
+        trimmed = &trimmed[..trimmed.len() - 1];
+    }
+    if !trimmed.is_empty() && !keys.iter().any(|key| key == trimmed) {
+        keys.push(trimmed.to_string());
+    }
+}
+
+fn read_link_target(path: &Path) -> Option<PathBuf> {
+    let target = fs::read_link(path).ok()?;
+    if target.is_absolute() {
+        return Some(target);
+    }
+    Some(path.parent().unwrap_or(path).join(target))
+}
+
+pub fn path_looks_like_cloud_drive(path: &Path) -> bool {
+    path.components().any(|component| {
+        component
+            .as_os_str()
+            .to_str()
+            .is_some_and(is_cloud_drive_component_name)
+    })
+}
+
+pub fn cloud_drive_path_blocked(path: &Path) -> bool {
+    let mut prefix = PathBuf::new();
+    for component in path.components() {
+        match component {
+            std::path::Component::CurDir => continue,
+            std::path::Component::ParentDir => {
+                prefix.pop();
+            }
+            _ => prefix.push(component.as_os_str()),
+        }
+        if path_looks_like_cloud_drive(&prefix) {
+            return true;
+        }
+        if let Some(target) = read_link_target(&prefix)
+            && path_looks_like_cloud_drive(&target)
+        {
+            return true;
+        }
+    }
+    false
+}
+
+fn is_cloud_drive_component_name(name: &str) -> bool {
+    matches!(
+        normalize_cloud_drive_component(name).as_str(),
+        "googledrive" | "gdrive"
+    )
+}
+
+fn normalize_cloud_drive_component(name: &str) -> String {
+    name.chars()
+        .filter(|ch| !matches!(ch, ' ' | '-' | '_'))
+        .flat_map(char::to_lowercase)
+        .collect()
+}
+
+fn registration_root_key(root: &Path) -> Result<String> {
+    let keys = unresolved_root_keys(root);
+    if keys
+        .iter()
+        .any(|key| cloud_drive_path_blocked(Path::new(key)))
+    {
+        if let Some(key) = keys
+            .iter()
+            .rev()
+            .find(|key| Path::new(key.as_str()).is_absolute())
+        {
+            return Ok(key.clone());
+        }
+        if let Some(key) = keys.first() {
+            return Ok(key.clone());
+        }
+        return Err(io_error(
+            root,
+            Error::new(ErrorKind::InvalidInput, "root path is empty"),
+        ));
+    }
+    root_key(root)
+}
+
+fn lookup_root_id_by_keys(connection: &Connection, keys: &[String]) -> Result<Option<i64>> {
+    for key in keys {
+        let found = connection
+            .query_row(
+                "SELECT id FROM roots WHERE canonical_root=?1",
+                [key],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(sqlite_error_path)?;
+        if found.is_some() {
+            return Ok(found);
+        }
+    }
+    Ok(None)
 }
 
 pub fn indexed_roots() -> Result<Vec<IndexedRoot>> {
@@ -155,6 +270,60 @@ pub fn indexed_roots() -> Result<Vec<IndexedRoot>> {
         )?);
     }
     Ok(roots)
+}
+
+pub fn searchable_root_paths() -> Result<Vec<PathBuf>> {
+    let connection = open_database()?;
+    let mut statement = connection
+        .prepare(
+            "SELECT canonical_root FROM roots
+             WHERE id IN (SELECT DISTINCT root_id FROM search_docs)
+             ORDER BY canonical_root",
+        )
+        .map_err(sqlite_error_path)?;
+    let rows = statement
+        .query_map([], |row| row.get::<_, String>(0))
+        .map_err(sqlite_error_path)?;
+    rows.map(|row| Ok(PathBuf::from(row.map_err(sqlite_error_path)?)))
+        .collect()
+}
+
+pub fn searchable_root_paths_for_extensions(extensions: &[String]) -> Result<Vec<PathBuf>> {
+    let normalized = normalize_search_extensions(extensions);
+    if normalized.is_empty() {
+        return searchable_root_paths();
+    }
+    let connection = open_database()?;
+    let placeholders = vec!["?"; normalized.len()].join(", ");
+    let sql = format!(
+        "SELECT DISTINCT r.canonical_root FROM roots r
+         JOIN search_docs d ON d.root_id = r.id
+         WHERE lower(CASE WHEN d.ext LIKE '.%' THEN d.ext ELSE '.' || d.ext END) IN ({placeholders})
+         ORDER BY r.canonical_root"
+    );
+    let mut statement = connection.prepare(&sql).map_err(sqlite_error_path)?;
+    let rows = statement
+        .query_map(rusqlite::params_from_iter(normalized.iter()), |row| {
+            row.get::<_, String>(0)
+        })
+        .map_err(sqlite_error_path)?;
+    rows.map(|row| Ok(PathBuf::from(row.map_err(sqlite_error_path)?)))
+        .collect()
+}
+
+fn normalize_search_extensions(extensions: &[String]) -> Vec<String> {
+    let mut out = Vec::new();
+    for ext in extensions {
+        let trimmed = ext.trim().trim_start_matches('.').to_ascii_lowercase();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let dotted = format!(".{trimmed}");
+        if !out.contains(&dotted) {
+            out.push(dotted);
+        }
+    }
+    out
 }
 
 pub fn root_statistics(root: &Path) -> Result<RootStatistics> {
@@ -221,6 +390,98 @@ pub fn load_artifact(root: &Path, kind: &str) -> Result<Option<Value>> {
     Ok(load_artifacts(root, kind)?.into_iter().next())
 }
 
+pub fn load_artifact_by_path(root: &Path, kind: &str, path: &str) -> Result<Option<Value>> {
+    migrate_legacy(root)?;
+    let connection = open_database()?;
+    let Some(root_id) = root_id(&connection, root)? else {
+        return Ok(None);
+    };
+
+    let mut statement = connection
+        .prepare(
+            "SELECT row_json FROM artifacts WHERE root_id=?1 AND kind=?2 AND json_extract(row_json, '$.path')=?3 ORDER BY ordinal LIMIT 1",
+        )
+        .map_err(sqlite_error_path)?;
+
+    let raw = statement
+        .query_row(params![root_id, kind, path], |row| row.get::<_, String>(0))
+        .optional()
+        .map_err(sqlite_error_path)?;
+
+    raw.map(|raw| {
+        serde_json::from_str(&raw)
+            .map_err(|source| json_error(database_path().unwrap_or_default(), source))
+    })
+    .transpose()
+}
+
+pub fn load_artifact_paths(root: &Path, kind: &str) -> Result<HashSet<String>> {
+    migrate_legacy(root)?;
+    let connection = open_database()?;
+    let Some(root_id) = root_id(&connection, root)? else {
+        return Ok(HashSet::new());
+    };
+
+    let mut statement = connection
+        .prepare(
+            "SELECT json_extract(row_json, '$.path') FROM artifacts WHERE root_id=?1 AND kind=?2",
+        )
+        .map_err(sqlite_error_path)?;
+
+    let paths = statement
+        .query_map(params![root_id, kind], |row| {
+            row.get::<_, Option<String>>(0)
+        })
+        .map_err(sqlite_error_path)?
+        .filter_map(|value| value.ok().flatten().filter(|path| !path.is_empty()))
+        .collect();
+    Ok(paths)
+}
+
+pub fn load_artifacts_matching_terms(
+    root: &Path,
+    kind: &str,
+    terms: &[String],
+    limit: usize,
+) -> Result<Vec<Value>> {
+    if terms.is_empty() || limit == 0 {
+        return Ok(Vec::new());
+    }
+    migrate_legacy(root)?;
+    let connection = open_database()?;
+    let Some(root_id) = root_id(&connection, root)? else {
+        return Ok(Vec::new());
+    };
+
+    let mut sql = String::from("SELECT row_json FROM artifacts WHERE root_id=?1 AND kind=?2 AND (");
+    for index in 0..terms.len() {
+        if index > 0 {
+            sql.push_str(" OR ");
+        }
+        sql.push_str(&format!("instr(lower(row_json), ?{}) > 0", index + 3));
+    }
+    sql.push_str(&format!(") ORDER BY ordinal LIMIT ?{}", terms.len() + 3));
+
+    let mut values = vec![
+        rusqlite::types::Value::Integer(root_id),
+        rusqlite::types::Value::Text(kind.to_owned()),
+    ];
+    for term in terms {
+        values.push(rusqlite::types::Value::Text(term.to_lowercase()));
+    }
+    values.push(rusqlite::types::Value::Integer(limit as i64));
+
+    let mut statement = connection.prepare(&sql).map_err(sqlite_error_path)?;
+    let rows = statement
+        .query_map(params_from_iter(values), |row| row.get::<_, String>(0))
+        .map_err(sqlite_error_path)?;
+    rows.map(|row| {
+        let raw = row.map_err(sqlite_error_path)?;
+        serde_json::from_str(&raw)
+            .map_err(|source| json_error(database_path().unwrap_or_default(), source))
+    })
+    .collect()
+}
 pub fn store_artifact(root: &Path, kind: &str, value: Value) -> Result<()> {
     replace_artifacts(root, &[(kind, value)])
 }
@@ -314,15 +575,15 @@ pub fn delete_root_by_key(canonical: &str) -> Result<bool> {
 }
 
 pub fn migrate_legacy(root: &Path) -> Result<bool> {
-    let legacy = root.join(JIKJI_DIR);
-    if !legacy.is_dir() {
-        return Ok(false);
-    }
     let connection = open_database()?;
     if root_id(&connection, root)?.is_some() {
         return Ok(false);
     }
     drop(connection);
+    let legacy = root.join(JIKJI_DIR);
+    if !legacy.is_dir() {
+        return Ok(false);
+    }
     let mut rows = Vec::<(String, Value)>::new();
     for (name, kind) in [
         ("manifest.json", "manifest"),
@@ -484,15 +745,19 @@ fn initialize(connection: &Connection, path: &Path) -> Result<()> {
             row_json TEXT NOT NULL
         );
         CREATE INDEX IF NOT EXISTS artifacts_root_kind ON artifacts(root_id, kind, ordinal);
+        CREATE INDEX IF NOT EXISTS artifacts_root_kind_path ON artifacts(root_id, kind, json_extract(row_json, '$.path'));
         INSERT INTO metadata(key,value) VALUES('schema_version','{DATABASE_SCHEMA_VERSION}')
-            ON CONFLICT(key) DO UPDATE SET value=excluded.value;
+             ON CONFLICT(key) DO UPDATE SET value=excluded.value;
     "#
         ))
         .map_err(|source| sqlite_error(path, source))
 }
 
 fn ensure_root_tx(tx: &Transaction<'_>, root: &Path) -> Result<i64> {
-    let canonical = root_key(root)?;
+    if let Some(id) = lookup_root_id_by_keys(tx, &unresolved_root_keys(root))? {
+        return Ok(id);
+    }
+    let canonical = registration_root_key(root)?;
     tx.execute("INSERT INTO roots(canonical_root, updated_at) VALUES(?1, unixepoch()) ON CONFLICT(canonical_root) DO UPDATE SET updated_at=unixepoch()", [&canonical]).map_err(sqlite_error_path)?;
     tx.query_row(
         "SELECT id FROM roots WHERE canonical_root=?1",
@@ -511,4 +776,49 @@ fn sqlite_error_path(source: rusqlite::Error) -> crate::JikjiError {
         &database_path().unwrap_or_else(|_| PathBuf::from("index.sqlite")),
         source,
     )
+}
+
+#[cfg(test)]
+mod cloud_drive_tests {
+    use super::{cloud_drive_path_blocked, path_looks_like_cloud_drive};
+    use std::path::Path;
+
+    #[test]
+    fn path_looks_like_cloud_drive_accepts_rclone_and_google_names() {
+        assert!(path_looks_like_cloud_drive(Path::new(
+            "/home/cheol/GoogleDrive/마커"
+        )));
+        assert!(path_looks_like_cloud_drive(Path::new(
+            "/home/cheol/Google Drive/마커"
+        )));
+        assert!(path_looks_like_cloud_drive(Path::new(
+            "/home/cheol/google-drive/마커"
+        )));
+        assert!(path_looks_like_cloud_drive(Path::new("/mnt/gdrive/docs")));
+        assert!(path_looks_like_cloud_drive(Path::new("/mnt/GDrive/docs")));
+        assert!(!path_looks_like_cloud_drive(Path::new(
+            "/home/cheol/Drive/마커"
+        )));
+        assert!(!path_looks_like_cloud_drive(Path::new(
+            "/home/cheol/Documents/notes"
+        )));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cloud_drive_path_blocked_follows_one_parent_symlink() {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("system time")
+            .as_nanos();
+        let tmp =
+            std::env::temp_dir().join(format!("jikji-cloud-drive-{}-{nonce}", std::process::id()));
+        let real = tmp.join("GoogleDrive");
+        let link = tmp.join("Drive");
+        std::fs::create_dir_all(real.join("마커")).expect("real drive");
+        std::os::unix::fs::symlink(&real, &link).expect("parent symlink");
+        assert!(cloud_drive_path_blocked(&link.join("마커")));
+        assert!(!cloud_drive_path_blocked(&tmp.join("Documents/notes")));
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
 }
