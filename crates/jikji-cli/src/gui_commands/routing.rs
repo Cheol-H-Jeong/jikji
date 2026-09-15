@@ -40,7 +40,6 @@ pub(crate) struct GuiState {
 
 impl GuiState {
     pub(crate) fn new(root: PathBuf, manage_token: ManagementToken) -> Self {
-        crate::post_install_commands::enqueue_missing_library_root_prepares();
         Self {
             root: Arc::new(RwLock::new(root)),
             mutation: Arc::new(Mutex::new(())),

@@ -4,7 +4,7 @@ use std::process::ExitCode;
 
 use jikji_core::{JikjiError, PrepareOptions};
 use jikji_index::prepare;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 
 use crate::args::PostInstallPrepareArgs;
 use crate::output::print_json;
@@ -38,6 +38,12 @@ const MAX_LIBRARY_ROOTS: usize = 24;
 const DOCUMENT_EXTS: &[&str] = &[
     "pdf", "hwp", "hwpx", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "rtf", "odt", "ods", "odp",
 ];
+
+#[cfg(test)]
+static DOCUMENT_HEAVY_CALLS: std::sync::atomic::AtomicUsize =
+    std::sync::atomic::AtomicUsize::new(0);
+#[cfg(test)]
+static DOCUMENT_HEAVY_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 pub(crate) struct PostInstallRequest {
     pub(crate) roots: Vec<PathBuf>,
@@ -267,7 +273,7 @@ fn cloud_child_roots(root: &Path) -> Vec<PathBuf> {
     let Ok(entries) = fs::read_dir(root) else {
         return Vec::new();
     };
-    let mut children: Vec<PathBuf> = entries
+    let mut children: Vec<(bool, PathBuf)> = entries
         .flatten()
         .filter_map(|entry| {
             let is_dir = entry.file_type().map(|kind| kind.is_dir()).unwrap_or(false);
@@ -280,16 +286,20 @@ fn cloud_child_roots(root: &Path) -> Vec<PathBuf> {
                 .unwrap_or("");
             !name.starts_with('.') && !CLOUD_SKIP_CHILDREN.contains(&name)
         })
+        .map(|path| (cloud_child_looks_document_heavy(&path), path))
         .collect();
     children.sort_by(|left, right| {
-        cloud_child_looks_document_heavy(right)
-            .cmp(&cloud_child_looks_document_heavy(left))
-            .then_with(|| left.file_name().cmp(&right.file_name()))
+        right
+            .0
+            .cmp(&left.0)
+            .then_with(|| left.1.file_name().cmp(&right.1.file_name()))
     });
-    children
+    children.into_iter().map(|(_, path)| path).collect()
 }
 
 fn cloud_child_looks_document_heavy(path: &Path) -> bool {
+    #[cfg(test)]
+    DOCUMENT_HEAVY_CALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let Ok(entries) = fs::read_dir(path) else {
         return false;
     };
@@ -384,6 +394,9 @@ mod tests {
 
     #[test]
     fn select_default_roots_includes_google_drive_without_space() {
+        let _guard = super::DOCUMENT_HEAVY_TEST_LOCK
+            .lock()
+            .expect("document-heavy test lock");
         let temp = tempfile::tempdir().expect("tempdir");
         let home = temp.path();
         fs::create_dir(home.join("Documents")).expect("documents");
@@ -405,6 +418,9 @@ mod tests {
 
     #[test]
     fn select_default_roots_expands_google_drive_children() {
+        let _guard = super::DOCUMENT_HEAVY_TEST_LOCK
+            .lock()
+            .expect("document-heavy test lock");
         let temp = tempfile::tempdir().expect("tempdir");
         let home = temp.path();
         fs::create_dir(home.join("Documents")).expect("documents");
@@ -442,6 +458,63 @@ mod tests {
             "parent prepare must exclude expanded children, got {excludes:?}"
         );
         assert!(child_dir_excludes(&marker, &roots).is_empty());
+    }
+
+    #[test]
+    fn cloud_child_sort_stats_each_child_once() {
+        use std::sync::atomic::Ordering;
+
+        let _guard = super::DOCUMENT_HEAVY_TEST_LOCK
+            .lock()
+            .expect("document-heavy test lock");
+
+        let temp = tempfile::tempdir().expect("tempdir");
+        let home = temp.path();
+        fs::create_dir(home.join("Documents")).expect("documents");
+        fs::write(home.join("Documents").join("brief.pdf"), "%PDF").expect("pdf");
+        let drive = home.join("GoogleDrive");
+        fs::create_dir(&drive).expect("google drive");
+        let child_count = 20usize;
+        for index in 0..child_count {
+            let child = drive.join(format!("child-{index:02}"));
+            fs::create_dir(&child).expect("child");
+            if index % 2 == 0 {
+                fs::write(child.join("note.pdf"), "%PDF").expect("pdf");
+            }
+        }
+        super::DOCUMENT_HEAVY_CALLS.store(0, Ordering::Relaxed);
+        let (roots, _) = select_default_roots_from(home);
+        let calls = super::DOCUMENT_HEAVY_CALLS.load(Ordering::Relaxed);
+        assert_eq!(
+            calls, child_count,
+            "document-heavy checks must run once per cloud child, got {calls} for {roots:?}"
+        );
+        let cloud_children: Vec<_> = roots
+            .iter()
+            .filter(|root| {
+                root.parent()
+                    .is_some_and(|parent| parent.ends_with("GoogleDrive"))
+                    && root.file_name().is_some_and(|name| name != "GoogleDrive")
+            })
+            .collect();
+        let heavy = cloud_children
+            .iter()
+            .take(child_count / 2)
+            .filter(|root| {
+                root.file_name()
+                    .and_then(|name| name.to_str())
+                    .is_some_and(|name| {
+                        name.strip_prefix("child-")
+                            .and_then(|value| value.parse::<usize>().ok())
+                            .is_some_and(|index| index % 2 == 0)
+                    })
+            })
+            .count();
+        assert_eq!(
+            heavy,
+            child_count / 2,
+            "document-heavy cloud children should sort first, got {cloud_children:?}"
+        );
     }
 
     #[test]

@@ -412,6 +412,12 @@ fn cleanup_command(pid: u32) -> String {
 }
 
 fn serve_loop(listener: TcpListener, state: GuiState) -> jikji_core::Result<ExitCode> {
+    // Library-root discovery walks HOME / Google Drive FUSE and must not
+    // run before accept(). A TCP ready probe succeeds at bind; a synchronous
+    // enqueue here delayed the first /api/find by ~14s on a cold Drive cache.
+    thread::spawn(|| {
+        crate::post_install_commands::enqueue_missing_library_root_prepares();
+    });
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
