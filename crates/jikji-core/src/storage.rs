@@ -124,6 +124,68 @@ pub fn root_id(connection: &Connection, root: &Path) -> Result<Option<i64>> {
     lookup_root_id_by_keys(connection, &unresolved_root_keys(root))
 }
 
+/// Reject a new prepare root when it overlaps a populated searchable root.
+/// Exact refreshes of an existing populated root remain allowed.
+pub fn ensure_prepare_root_allowed(root: &Path) -> Result<()> {
+    let connection = open_database()?;
+    let canonical = canonical_root(root)?;
+    let has_search_docs: bool = connection
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='search_docs')",
+            [],
+            |row| row.get::<_, i64>(0),
+        )
+        .map_err(sqlite_error_path)?
+        != 0;
+    if !has_search_docs {
+        return Ok(());
+    }
+    let exact_populated: bool = connection
+        .query_row(
+            "SELECT EXISTS(
+                SELECT 1 FROM roots r
+                JOIN search_docs d ON d.root_id = r.id
+                WHERE r.canonical_root=?1
+            )",
+            [canonical.to_string_lossy().into_owned()],
+            |row| row.get::<_, i64>(0),
+        )
+        .map_err(sqlite_error_path)?
+        != 0;
+    if exact_populated {
+        return Ok(());
+    }
+    let mut statement = connection
+        .prepare(
+            "SELECT r.canonical_root FROM roots r
+             WHERE r.id IN (SELECT DISTINCT root_id FROM search_docs)",
+        )
+        .map_err(sqlite_error_path)?;
+    let rows = statement
+        .query_map([], |row| row.get::<_, String>(0))
+        .map_err(sqlite_error_path)?;
+    for row in rows {
+        let existing = PathBuf::from(row.map_err(sqlite_error_path)?);
+        if existing == canonical {
+            continue;
+        }
+        if existing.starts_with(&canonical) || canonical.starts_with(&existing) {
+            return Err(io_error(
+                root,
+                Error::new(
+                    ErrorKind::InvalidInput,
+                    format!(
+                        "prepare root overlaps existing indexed root: {}",
+                        existing.display()
+                    ),
+                ),
+            ));
+        }
+    }
+    Ok(())
+}
+
+
 fn unresolved_root_keys(root: &Path) -> Vec<String> {
     let mut keys = Vec::new();
     push_unresolved_key(&mut keys, root);
@@ -548,14 +610,13 @@ pub fn remove_artifacts_under(root: &Path, prefix: &str) -> Result<usize> {
     tx.commit().map_err(sqlite_error_path)?;
     Ok(removed)
 }
-
 pub fn delete_root(root: &Path) -> Result<bool> {
     let canonical = root_key(root)?;
     delete_root_by_key(&canonical)
 }
 
 pub fn delete_root_by_key(canonical: &str) -> Result<bool> {
-    let connection = open_database()?;
+    let mut connection = open_database()?;
     let root_id = connection
         .query_row(
             "SELECT id FROM roots WHERE canonical_root=?1",
@@ -568,9 +629,34 @@ pub fn delete_root_by_key(canonical: &str) -> Result<bool> {
         return Ok(false);
     };
     remove_root_cache(root_id)?;
-    connection
-        .execute("DELETE FROM roots WHERE id=?1", [root_id])
+    let tx = connection.transaction().map_err(sqlite_error_path)?;
+    for table in [
+        "artifacts",
+        "search_meta",
+        "search_docs",
+        "search_terms",
+        "search_filename_keys",
+        "search_idf",
+        "search_field_terms",
+        "search_field_lengths",
+        "search_field_idf",
+        "search_field_avg",
+    ] {
+        let exists = tx
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name=?1)",
+                [table],
+                |row| row.get::<_, i64>(0),
+            )
+            .map_err(sqlite_error_path)?;
+        if exists != 0 {
+            tx.execute(&format!("DELETE FROM {table} WHERE root_id=?1"), [root_id])
+                .map_err(sqlite_error_path)?;
+        }
+    }
+    tx.execute("DELETE FROM roots WHERE id=?1", [root_id])
         .map_err(sqlite_error_path)?;
+    tx.commit().map_err(sqlite_error_path)?;
     Ok(true)
 }
 

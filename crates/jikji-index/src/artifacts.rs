@@ -2,19 +2,22 @@ use std::collections::BTreeSet;
 use std::io::{Error, ErrorKind};
 use std::path::{Path, PathBuf};
 
-use jikji_core::storage::{load_artifacts, replace_artifacts, root_storage_dir};
-use jikji_core::{PrepareOptions, Result, ensure_generated_dir, io_error};
-use jikji_search::{SearchArtifactStats, build_search_artifacts};
+use jikji_core::storage::canonical_root;
+use jikji_core::storage::{
+    ensure_prepare_root_allowed, load_artifacts, replace_artifacts, root_storage_dir,
+};
+use jikji_core::{ensure_generated_dir, io_error, PrepareOptions, Result};
+use jikji_search::{build_search_artifacts, SearchArtifactStats};
 use serde::Serialize;
 use serde_json::Value;
 
 use crate::artifact_rows::{deleted_rows, file_rows, folder_rows, merge_document_fields};
 use crate::artifact_writer::write_static_artifacts;
-use crate::doc_cache::{CacheDirs, document_rows};
+use crate::doc_cache::{document_rows, CacheDirs};
 use crate::doc_prune::prune_doc_caches;
 use crate::file_io::write_jsonl;
 use crate::lock::LockGuard;
-use crate::scan::{ScanResult, rel_path, scan_root};
+use crate::scan::{rel_path, scan_root, ScanResult};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct PrepareResult {
     pub root: PathBuf,
@@ -29,7 +32,9 @@ pub struct PrepareResult {
 }
 
 pub fn prepare(root: &Path, options: &PrepareOptions) -> Result<PrepareResult> {
-    let scan = scan_root(root, options)?;
+    let canonical = canonical_root(root)?;
+    ensure_prepare_root_allowed(&canonical)?;
+    let scan = scan_root(&canonical, options)?;
     let index_dir = root_storage_dir(&scan.root)?;
     ensure_generated_dir(&index_dir)?;
     let _guard = LockGuard::acquire(&index_dir)?;
@@ -37,8 +42,10 @@ pub fn prepare(root: &Path, options: &PrepareOptions) -> Result<PrepareResult> {
 }
 
 pub fn reindex_search(root: &Path) -> Result<SearchArtifactStats> {
+    if let Ok(canonical) = canonical_root(root) {
+        ensure_prepare_root_allowed(&canonical)?;
+    }
     let index_dir = root_storage_dir(root)?;
-    ensure_generated_dir(&index_dir)?;
     let _guard = LockGuard::acquire(&index_dir)?;
     let file_rows = load_artifacts(root, "files")?;
     if file_rows.is_empty() {

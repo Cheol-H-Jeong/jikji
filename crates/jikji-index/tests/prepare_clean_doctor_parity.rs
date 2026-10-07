@@ -1,10 +1,10 @@
 use std::fs;
 use std::sync::{Mutex, MutexGuard};
 
+use jikji_core::storage::{clear_artifact, load_artifacts, open_database, register_root};
 use jikji_core::PrepareOptions;
-use jikji_core::storage::{clear_artifact, load_artifacts, open_database};
-use jikji_index::{CleanOptions, clean, doctor, prepare, reindex_search};
-use jikji_search::{IndexStatus, search_index_status};
+use jikji_index::{clean, doctor, prepare, reindex_search, CleanOptions};
+use jikji_search::{search_index_status, IndexStatus};
 
 static DATA_DIR_LOCK: Mutex<()> = Mutex::new(());
 
@@ -42,7 +42,82 @@ fn library_prepare_persists_documents_and_clean_removes_central_root() {
         .query_row("SELECT COUNT(*) FROM roots", [], |row| row.get(0))
         .unwrap();
     assert_eq!(count, 0);
+    for table in [
+        "artifacts",
+        "search_meta",
+        "search_docs",
+        "search_terms",
+        "search_filename_keys",
+        "search_idf",
+        "search_field_terms",
+        "search_field_lengths",
+        "search_field_idf",
+        "search_field_avg",
+    ] {
+        let remaining: i64 = connection
+            .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(remaining, 0, "table {table}");
+    }
     assert!(temp.path().join("document.txt").is_file());
+}
+
+#[test]
+fn prepare_rejects_new_overlapping_root_but_allows_exact_refresh() {
+    let temp = tempfile::tempdir().unwrap();
+    let (_lock, _data) = isolate_data_dir();
+    let child = temp.path().join("child");
+    fs::create_dir(&child).unwrap();
+    fs::write(child.join("document.txt"), "parent body").unwrap();
+
+    prepare(temp.path(), &PrepareOptions::default()).unwrap();
+    prepare(temp.path(), &PrepareOptions::default()).unwrap();
+    let error = prepare(&child, &PrepareOptions::default()).expect_err("overlap guard");
+    assert!(
+        error
+            .to_string()
+            .contains("prepare root overlaps existing indexed root"),
+        "{error}"
+    );
+}
+
+#[test]
+fn empty_registered_root_does_not_block_nested_prepare() {
+    let temp = tempfile::tempdir().unwrap();
+    let (_lock, _data) = isolate_data_dir();
+    let child = temp.path().join("child");
+    fs::create_dir(&child).unwrap();
+    fs::write(child.join("document.txt"), "child body").unwrap();
+
+    register_root(temp.path()).unwrap();
+    prepare(&child, &PrepareOptions::default()).unwrap();
+    let connection = open_database().unwrap();
+    let roots: i64 = connection
+        .query_row("SELECT COUNT(*) FROM roots", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(roots, 2);
+}
+
+#[test]
+fn sibling_prefix_roots_are_not_treated_as_overlapping() {
+    let temp = tempfile::tempdir().unwrap();
+    let (_lock, _data) = isolate_data_dir();
+    let first = temp.path().join("root");
+    let second = temp.path().join("root-copy");
+    fs::create_dir(&first).unwrap();
+    fs::create_dir(&second).unwrap();
+    fs::write(first.join("one.txt"), "one").unwrap();
+    fs::write(second.join("two.txt"), "two").unwrap();
+
+    prepare(&first, &PrepareOptions::default()).unwrap();
+    prepare(&second, &PrepareOptions::default()).unwrap();
+    let connection = open_database().unwrap();
+    let roots: i64 = connection
+        .query_row("SELECT COUNT(*) FROM roots", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(roots, 2);
 }
 
 #[test]
