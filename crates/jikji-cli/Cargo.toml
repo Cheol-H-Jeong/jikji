@@ -23,10 +23,10 @@ jikji-search.workspace = true
 jikji-public-datasets.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+tempfile.workspace = true
 
 [dev-dependencies]
 rusqlite = { version = "0.32", features = ["bundled"] }
-tempfile.workspace = true
 zip = { version = "2", default-features = false, features = ["deflate"] }
 flate2 = "1"
 tar = "0.4"
