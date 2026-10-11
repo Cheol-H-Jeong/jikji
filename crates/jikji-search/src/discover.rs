@@ -418,7 +418,7 @@ fn generated_search_path_weight(path: &str) -> f64 {
 }
 
 fn archive_search_path_weight(query: &str, path: &str) -> f64 {
-    if query_has_hint(&query.to_lowercase(), &["zip", "tar", "tgz", "7z", "rar"]) {
+    if query_has_hint(&query.to_lowercase(), &["zip", "tar", "tgz", "7z", "rar", "archive", "압축"]) {
         return 1.0;
     }
     let lower = path.to_lowercase();

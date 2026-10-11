@@ -4,6 +4,7 @@ use std::path::Path;
 use jikji_core::Result;
 use jikji_core::storage::{database_path, ensure_root, open_database};
 use rusqlite::{Transaction, params};
+use serde_json::Value;
 
 use crate::SEARCH_INDEX_SCHEMA_VERSION;
 use crate::index_rows::{IndexRow, fielded_terms, row_terms};
@@ -29,11 +30,10 @@ pub(crate) fn write_sqlite(root: &Path, rows: &[IndexRow]) -> Result<()> {
     insert_stats(&tx, root_id, rows, stats, &path)?;
     tx.commit().map_err(|source| sqlite_error(&path, source))
 }
-
 pub(crate) fn initialize(connection: &rusqlite::Connection, path: &Path) -> Result<()> {
     connection.execute_batch(
         "CREATE TABLE IF NOT EXISTS search_meta(root_id INTEGER NOT NULL REFERENCES roots(id) ON DELETE CASCADE,key TEXT NOT NULL,value TEXT NOT NULL,PRIMARY KEY(root_id,key));
-         CREATE TABLE IF NOT EXISTS search_docs(root_id INTEGER NOT NULL REFERENCES roots(id) ON DELETE CASCADE,id INTEGER NOT NULL,path TEXT NOT NULL,name TEXT NOT NULL,ext TEXT NOT NULL,duplicate_group_id TEXT NOT NULL,row_json TEXT NOT NULL,PRIMARY KEY(root_id,id));
+         CREATE TABLE IF NOT EXISTS search_docs(root_id INTEGER NOT NULL REFERENCES roots(id) ON DELETE CASCADE,id INTEGER NOT NULL,path TEXT NOT NULL,name TEXT NOT NULL,ext TEXT NOT NULL,duplicate_group_id TEXT NOT NULL,row_json TEXT NOT NULL,body_blob BLOB,body_size INTEGER,PRIMARY KEY(root_id,id));
          CREATE TABLE IF NOT EXISTS search_terms(root_id INTEGER NOT NULL,term TEXT NOT NULL,doc_id INTEGER NOT NULL);
          CREATE TABLE IF NOT EXISTS search_filename_keys(root_id INTEGER NOT NULL,key TEXT NOT NULL,doc_id INTEGER NOT NULL);
          CREATE TABLE IF NOT EXISTS search_idf(root_id INTEGER NOT NULL,term TEXT NOT NULL,value REAL NOT NULL,PRIMARY KEY(root_id,term));
@@ -46,7 +46,20 @@ pub(crate) fn initialize(connection: &rusqlite::Connection, path: &Path) -> Resu
          CREATE INDEX IF NOT EXISTS search_field_terms_lookup ON search_field_terms(root_id,term);
          CREATE INDEX IF NOT EXISTS search_field_docs_lookup ON search_field_terms(root_id,doc_id);
          CREATE INDEX IF NOT EXISTS search_field_lengths_lookup ON search_field_lengths(root_id, doc_id, field);"
-    ).map_err(|source| sqlite_error(path, source))
+    ).map_err(|source| sqlite_error(path, source))?;
+    let mut columns = BTreeSet::new();
+    let mut statement = connection.prepare("PRAGMA table_info(search_docs)").map_err(|source| sqlite_error(path, source))?;
+    let rows = statement.query_map([], |row| row.get::<_, String>(1)).map_err(|source| sqlite_error(path, source))?;
+    for row in rows {
+        columns.insert(row.map_err(|source| sqlite_error(path, source))?);
+    }
+    if !columns.contains("body_blob") {
+        connection.execute("ALTER TABLE search_docs ADD COLUMN body_blob BLOB", []).map_err(|source| sqlite_error(path, source))?;
+    }
+    if !columns.contains("body_size") {
+        connection.execute("ALTER TABLE search_docs ADD COLUMN body_size INTEGER", []).map_err(|source| sqlite_error(path, source))?;
+    }
+    Ok(())
 }
 
 fn clear_root(tx: &Transaction<'_>, root_id: i64, path: &Path) -> Result<()> {
@@ -82,7 +95,15 @@ fn insert_doc(
     row: &IndexRow,
     path: &Path,
 ) -> Result<()> {
-    tx.execute("INSERT INTO search_docs(root_id,id,path,name,ext,duplicate_group_id,row_json) VALUES(?,?,?,?,?,?,?)", params![root_id,doc_id,row.path,row.name,row.ext,row.duplicate_group_id,serde_json::to_string(&row.row_json).unwrap_or_default()]).map_err(|source| sqlite_error(path, source))?;
+    let mut metadata = row.row_json.clone();
+    if let Value::Object(object) = &mut metadata {
+        object.remove("body_text");
+    }
+    let body_blob = jikji_core::compression::compress_body_text(&row.body)?;
+    tx.execute(
+        "INSERT INTO search_docs(root_id,id,path,name,ext,duplicate_group_id,row_json,body_blob,body_size) VALUES(?,?,?,?,?,?,?,?,?)",
+        params![root_id, doc_id, row.path, row.name, row.ext, row.duplicate_group_id, serde_json::to_string(&metadata).unwrap_or_default(), body_blob, i64::try_from(row.body.len()).unwrap_or(i64::MAX)],
+    ).map_err(|source| sqlite_error(path, source))?;
     Ok(())
 }
 

@@ -12,6 +12,17 @@ use crate::map_rescore;
 use crate::scoring::{ScoreMap, TermMap, score_field_hits, score_filename_hits};
 use crate::tokenizer::{query_terms, tokens};
 
+fn restore_body(row_json: &mut Value, blob: Option<Vec<u8>>, size: Option<i64>) -> Result<()> {
+    if row_json.get("body_text").is_some() {
+        return Ok(());
+    }
+    let Some(blob) = blob else { return Ok(()); };
+    let size = size.ok_or_else(|| jikji_core::io_error("search_docs", std::io::Error::new(std::io::ErrorKind::InvalidData, "compressed body size missing")))?;
+    let size = usize::try_from(size).map_err(|_| jikji_core::io_error("search_docs", std::io::Error::new(std::io::ErrorKind::InvalidData, "compressed body size invalid")))?;
+    let body = jikji_core::compression::decompress_body_text(&blob, size)?;
+    if let Value::Object(object) = row_json { object.insert("body_text".to_owned(), Value::String(body)); }
+    Ok(())
+}
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SearchOptions {
     pub top_k: usize,
@@ -91,7 +102,7 @@ fn install_root_views(con: &Connection, root_id: i64, path: &Path) -> Result<()>
          DROP VIEW IF EXISTS field_idf;
          DROP VIEW IF EXISTS field_avg;
          CREATE TEMP VIEW meta AS SELECT key,value FROM search_meta WHERE root_id={root_id};
-         CREATE TEMP VIEW docs AS SELECT id,path,name,ext,duplicate_group_id,row_json FROM search_docs WHERE root_id={root_id};
+         CREATE TEMP VIEW docs AS SELECT id,path,name,ext,duplicate_group_id,row_json,body_blob,body_size FROM search_docs WHERE root_id={root_id};
          CREATE TEMP VIEW terms AS SELECT term,doc_id FROM search_terms WHERE root_id={root_id};
          CREATE TEMP VIEW filename_keys AS SELECT key,doc_id FROM search_filename_keys WHERE root_id={root_id};
          CREATE TEMP VIEW idf AS SELECT term,value FROM search_idf WHERE root_id={root_id};
@@ -113,6 +124,15 @@ fn schema_matches(con: &Connection) -> Result<bool> {
         Err(source) => Err(sqlite_error(Path::new("search_index.sqlite"), source)),
     }
 }
+
+struct DocRecord {
+    path: String,
+    name: String,
+    duplicate_group_id: String,
+    evidence: Vec<String>,
+    row_json: Value,
+}
+
 
 fn candidates_from_scores(
     con: &Connection,
@@ -161,84 +181,36 @@ fn candidates_from_scores(
     }
     Ok(out)
 }
-
-struct DocRecord {
-    path: String,
-    name: String,
-    duplicate_group_id: String,
-    evidence: Vec<String>,
-    row_json: Value,
-}
-
 fn load_doc(con: &Connection, doc_id: i64) -> Result<DocRecord> {
     con.query_row(
-        "SELECT path,name,duplicate_group_id,row_json FROM docs WHERE id=?",
+        "SELECT path,name,duplicate_group_id,row_json,body_blob,body_size FROM docs WHERE id=?",
         params![doc_id],
         |row| {
             let raw: String = row.get(3)?;
-            let value = serde_json::from_str::<Value>(&raw).unwrap_or(Value::Null);
-            let evidence = value
-                .get("evidence")
-                .and_then(Value::as_array)
-                .into_iter()
-                .flatten()
-                .filter_map(Value::as_str)
-                .map(str::to_owned)
-                .collect();
-            Ok(DocRecord {
-                path: row.get(0)?,
-                name: row.get(1)?,
-                duplicate_group_id: row.get(2)?,
-                evidence,
-                row_json: value,
-            })
+            let mut value = serde_json::from_str::<Value>(&raw).unwrap_or(Value::Null);
+            restore_body(&mut value, row.get(4)?, row.get(5)?)
+                .map_err(|error| rusqlite::Error::ToSqlConversionFailure(Box::new(error)))?;
+            let evidence = value.get("evidence").and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_str).map(str::to_owned).collect();
+            Ok(DocRecord { path: row.get(0)?, name: row.get(1)?, duplicate_group_id: row.get(2)?, evidence, row_json: value })
         },
-    )
-    .map_err(|source| sqlite_error(Path::new("search_index.sqlite"), source))
+    ).map_err(|source| sqlite_error(Path::new("search_index.sqlite"), source))
 }
 
 fn fallback_scan_docs(con: &Connection, query: &str) -> Result<Vec<SearchCandidate>> {
     let query_tokens = tokens(query, 32);
-    let mut stmt = con
-        .prepare("SELECT path,name,duplicate_group_id,row_json FROM docs")
-        .map_err(|source| sqlite_error(Path::new("search_index.sqlite"), source))?;
-    let rows = stmt
-        .query_map([], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, String>(2)?,
-                row.get::<_, String>(3)?,
-            ))
-        })
-        .map_err(|source| sqlite_error(Path::new("search_index.sqlite"), source))?;
+    let mut stmt = con.prepare("SELECT path,name,duplicate_group_id,row_json,body_blob,body_size FROM docs").map_err(|source| sqlite_error(Path::new("search_index.sqlite"), source))?;
+    let rows = stmt.query_map([], |row| {
+        let mut value = serde_json::from_str::<Value>(&row.get::<_, String>(3)?).unwrap_or(Value::Null);
+        restore_body(&mut value, row.get(4)?, row.get(5)?).map_err(|error| rusqlite::Error::ToSqlConversionFailure(Box::new(error)))?;
+        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?, value))
+    }).map_err(|source| sqlite_error(Path::new("search_index.sqlite"), source))?;
     let mut out = Vec::new();
     for row in rows {
-        let (path, name, duplicate_group_id, raw) =
-            row.map_err(|source| sqlite_error(Path::new("search_index.sqlite"), source))?;
-        let haystack = raw.to_lowercase();
-        let hits = query_tokens
-            .iter()
-            .filter(|term| haystack.contains(term.as_str()))
-            .cloned()
-            .collect::<Vec<_>>();
-        if hits.is_empty() {
-            continue;
-        }
-        out.push(SearchCandidate {
-            path,
-            name,
-            score: hits.len() as f64 * 10.0,
-            reasons: vec!["body-coverage".to_owned()],
-            matched_terms: hits,
-            matched_intents: Vec::new(),
-            duplicate_group_id,
-            evidence: Vec::new(),
-            discover_score: None,
-            strategies: Vec::new(),
-            queries: Vec::new(),
-            best_query_rank: None,
-        });
+        let (path, name, duplicate_group_id, value) = row.map_err(|source| sqlite_error(Path::new("search_index.sqlite"), source))?;
+        let haystack = serde_json::to_string(&value).unwrap_or_default().to_lowercase();
+        let hits = query_tokens.iter().filter(|term| haystack.contains(term.as_str())).cloned().collect::<Vec<_>>();
+        if hits.is_empty() { continue; }
+        out.push(SearchCandidate { path, name, score: hits.len() as f64 * 10.0, reasons: vec!["body-coverage".to_owned()], matched_terms: hits, matched_intents: Vec::new(), duplicate_group_id, evidence: Vec::new(), discover_score: None, strategies: Vec::new(), queries: Vec::new(), best_query_rank: None });
     }
     Ok(out)
 }

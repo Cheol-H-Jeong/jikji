@@ -58,6 +58,8 @@ pub(crate) fn prepare_options_from_args(args: &PrepareArgs) -> PrepareOptions {
         include_sensitive: args.include_sensitive,
         max_files: normalize_max_files(args.max_files),
         exclude_patterns: args.exclude.clone(),
+        extensions: Vec::new(),
+        max_file_bytes: None,
         max_hash_bytes: args.max_hash_bytes,
         parse_timeout_seconds: args.parse_timeout,
         doc_text_max_chars: args.doc_text_max_chars,

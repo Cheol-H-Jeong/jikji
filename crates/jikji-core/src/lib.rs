@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 pub mod storage;
+pub mod compression;
 
 pub const ROOT_AGENT_MAP: &str = ".jikji_agent_map.md";
 pub const LEGACY_ROOT_AGENT_MAP: &str = "000_JIKJI_AGENT_MAP.md";
@@ -95,6 +96,8 @@ pub struct PrepareOptions {
     pub include_sensitive: bool,
     pub max_files: Option<usize>,
     pub exclude_patterns: Vec<String>,
+    pub extensions: Vec<String>,
+    pub max_file_bytes: Option<u64>,
     pub max_hash_bytes: u64,
     pub parse_timeout_seconds: f64,
     pub doc_text_max_chars: usize,
@@ -128,6 +131,8 @@ impl Default for PrepareOptions {
             include_sensitive: false,
             max_files: None,
             exclude_patterns: Vec::new(),
+            extensions: Vec::new(),
+            max_file_bytes: None,
             max_hash_bytes: 512 * 1024 * 1024,
             parse_timeout_seconds: 5.0,
             doc_text_max_chars: 2_000_000,
