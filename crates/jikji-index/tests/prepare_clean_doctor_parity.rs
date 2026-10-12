@@ -261,3 +261,20 @@ fn search_only_finds_registered_root_via_symlink_without_canonicalizing() {
         .unwrap();
     assert_eq!(count, 1);
 }
+
+#[test]
+fn clean_reindex_rebuilds_without_tombstones_or_source_deletion() {
+    let temp = tempfile::tempdir().unwrap();
+    let (_lock, _data) = isolate_data_dir();
+    let source = temp.path().join("keep.txt");
+    fs::write(&source, "stable source").unwrap();
+    let mut options = PrepareOptions::default();
+    options.clean_reindex = true;
+    prepare(temp.path(), &options).unwrap();
+    fs::write(temp.path().join("transient.txt"), "transient").unwrap();
+    prepare(temp.path(), &options).unwrap();
+    let rows = load_artifacts(temp.path(), "files").unwrap();
+    assert_eq!(rows.iter().filter(|row| row["path"] == "keep.txt").count(), 1);
+    assert_eq!(rows.iter().filter(|row| row["path"] == "transient.txt").count(), 1);
+    assert_eq!(fs::read_to_string(source).unwrap(), "stable source");
+}

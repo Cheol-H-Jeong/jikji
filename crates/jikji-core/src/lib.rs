@@ -112,6 +112,8 @@ pub struct PrepareOptions {
     pub archive_max_entry_bytes: u64,
     #[serde(default = "default_archive_max_total_bytes")]
     pub archive_max_total_bytes: u64,
+    #[serde(default)]
+    pub clean_reindex: bool,
 }
 
 fn default_archive_max_entries() -> usize {
@@ -143,6 +145,7 @@ impl Default for PrepareOptions {
             archive_max_entries: default_archive_max_entries(),
             archive_max_entry_bytes: default_archive_max_entry_bytes(),
             archive_max_total_bytes: default_archive_max_total_bytes(),
+            clean_reindex: false,
         }
     }
 }

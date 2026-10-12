@@ -2,9 +2,9 @@ use std::collections::BTreeSet;
 use std::io::{Error, ErrorKind};
 use std::path::{Path, PathBuf};
 
-use jikji_core::storage::canonical_root;
 use jikji_core::storage::{
-    ensure_prepare_root_allowed, load_artifacts, replace_artifacts, root_storage_dir,
+    canonical_root, ensure_prepare_root_allowed, load_artifacts, replace_prepared_artifacts,
+    root_storage_dir,
 };
 use jikji_core::{ensure_generated_dir, io_error, PrepareOptions, Result};
 use jikji_search::{build_search_artifacts, SearchArtifactStats};
@@ -75,7 +75,7 @@ fn build_artifacts(scan: ScanResult, options: &PrepareOptions) -> Result<Prepare
         .iter()
         .map(|path| rel_path(&scan.root, path))
         .collect::<BTreeSet<_>>();
-    let mut deleted_rows = deleted_rows(&previous, &current_paths);
+    let mut deleted_rows = if options.clean_reindex { Vec::new() } else { deleted_rows(&previous, &current_paths) };
     let mut file_rows = file_rows(&scan, options)?;
     let folder_rows = folder_rows(&scan);
     let docs = document_rows(
@@ -86,7 +86,6 @@ fn build_artifacts(scan: ScanResult, options: &PrepareOptions) -> Result<Prepare
         },
         options,
     )?;
-    prune_doc_caches(&doc_text_dir, &doc_meta_dir, &docs.live_digests)?;
     file_rows = merge_document_fields(file_rows, &docs.rows);
     file_rows.append(&mut deleted_rows);
 
@@ -105,10 +104,11 @@ fn build_artifacts(scan: ScanResult, options: &PrepareOptions) -> Result<Prepare
     artifacts.extend(docs.rows.iter().cloned().map(|row| ("documents", row)));
     artifacts.extend(docs.chunk_rows.iter().cloned().map(|row| ("chunks", row)));
     artifacts.extend(file_rows.iter().cloned().map(|row| ("cards", row)));
-    replace_artifacts(&scan.root, &artifacts)?;
+    replace_prepared_artifacts(&scan.root, &artifacts)?;
     let search_stats =
         build_search_artifacts(&scan.root, &file_rows, &docs.chunk_rows, &folder_rows)?;
     write_static_artifacts(&scan, options, &docs, search_stats)?;
+    prune_doc_caches(&doc_text_dir, &doc_meta_dir, &docs.live_digests)?;
 
     Ok(PrepareResult {
         root: scan.root.clone(),

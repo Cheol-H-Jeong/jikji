@@ -13,6 +13,9 @@ pub(crate) fn run_prepare(args: PrepareArgs) -> jikji_core::Result<ExitCode> {
     }
     let options = prepare_options_from_args(&args);
     let result = prepare(&args.root, &options)?;
+    if options.clean_reindex {
+        jikji_core::storage::vacuum_database()?;
+    }
     if !args.no_agent_rules {
         jikji_agent::write_routing_blocks(&args.root)?;
     }
@@ -70,6 +73,7 @@ pub(crate) fn prepare_options_from_args(args: &PrepareArgs) -> PrepareOptions {
         archive_max_entries: args.archive_max_entries,
         archive_max_entry_bytes: args.archive_max_entry_bytes,
         archive_max_total_bytes: args.archive_max_total_bytes,
+        clean_reindex: args.clean_reindex,
     }
 }
 

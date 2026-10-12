@@ -1,23 +1,84 @@
-use encoding_rs::{EUC_KR, UTF_8, UTF_16BE, UTF_16LE, WINDOWS_1252};
+use encoding_rs::{Encoding, EUC_KR, UTF_8, UTF_16BE, UTF_16LE};
 use regex::Regex;
 
 pub fn decode_text(bytes: &[u8], max_chars: usize) -> String {
-    let limit = max_chars.saturating_mul(8).min(bytes.len());
-    let raw = &bytes[..limit];
-    if raw.starts_with(&[0xff, 0xfe]) {
-        return decode_with(UTF_16LE, &raw[2..], max_chars);
+    decode_text_strict(bytes, max_chars).unwrap_or_default()
+}
+
+pub fn decode_text_strict(bytes: &[u8], max_chars: usize) -> Option<String> {
+    let raw = bytes;
+    let text = if raw.starts_with(&[0xff, 0xfe]) {
+        decode_with_strict(UTF_16LE, &raw[2..])?
+    } else if raw.starts_with(&[0xfe, 0xff]) {
+        decode_with_strict(UTF_16BE, &raw[2..])?
+    } else if raw.starts_with(&[0xef, 0xbb, 0xbf]) {
+        std::str::from_utf8(&raw[3..]).ok()?.to_owned()
+    } else if let Ok(text) = std::str::from_utf8(raw) {
+        text.to_owned()
+    } else {
+        let (text, _, had_errors) = EUC_KR.decode(raw);
+        if had_errors {
+            return None;
+        }
+        text.into_owned()
+    };
+    if !is_text(text.as_str()) {
+        return None;
     }
-    if raw.starts_with(&[0xfe, 0xff]) {
-        return decode_with(UTF_16BE, &raw[2..], max_chars);
-    }
-    for encoding in [UTF_8, EUC_KR, WINDOWS_1252] {
-        let (text, _, had_errors) = encoding.decode(raw);
-        if !had_errors {
-            return cap_chars(text.as_ref(), max_chars);
+    Some(cap_chars(text.as_str(), max_chars))
+}
+
+pub fn decode_xml_strict(bytes: &[u8]) -> Option<String> {
+    let (detected, skip) = if bytes.starts_with(&[0xff, 0xfe]) {
+        (Some(UTF_16LE), 2)
+    } else if bytes.starts_with(&[0xfe, 0xff]) {
+        (Some(UTF_16BE), 2)
+    } else if bytes.starts_with(&[0xef, 0xbb, 0xbf]) {
+        (Some(UTF_8), 3)
+    } else if bytes.starts_with(b"\0<\0?") {
+        (Some(UTF_16BE), 0)
+    } else if bytes.starts_with(b"<\0?\0") {
+        (Some(UTF_16LE), 0)
+    } else {
+        (None, 0)
+    };
+    let prefix: String = bytes.iter().take_while(|byte| byte.is_ascii()).map(|byte| char::from(*byte)).collect();
+    let declared = xml_declared_encoding(prefix.as_str());
+    let encoding = match (detected, declared) {
+        (Some(encoding), _) => encoding,
+        (None, Some(label)) => Encoding::for_label(label.as_bytes())?,
+        (None, None) => UTF_8,
+    };
+    let text = decode_with_strict(encoding, &bytes[skip..])?;
+    if let Some(label) = xml_declared_encoding(text.as_str()) {
+        let declared = Encoding::for_label(label.as_bytes())?;
+        let generic_utf16 = label.eq_ignore_ascii_case("utf-16")
+            && (encoding == UTF_16LE || encoding == UTF_16BE);
+        if declared != encoding && !generic_utf16 {
+            return None;
         }
     }
-    let (text, _, _) = UTF_8.decode(raw);
-    cap_chars(text.as_ref(), max_chars)
+    is_text(text.as_str()).then_some(text)
+}
+
+fn decode_with_strict(encoding: &'static encoding_rs::Encoding, bytes: &[u8]) -> Option<String> {
+    if bytes.len() % 2 != 0 && (encoding == UTF_16LE || encoding == UTF_16BE) {
+        return None;
+    }
+    let (text, had_errors) = encoding.decode_without_bom_handling(bytes);
+    (!had_errors).then(|| text.into_owned())
+}
+
+fn is_text(text: &str) -> bool {
+    !text.chars().any(|ch| ch == '\u{fffd}' || (ch.is_control() && !matches!(ch, '\n' | '\r' | '\t' | '\u{c}')))
+}
+
+fn xml_declared_encoding(text: &str) -> Option<&str> {
+    let head = text.strip_prefix("<?xml")?.split_once("?>")?.0;
+    Regex::new(r#"\bencoding\s*=\s*["']([^"']+)["']"#)
+        .ok()?
+        .captures(head)
+        .and_then(|captures| captures.get(1).map(|match_| match_.as_str()))
 }
 
 pub fn cap_chars(text: &str, max_chars: usize) -> String {
@@ -90,58 +151,6 @@ pub fn strip_xml_tags(xml: &str, max_chars: usize) -> String {
     normalize_lines(&parts, max_chars)
 }
 
-pub fn printable_runs(bytes: &[u8], max_chars: usize) -> String {
-    if bytes.starts_with(&[0xff, 0xfe]) || bytes.starts_with(&[0xfe, 0xff]) {
-        return cap_chars(
-            decode_text(bytes, max_chars.saturating_mul(4)).as_str(),
-            max_chars,
-        );
-    }
-    let candidates = [
-        decode_text(bytes, max_chars.saturating_mul(4)),
-        decode_utf16_without_bom(bytes, true, max_chars.saturating_mul(4)),
-        decode_utf16_without_bom(bytes, false, max_chars.saturating_mul(4)),
-    ];
-    let pattern = Regex::new(r"[\p{L}\p{N}\p{P}\p{Zs}\t\r\n]{4,}")
-        .map_or_else(|_| String::new(), |regex| best_runs(&candidates, &regex));
-    cap_chars(pattern.as_str(), max_chars)
-}
-
-fn decode_with(encoding: &'static encoding_rs::Encoding, bytes: &[u8], max_chars: usize) -> String {
-    let (text, _, _) = encoding.decode(bytes);
-    cap_chars(text.as_ref(), max_chars)
-}
-
-fn decode_utf16_without_bom(bytes: &[u8], little_endian: bool, max_chars: usize) -> String {
-    let words = bytes
-        .chunks_exact(2)
-        .map(|pair| {
-            if little_endian {
-                u16::from_le_bytes([pair[0], pair[1]])
-            } else {
-                u16::from_be_bytes([pair[0], pair[1]])
-            }
-        })
-        .collect::<Vec<_>>();
-    let text = String::from_utf16_lossy(words.as_slice());
-    cap_chars(text.as_str(), max_chars)
-}
-
-fn best_runs(candidates: &[String], regex: &Regex) -> String {
-    let mut best = String::new();
-    for candidate in candidates {
-        let text = regex
-            .find_iter(candidate.as_str())
-            .map(|found| found.as_str().trim())
-            .filter(|part| part.chars().count() >= 4)
-            .collect::<Vec<_>>()
-            .join("\n");
-        if text.len() > best.len() {
-            best = text;
-        }
-    }
-    best
-}
 
 fn decode_entity(entity: &str) -> &'static str {
     match entity {

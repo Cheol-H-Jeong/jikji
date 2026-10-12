@@ -8,8 +8,10 @@ repository.workspace = true
 description = "Parser trait and registry scaffolding for reusable Jikji document parsing."
 
 [dependencies]
+cfb = "0.10"
 bzip2 = "0.4"
 encoding_rs = "0.8"
+pdf-extract = "0.12.1"
 flate2 = "1"
 jikji-core.workspace = true
 jikji-media-bridge.workspace = true

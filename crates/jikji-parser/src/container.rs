@@ -2,8 +2,7 @@ use std::io::{Cursor, Read};
 
 use zip::ZipArchive;
 
-use crate::structured::html_or_xml_to_text;
-use crate::utils::{cap_chars, strip_xml_tags};
+use crate::utils::{cap_chars, decode_xml_strict, strip_xml_tags};
 use crate::{DocumentParser, ParseStatus, ParsedDocument, ParserInput};
 
 #[derive(Debug, Default)]
@@ -113,16 +112,10 @@ fn zip_text(bytes: &[u8], predicate: &dyn Fn(&str) -> bool, max_chars: usize) ->
         if !predicate(name.as_str()) {
             continue;
         }
-        let mut xml = String::new();
-        if file.read_to_string(&mut xml).is_err() {
-            let mut bytes = Vec::new();
-            if file.read_to_end(&mut bytes).is_err() {
-                continue;
-            }
-            xml = html_or_xml_to_text(bytes.as_slice(), max_chars);
-        } else {
-            xml = strip_xml_tags(xml.as_str(), max_chars);
-        }
+        let mut bytes = Vec::new();
+        file.read_to_end(&mut bytes).ok()?;
+        let xml = decode_xml_strict(bytes.as_slice())?;
+        let xml = strip_xml_tags(xml.as_str(), max_chars);
         if !xml.trim().is_empty() {
             total = total.saturating_add(xml.len());
             parts.push(xml);

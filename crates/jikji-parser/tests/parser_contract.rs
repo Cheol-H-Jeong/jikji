@@ -1,6 +1,9 @@
 use std::io::Write;
 
 use jikji_parser::{ParseStatus, ParserRegistry};
+
+#[path = "support/pdf_fixture.rs"]
+mod pdf_fixture;
 use tempfile::tempdir;
 
 fn parse_fixture(
@@ -236,17 +239,19 @@ fn office_pdf_hwp_and_binary_parsers_are_best_effort_without_panics() {
     let pdf = parse_fixture(
         &registry,
         "brief.pdf",
-        b"%PDF-1.4\n1 0 obj << /Title (pdftoken-4004) >> endobj\n%%EOF",
+        &pdf_fixture::minimal_pdf("pdftoken-4004", false),
     );
     assert!(pdf.text.contains("pdftoken-4004"));
 
     let legacy_bytes = utf16le_bom("doctoken-5005");
     let legacy = parse_fixture(&registry, "legacy.doc", legacy_bytes.as_slice());
-    assert!(legacy.text.contains("doctoken-5005"));
+    assert_eq!(legacy.status, ParseStatus::Unsupported);
+    assert!(legacy.text.is_empty());
 
     let hwp_bytes = utf16le_bom("hwptoken-6006");
     let hwp = parse_fixture(&registry, "legacy.hwp", hwp_bytes.as_slice());
-    assert!(hwp.text.contains("hwptoken-6006"));
+    assert_eq!(hwp.status, ParseStatus::Failed);
+    assert!(hwp.text.is_empty());
 }
 
 #[test]

@@ -66,6 +66,19 @@ pub fn database_path() -> Result<PathBuf> {
     Ok(data_dir()?.join("jikji/index.sqlite"))
 }
 
+/// Checkpoint and compact the central database after an explicit clean rebuild.
+/// Returns `(bytes_before, bytes_after)`; this never touches source roots.
+pub fn vacuum_database() -> Result<(u64, u64)> {
+    let path = database_path()?;
+    let before = fs::metadata(&path).map(|metadata| metadata.len()).unwrap_or(0);
+    let connection = open_database()?;
+    connection
+        .execute_batch("PRAGMA wal_checkpoint(TRUNCATE); VACUUM;")
+        .map_err(|source| sqlite_error(&path, source))?;
+    let after = fs::metadata(&path).map(|metadata| metadata.len()).unwrap_or(0);
+    Ok((before, after))
+}
+
 pub fn open_database() -> Result<Connection> {
     let path = database_path()?;
     if let Some(parent) = path.parent() {
@@ -409,10 +422,20 @@ pub fn root_storage_dir(root: &Path) -> Result<PathBuf> {
 }
 
 pub fn replace_artifacts(root: &Path, artifacts: &[(&str, Value)]) -> Result<()> {
+    replace_artifact_rows(root, artifacts, &[])
+}
+
+/// Replace all prepare-owned row kinds, including empty collections, in one transaction.
+pub fn replace_prepared_artifacts(root: &Path, artifacts: &[(&str, Value)]) -> Result<()> {
+    replace_artifact_rows(root, artifacts, &["files", "folders", "documents", "chunks", "cards"])
+}
+
+fn replace_artifact_rows(root: &Path, artifacts: &[(&str, Value)], empty_kinds: &[&str]) -> Result<()> {
     let mut connection = open_database()?;
     let tx = connection.transaction().map_err(sqlite_error_path)?;
     let root_id = ensure_root_tx(&tx, root)?;
     let mut kinds = artifacts.iter().map(|(kind, _)| *kind).collect::<Vec<_>>();
+    kinds.extend_from_slice(empty_kinds);
     kinds.sort_unstable();
     kinds.dedup();
     for kind in kinds {
