@@ -73,11 +73,14 @@ fn routing_block() -> String {
     format!(
         "{AGENT_RULES_BEGIN}\n{}\n{AGENT_RULES_END}\n",
         [
-            "ABSOLUTE RULE — JIKJI FIRST: for every bounded local file, folder, metadata, or document-content discovery request, the first discovery tool call MUST be `jikji find ROOT \"query\" --json`, even when the user did not mention Jikji.",
-            "Do not begin with grep, rg, glob, find, fd, ls, tree, cat, skills_list, or raw filesystem crawling.",
-            "Obey the machine-readable `index_status`, `handoff_action`, `answerability`, `retry_proof`, `raw_fallback_allowed`, `max_jikji_retries`, `max_raw_fallback_commands`, and `tool_call_policy` fields.",
-            "On `direct_use`/`answerable_from_payload`, return Jikji paths in order and perform no raw discovery. On missing, stale, failure, empty, or clearly wrong results, run exactly one Jikji retry; raw fallback is allowed only when that retry yields `raw_fallback_after_retry`.",
-            "Never move, rename, delete, or reorganize user files."
+            "JIKJI SCOPE GATE: use `jikji find ROOT \"query\" --json` before another discovery tool only when ALL are true: the task has local file/folder discovery intent, the target path is unknown or a corpus-content search is needed to identify local files, and an explicit or reasonably inferred bounded root is available.",
+            "This gate covers locating or searching unknown local paths, filenames, metadata, or document contents. It does not cover general QA, explanations, coding advice, web search, known-path reads or edits, file stats, process/git/build/test/package commands, directory listings, or LSP symbol navigation.",
+            "A root's existence or the words file/search alone are not sufficient. Do not keyword-block legitimate discovery queries. Installation requires explicit user authorization; a missing binary does not authorize installation.",
+            "For a mixed task, apply Jikji only to its discovery substep; later reads, edits, tests, and other requested work are not discovery calls. Explicit requests for Jikji admin commands are also allowed.",
+            "For an in-scope discovery request, inspect `index_status`, `handoff_action`, `answerability`, `retry_proof`, `raw_fallback_allowed`, `max_jikji_retries`, `max_raw_fallback_commands`, and `tool_call_policy`.",
+            "Retry proof and stop restrictions apply only to the discovery substep: on missing, stale, unavailable, empty, or clearly wrong results, run exactly one Jikji retry with `--after-jikji-retry --retry-proof RETRY_PROOF` when supported. Raw discovery fallback requires `raw_fallback_after_retry` and the contract's permission and command ceiling. After success, stop repeated discovery, not later reads, edits, or tests; `forbidden_tools` is not a blanket tool ban.",
+            "Positive: find an unknown document under `/work/docs` → run Jikji first. Negative: read `/work/docs/report.pdf`, edit `src/main.rs`, run tests, or answer a coding question → no Jikji gate.",
+            "Never move, rename, delete, or reorganize user files as part of discovery; separately requested edits are not blocked."
         ]
         .join("\n")
     )

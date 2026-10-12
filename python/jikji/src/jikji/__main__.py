@@ -1361,12 +1361,28 @@ def cmd_agent_skill_install(args) -> int:
         ],
         "post_install_prepare": prepare_result,
         "after_install_protocol": (
-            "When this SKILL.md is in an agent's skill directory, local file/document "
-            "discovery requests under an explicit root should trigger Jikji first: "
-            "jikji find ROOT \"query\" --json, then follow handoff_action. "
-            "Jikji find builds the multi-query, multi-route candidate slate before "
-            "any raw filesystem fallback is considered."
+            "Apply Jikji only for local file/folder/document discovery with an unknown target path or corpus content under an explicit or inferred bounded root. "
+            "Call jikji find ROOT \\\"query\\\" --json first, then follow handoff_action. "
+            "Do not apply to general QA, explanations, coding advice, web search, known-path reads or edits, stats, process/git/build/test/package commands, directory listings, or LSP symbol lookup. "
+            "In mixed tasks route only the discovery substep; retry and stop rules apply only to discovery."
         ),
+        "discovery_routing": {
+            "trigger": "local_file_folder_document_discovery_intent_with_unknown_target_or_corpus_content",
+            "scope": "explicit_or_inferred_bounded_root",
+            "all_conditions_required": True,
+            "root_existence_alone_is_not_trigger": True,
+            "file_or_search_words_alone_are_not_trigger": True,
+            "mixed_task_scope": "discovery_substep_only",
+            "retry_and_stop_scope": "discovery_only",
+            "explicit_jikji_administration_allowed": True,
+            "first_command": "jikji find ROOT \\\"query\\\" --json",
+            "jikji_first": True,
+            "excluded_intents": ["general_qa", "explanations", "coding_advice", "web_search", "known_path_read_or_edit", "stats", "process_commands", "git_commands", "build_test_package_commands", "directory_listing", "lsp_symbol_lookup"],
+            "success_raw_fallback_allowed": False,
+            "failure_sequence": ["jikji_find", "exactly_one_jikji_retry", "bounded_raw_fallback_if_allowed"],
+            "max_jikji_retries": 1,
+            "raw_fallback_requires_handoff_action": "raw_fallback_after_retry"
+        }
     }
     if args.json:
         print(json.dumps(payload, ensure_ascii=False, indent=2))
@@ -1375,7 +1391,7 @@ def cmd_agent_skill_install(args) -> int:
             verb = "INSTALLED" if item.installed else "SKIPPED"
             print(f"{verb} {item.agent}: {item.message} ({item.path})")
         _print_post_install_prepare(prepare_result)
-        print("After install, file/document discovery should use Jikji first via the skill trigger.")
+        print("After install, in-scope local discovery should use Jikji first via the skill trigger.")
     return 0
 
 

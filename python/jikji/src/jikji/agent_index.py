@@ -1574,7 +1574,8 @@ def _agent_map_markdown(root, manifest, folders, docs, terms) -> str:
         f"- 파서/메타 경고: {manifest.get('parse_errors', 0)}개",
         "",
         "## 에이전트 검색 규칙",
-        "- 첫 호출은 `jikji find <root> \"자연어 단서\" --json`로 후보 경로와 evidence를 받기",
+        "- 로컬 파일/폴더/문서의 위치·메타데이터·내용을 찾고 대상 경로가 아직 불명확할 때, 명시적 또는 추론 가능한 제한 루트에서 첫 호출은 `jikji find <root> \\\"자연어 단서\\\" --json`로 후보 경로와 evidence를 받기",
+        "- 일반 QA/설명/코딩 조언/웹 검색, 이미 아는 경로 읽기·수정, 통계·프로세스·git·build/test/package 명령, 디렉터리 목록, LSP 심볼 조회에는 이 라우팅을 적용하지 않기",
         "- 지도 JSONL 전체를 읽기 전에 `answer_paths[]`, `candidates[]`, `evidence_pack[]`를 우선 사용",
         "- 후보가 맞으면 원본 탐색/grep 없이 `answer_paths[]` 또는 `candidates[].p`를 바로 사용",
         "- PDF/Office/HWP/RTF 등 파서 필요 문서 본문: `.jikji/doc_text/`에서 `rg`",
@@ -1615,22 +1616,12 @@ def _visible_agent_map(agent_map: Path) -> str:
 
 def _agent_rules_block_body() -> str:
     return (
-        "## File & document search: use Jikji first\n\n"
-        "This directory is indexed with **Jikji** "
-        "(https://github.com/NomaDamas/jikji) for fast, low-token file discovery.\n\n"
-        "- To locate files, folders, or document contents, run "
-        "`jikji find . \"<natural language clue>\" --json` **first**.\n"
-        "- Do NOT start with raw `find`, `grep`, `rg`, `ls`, `fd`, or a native "
-        "`search_files` tool. Jikji has already indexed this directory and returns "
-        "a small, ranked candidate slate in a single call, so a raw crawl just "
-        "redoes work Jikji finished and bloats your context window.\n"
-        "- Use the returned `answer_paths[]` / `candidates[].p` as the answer "
-        "paths; open the original files only to verify the top results.\n"
-        "- Follow `handoff_action`: `direct_use` (use the slate as-is), "
-        "`jikji_retry` (exactly one sharper `jikji find` query), "
-        "`raw_fallback_after_retry` (raw search only after that retry stayed empty "
-        "or clearly wrong).\n"
-        "- If this directory is not prepared yet, run `jikji prepare . --json`.\n"
+        "## File & document search: use Jikji first when discovery applies\n\n"
+        "This directory is indexed with **Jikji** (https://github.com/NomaDamas/jikji).\n\n"
+        "- For local file, folder, metadata, or document-content discovery with an unknown target path under an explicit or inferred bounded root, run `jikji find . \\\"<natural language clue>\\\" --json` first.\n"
+        "- Do not apply this route to general QA, explanations, coding advice, web search, known-path reads or edits, stats, process/git/build/test/package commands, directory listings, or LSP symbol lookup.\n"
+        "- Follow `handoff_action`: `direct_use`, `jikji_retry` (exactly one sharper query), or `raw_fallback_after_retry`.\n"
+        "- If this directory is not prepared yet, run `jikji prepare . --json` only when the request is in scope.\n"
     )
 
 
@@ -1706,50 +1697,30 @@ def strip_agent_rules_files(root: Path, *, dry_run: bool = False) -> dict[str, l
 def _agent_routes_markdown(manifest) -> str:
     return (
         "# Jikji Agent Routes\n\n"
-        "1. 먼저 `jikji find <root> \"질문\" --json`을 호출해 후보 목록과 evidence를 받는다.\n"
-        "2. 후보가 그럴듯하면 `answer_paths[]` 또는 `candidates[].p` 경로를 그대로 사용하고, 필요할 때만 `wiki`/`cache`를 읽는다.\n"
-        "3. 후보가 애매하면 `.jikji/graph_routes.jsonl`과 `.jikji/knowledge_graph.json`에서 term/intent/folder 이웃을 따라간다.\n"
-        "4. 자연어/내용 단서 후보는 `.jikji/file_cards.jsonl`와 `.jikji/chunk_map.jsonl`에서 보조 확인한다.\n"
-        "5. 폴더 후보는 `.jikji/folder_index.jsonl` 또는 `.jikji/folder_profile.jsonl`에서 찾는다.\n"
-        "6. 파일 후보는 `.jikji/file_index.jsonl`에서 찾는다.\n"
-        "7. 중복/백업 사본은 `.jikji/duplicate_map.jsonl`에서 확인한다.\n"
-        "8. PDF/Office/HWP 문서 본문은 `.jikji/doc_text/`에서 `rg`로 검색한다.\n"
-        "9. txt/md/csv/json/log 같은 텍스트형 파일은 원본 폴더에서 `.jikji`를 제외하고 검색한다.\n"
-        "10. 최종 접근은 `path` 필드의 원본 파일 경로를 사용한다.\n"
-        "11. 검색 작업 중 원본 파일을 이동/이름변경/삭제하지 않는다.\n\n"
+        "이 라우트는 명시적 또는 추론 가능한 제한 루트 아래에서 대상 경로가 불명확한 로컬 파일/폴더/메타데이터/문서 내용 탐색에만 적용됩니다.\n"
+        "1. 해당 범위이면 `jikji find <root> \\\"질문\\\" --json`을 먼저 호출해 후보와 evidence를 받는다.\n"
+        "2. 일반 QA/설명/코딩 조언/웹 검색, 알려진 경로 읽기·수정, 통계·프로세스·git·build/test/package 명령, 목록·LSP 심볼 조회에는 이 라우트를 사용하지 않는다.\n"
+        "3. 후보가 그럴듯하면 `answer_paths[]` 또는 `candidates[].p` 경로를 사용하고, 필요할 때만 `wiki`/`cache`를 읽는다.\n"
+        "4. 후보가 애매하면 `.jikji/graph_routes.jsonl`, `.jikji/file_cards.jsonl`, `.jikji/chunk_map.jsonl`을 보조 확인한다.\n"
+        "5. 최종 접근은 `path` 필드의 원본 파일 경로를 사용한다.\n\n"
         f"생성 시각: {manifest['generated_at']}\n"
         f"캐시 정책: {manifest.get('cache_key_policy', CACHE_KEY_POLICY)}\n"
     )
-
-
 def _agent_skill_context_markdown(manifest) -> str:
     return (
         "# Jikji Skill Context\n\n"
-        "Jikji는 검색기가 아니라 로컬 에이전트가 CLI에서 파일 시스템을 잘 찾도록 준비하는 도구입니다.\n"
-        "이 인덱스는 비파괴적으로 생성되었으며 원본 폴더/파일명은 변경하지 않았습니다.\n\n"
-        "## 절대 원칙 (MANDATORY)\n"
-        "이 폴더에는 Jikji 인덱스와 LLM Wiki/지식그래프가 이미 준비되어 있습니다. 로컬 파일/폴더/문서를 "
-        "찾을 때는 **무조건 `jikji find <root> \"질문\" --json`을 가장 먼저 호출**해서 "
-        "작은 후보군을 주입받습니다.\n"
-        "- 금지: 후보를 받기 전에 `grep`/`rg`/`ls`/`find`/`fd`/`cat`으로 파일시스템이나 `.jikji` 전체를 "
-        "헤매는 행위. 이것은 Jikji가 이미 끝낸 작업을 다시 하는 낭비입니다.\n"
-        "- 첫 행동은 항상 `jikji find <root> \"자연어 단서\" --json` 입니다.\n"
-        "- Jikji가 돌려준 `answer_paths[]` 또는 `candidates[].p`를 그대로 정답 경로로 사용하고, 필요하면 `candidates[].wiki` 또는 "
-        "상위 후보 원본만 열어 검증합니다.\n"
-        "- `grep`/`rg`/`ls`/`find`는 Jikji 후보가 **비어 있거나 명백히 틀렸을 때만** "
-        "최후의 수단으로 사용합니다.\n\n"
-        "검색 규칙: compact graph brief → `.jikji/graph_routes.jsonl`/`.jikji/knowledge_graph.json` → `.jikji/wiki/` → 기존 JSONL/문서 캐시 순서로 좁혀가세요.\n\n"
-        "## Read first\n"
-        "- `.jikji/agent_map.md`\n"
-        "- `.jikji/agent_routes.md`\n"
+        "Jikji는 제한된 로컬 파일/폴더/문서 탐색을 위한 도구입니다.\n"
+        "## 적용 범위\n"
+        "대상 경로가 불명확한 로컬 파일·폴더·메타데이터·문서 내용 탐색이며, 명시적 또는 추론 가능한 제한 루트가 필요합니다.\n"
+        "일반 QA/설명/코딩 조언/웹 검색, 알려진 경로 읽기·수정, 통계·프로세스·git·build/test/package 명령, 디렉터리 목록, LSP 심볼 조회에는 적용하지 않습니다.\n\n"
+        "## 검색 규칙\n"
+        "범위에 해당하면 `jikji find <root> \\\"질문\\\" --json`을 첫 호출로 사용하고 `handoff_action`을 따릅니다.\n"
         "- `.jikji/file_index.jsonl`\n"
         "- `.jikji/document_index.jsonl`\n"
         "- `.jikji/file_cards.jsonl`\n"
         "- `.jikji/chunk_map.jsonl`\n"
         "- `.jikji/duplicate_map.jsonl`\n"
-        "- `.jikji/autorag_manifest.json`\n"
     )
-
 
 def _human_guide_markdown(manifest) -> str:
     return (

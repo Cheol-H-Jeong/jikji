@@ -192,11 +192,12 @@ mod tests {
 
         assert!(first.installed);
         assert!(!second.installed);
-        assert!(
-            fs::read_to_string(dest)
-                .expect("skill")
-                .contains("Jikji Find First")
-        );
+        let installed = fs::read_to_string(dest).expect("skill");
+        assert!(installed.contains("Scope Gate: Jikji Find First"));
+        assert!(installed.contains("known-path reads or edits"));
+        assert!(!installed.contains("Absolute Rule: Jikji Find First"));
+        assert_eq!(installed, skill_markdown());
+
     }
 
     #[test]
@@ -247,9 +248,31 @@ mod tests {
         assert_eq!(written.matches(AGENT_RULES_BEGIN).count(), 1);
         assert!(written.contains(AGENT_RULES_END));
         assert!(written.contains("Keep this."));
-        assert!(written.contains("ABSOLUTE RULE — JIKJI FIRST"));
-        assert!(written.contains("exactly one Jikji retry"));
-        assert!(written.contains("raw_fallback_after_retry"));
+        assert!(written.contains("JIKJI SCOPE GATE"));
+        assert!(written.contains("local file/folder discovery intent"));
+        assert!(written.contains("Negative: read"));
+        assert!(written.contains("Retry proof and stop restrictions apply only to the discovery substep"));
+        assert!(!written.contains("ABSOLUTE RULE — JIKJI FIRST"));
+        assert!(!written.contains("Do not begin with grep, rg, glob, find, fd, ls, tree, cat, skills_list"));
+
+        for required in [
+            "only when ALL are true",
+            "target path is unknown or a corpus-content search",
+            "explicit or reasonably inferred bounded root",
+            "general QA, explanations, coding advice, web search",
+            "known-path reads or edits, file stats",
+            "process/git/build/test/package commands",
+            "directory listings, or LSP symbol navigation",
+            "A root's existence or the words file/search alone are not sufficient",
+            "Installation requires explicit user authorization",
+            "Explicit requests for Jikji admin commands are also allowed",
+            "exactly one Jikji retry",
+            "--after-jikji-retry --retry-proof RETRY_PROOF",
+            "raw_fallback_after_retry",
+            "not later reads, edits, or tests",
+        ] {
+            assert!(written.contains(required), "missing routing policy: {required}");
+        }
 
         let removed = remove_routing_block(&path).expect("remove");
         let final_text = fs::read_to_string(&path).expect("final read");
@@ -263,11 +286,29 @@ mod tests {
     fn embedded_skill_preserves_safety_contract() {
         let text = skill_markdown();
 
-        assert!(text.contains("Never move, rename, delete, or reorganize"));
-        assert!(text.contains("jikji find /explicit/root"));
+        assert!(text.contains("Scope Gate: Jikji Find First"));
+        assert!(text.contains("known-path reads or edits"));
+        assert!(text.contains("Installation requires explicit user authorization"));
         assert!(text.contains("Never run a second Jikji retry"));
         assert!(text.contains("raw_fallback_allowed=false"));
-        assert!(text.contains("On success, raw output is forbidden"));
+        assert!(text.contains("Retry proof and stop restrictions apply only to the discovery substep"));
+        for required in [
+            "require ALL",
+            "local file/folder discovery intent",
+            "target path is unknown",
+            "corpus-content search",
+            "explicit or reasonably inferred bounded root",
+            "general QA, explanations, coding advice, web search",
+            "process/git/build/test/package commands",
+            "LSP symbol navigation",
+            "Explicit Jikji admin requests are allowed separately",
+            "Known-path reads, edits, tests, and other requested work remain allowed",
+        ] {
+            assert!(text.contains(required), "missing skill policy: {required}");
+        }
+        assert!(!text.contains("do not invoke filesystem tools"));
+        assert!(!text.contains("Open original files only for final verification"));
+        assert!(!text.contains("Install it from GitHub instead of giving up"));
         assert_eq!(text, include_str!("../../../skills/jikji/SKILL.md"));
     }
 }

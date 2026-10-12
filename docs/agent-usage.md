@@ -1,8 +1,31 @@
 # Agent Usage
 
-Jikji is the local-file discovery skill. Use it when a task asks for a file,
-folder, filename, metadata, parsed document text, or the source file that answers
-a question under an explicit root.
+Jikji is only a local-file discovery and indexed document-content search tool.
+Call it only when all three conditions hold: the task needs local files/folders
+or evidence inside local documents; the target paths are unknown or a bounded
+corpus must be searched; and a specific local root is supplied or reasonably inferred.
+
+## Invocation gate — before choosing a tool
+
+- Use Jikji: find a lost invoice in Downloads; locate the folder containing a
+  project; find local HWP documents mentioning a contract clause.
+- Do not use Jikji for general questions, explanations, drafting, translation of
+  supplied text, web research, or coding advice without a local discovery need.
+- Do not rediscover a known file to read, edit, compare, or inspect it. Use the
+  file reader/editor/stat tool directly, including paths returned by Jikji.
+- Do not substitute Jikji for shell commands, process/port/disk diagnostics,
+  Git, builds, tests, dependency installation, directory listings, or LSP symbol
+  navigation. Use the relevant tool directly; no prerequisite Jikji call.
+- A root path, a working directory, or words such as "file", "find", "check",
+  and "search" alone do not establish discovery intent.
+- In mixed tasks, use Jikji only for the missing-path discovery subtask. Its
+  retry/stop rules do not restrict subsequent reading, editing, execution, or tests.
+- Explicit Jikji installation, indexing, diagnostics, and cleanup requests are
+  administrative tasks, not discovery; use the appropriate admin command without
+  running `find` first. Do not auto-install or index for unrelated requests.
+
+If the gate fails, skip Jikji entirely. Do not turn a general question into a
+local search just because this skill is installed.
 
 ## First Command
 
@@ -40,9 +63,9 @@ directory. That is the expected fast-start path; it is separate from `find`.
 
 ## Do Not Crawl First
 
-Do not start file discovery with `ls`, `find`, `rg`, `grep`, `tree`, or broad
-manual opening. Those are fallback actions only after the Jikji handoff contract
-allows them.
+Only after the invocation gate passes, prefer Jikji over a blind discovery crawl.
+The retry and fallback contract governs that discovery subtask only; it is not
+a global ban on file reads, shell commands, or other tools.
 
 ## Project-Local Routing Rules
 

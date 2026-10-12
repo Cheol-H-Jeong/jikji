@@ -52,7 +52,7 @@ pub(crate) fn run_agent_skill_install(args: AgentSkillArgs) -> jikji_core::Resul
         "installed_any": results.iter().any(|item| item.installed),
         "results": results,
         "post_install_prepare": post_install_prepare,
-        "after_install_protocol": "For every bounded local file/folder/document discovery request, call jikji find ROOT \"query\" --json first; obey its machine-readable retry and fallback fields.",
+        "after_install_protocol": "For local file/folder/document discovery with an unknown target path or corpus content under an explicit or inferred bounded root, call jikji find ROOT \\\"query\\\" --json first; do not use this route for general QA, explanations, coding advice, web search, known-path reads or edits, stats, process/git/build/test/package commands, directory listings, or LSP symbol lookup.",
         "discovery_routing": discovery_routing,
         "installed_skill_source": "embedded://skills/jikji/SKILL.md"
     });
@@ -97,7 +97,7 @@ pub(crate) fn run_skill_export(args: SkillExportArgs) -> jikji_core::Result<Exit
             "installed": result.installed,
             "message": result.message,
             "post_install_prepare": post_install_prepare,
-            "usage": "Point any coding/local agent's skill loader at this SKILL.md; bounded file discovery MUST invoke Jikji first.",
+            "usage": "Point a local agent's skill loader at this SKILL.md; use Jikji only when the bounded local-discovery scope gate holds.",
             "discovery_routing": discovery_routing,
             "installed_skill_source": "embedded://skills/jikji/SKILL.md"
         });
@@ -123,9 +123,29 @@ pub(crate) fn run_skill_export(args: SkillExportArgs) -> jikji_core::Result<Exit
 
 fn discovery_routing_contract() -> serde_json::Value {
     json!({
-        "trigger": "bounded_local_file_folder_metadata_or_document_discovery",
-        "first_command": "jikji find ROOT \"query\" --json",
+        "trigger": "local_file_folder_document_discovery_intent_with_unknown_target_or_corpus_content",
+        "scope": "explicit_or_inferred_bounded_root",
+        "all_conditions_required": true,
+        "root_existence_alone_is_not_trigger": true,
+        "file_or_search_words_alone_are_not_trigger": true,
+        "mixed_task_scope": "discovery_substep_only",
+        "retry_and_stop_scope": "discovery_only",
+        "explicit_jikji_administration_allowed": true,
+        "first_command": "jikji find ROOT \\\"query\\\" --json",
         "jikji_first": true,
+        "excluded_intents": [
+            "general_qa",
+            "explanations",
+            "coding_advice",
+            "web_search",
+            "known_path_read_or_edit",
+            "stats",
+            "process_commands",
+            "git_commands",
+            "build_test_package_commands",
+            "directory_listing",
+            "lsp_symbol_lookup"
+        ],
         "success_raw_fallback_allowed": false,
         "failure_sequence": ["jikji_find", "exactly_one_jikji_retry", "bounded_raw_fallback_if_allowed"],
         "max_jikji_retries": 1,

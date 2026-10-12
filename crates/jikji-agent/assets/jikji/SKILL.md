@@ -1,130 +1,120 @@
 ---
 name: jikji
-description: MUST use Jikji find first for bounded local file/folder/document discovery; return the machine-readable answer contract and never raw-crawl after a successful Jikji result.
+description: Use Jikji first only for bounded local file/folder discovery with an unknown target path or a corpus-content search; explicit Jikji administration is also supported.
 ---
 
 # Jikji Local File Discovery Skill
 
-Use this skill in any coding, desktop, or local-agent environment when the user
-asks you to find, identify, compare, or verify local files, folders, filenames,
-metadata, or document contents under an explicit root. Jikji is for discovery,
-not physical file organization.
+## Scope Gate: Jikji Find First
 
-When this skill is installed, it should be selected automatically for local
-file/folder/document discovery requests. Do not wait for the user to mention
-"Jikji" when the task is plainly about finding local paths under a bounded root.
+Before calling Jikji, require ALL of these conditions:
 
-Jikji is the first action for local file discovery because it turns blind
-filesystem crawling into a bounded candidate slate. In the main Hermes raw-vs-
-Jikji benchmark, it cut file-search calls and wall time by 10-30x while improving
-Hit@1, and total token/cost savings were higher.
+1. The task has local file/folder discovery intent, including locating filenames,
+   metadata, or documents by their contents.
+2. The target path is unknown, or the task requires a corpus-content search to
+   identify matching local files or documents.
+3. An explicit or reasonably inferred bounded root is available.
 
-## If Jikji Is Missing
+A root's existence alone, or the words "file" or "search" alone, is not enough.
+Do not use keyword matching to block legitimate discovery queries. Select this
+skill for the intent of the discovery substep, not every task in a repository.
 
-Install it from GitHub instead of giving up:
+Do not gate general QA, explanations, coding advice, web search, known-path
+reads or edits, file stats, process/git/build/test/package commands, directory
+listings (`ls`), or LSP symbol navigation behind Jikji. A targeted text lookup
+inside a known file is not corpus discovery. In a mixed task, apply this gate
+only to the discovery substep; later reads, edits, and tests proceed normally.
+Explicit Jikji admin requests are allowed separately and need no preliminary find.
 
-```bash
-mkdir -p ~/.local/share/jikji
-if [ ! -d ~/.local/share/jikji/repo/.git ]; then
-  git clone https://github.com/nomadamas/jikji.git ~/.local/share/jikji/repo
-fi
-cd ~/.local/share/jikji/repo
-git pull --ff-only
-cargo install --path crates/jikji-cli
-jikji --help
-```
+Examples:
 
-Then use the installed `jikji` binary on PATH. A GitHub Release binary is also
-valid when available. The shipped Rust binary is the default implementation for
-prepare/find/search, benchmarks, public-data adapters, and opt-in native OCR/ASR
-engine execution; it does not invoke the Python reference package.
+- Use Jikji: "Find last year's budget spreadsheet in ~/Documents."
+- Use Jikji: "Which documents under /work/contracts mention renewal?"
+- Mixed task: "Find the report and summarize it" uses Jikji to locate the
+  report, then reads the identified report to summarize it.
+- No Jikji: "Read /work/docs/report.pdf" or "Edit src/main.rs."
+- No Jikji: "Explain Rust ownership", "Search the web for Rust docs",
+  "Run cargo test", "Show git status", "Stat report.pdf", "List /work",
+  "Install a package", or "Go to this symbol's definition with LSP."
+- Explicit admin: "Refresh Jikji's index for /work/docs" runs refresh directly.
 
-`agent-skill-install` may queue a background prepare for common user material
-folders and document-heavy folders under the user's home directory. That initial
-prepare is separate from `jikji find`; it targets likely document locations and
-document extensions first so the first real lookup is usually served from an
-existing index.
+## Discovery Protocol
 
-## Absolute Rule: Jikji Find First
-
-When a bounded root is available, your first tool call for local file discovery
-must be:
+When the scope gate holds, the first discovery call MUST be:
 
 ```bash
 jikji find /explicit/root "natural language file clue" --json
 ```
 
-Do not start with `grep`, `rg`, `ls`, `find`, `fd`, `cat`, or `tree` to locate a
-file. Jikji has already built the local map, parser text cache, file cards,
-metadata routes, and graph routes needed for this step.
+Do not begin that discovery with raw `grep`, `rg`, `glob`, `find`, `fd`, `ls`,
+`cat`, or `tree`. This is not a general ban on those tools.
 
-`jikji find` searches existing indexes only. Every discovery request MUST inspect the JSON fields
-`index_status`, `handoff_action`, `answerability`, `retry_proof`, and `tool_call_policy`.
+`jikji find` searches existing indexes only. Inspect `index_status`,
+`handoff_action`, `answerability`, `retry_proof`, and `tool_call_policy`.
 
-If the index is missing, stale, unavailable, or the result is empty/clearly wrong, do not raw-crawl
-yet. Run exactly one sharper Jikji retry using the command in `next_commands[]` (or the same command
-with the alternate query), and pass `--after-jikji-retry --retry-proof RETRY_PROOF` when supported.
-Never run a second Jikji retry. If that one retry still fails, remains empty, or remains clearly wrong,
-the contract will set `handoff_action=raw_fallback_after_retry` and permit only its bounded raw fallback.
-If Jikji succeeds (`handoff_action=direct_use` or `answerability=answerable_from_payload`), raw fallback
-is forbidden: return `answer_paths[]`/`paths[]` in Jikji order and do not invoke filesystem tools.
+If the index is missing, stale, unavailable, or the result is empty/clearly
+wrong, run exactly one sharper Jikji retry using `next_commands[]` (or an
+alternate query), with `--after-jikji-retry --retry-proof RETRY_PROOF` when
+supported. Never run a second Jikji retry. Raw fallback is allowed only when
+that retry yields `handoff_action=raw_fallback_after_retry` and permits it.
 
-If the root is not prepared and the user authorizes setup, run:
+Interpret the JSON contract within this discovery request only:
 
-```bash
-jikji prepare /explicit/root --json
-```
-
-Interpret the JSON contract:
-
-- `answer_paths[]` is the primary ordered answer list.
-- `paths[]` is the public path list to return when the user only needs paths.
-- `candidates[]` is the merged top-k slate from multiple query/search routes.
-- `evidence_pack[].next_read` and `candidates[].next_read` identify the cheapest
-  bounded verification target: `cache`, `wiki`, `original`, or `none`.
-- `handoff_action=direct_use` means accept the payload and avoid broad crawling.
-- `handoff_action=jikji_retry` means run exactly one sharper `jikji find` retry.
-- `handoff_action=raw_fallback_after_retry` means raw filesystem search is
-  allowed only after that retry failed, stayed empty, or stayed clearly wrong.
-- `index_status` values such as `missing`, `stale`, or `failure` are bounded
-  recovery signals, not permission for immediate raw crawling.
-- `max_jikji_retries` MUST be `1` before fallback and `max_raw_fallback_commands`
-  is the hard ceiling after fallback. Treat `raw_fallback_allowed=false` as an
-  absolute prohibition.
-- On success, raw output is forbidden even if a tempting path is visible elsewhere.
+- `answer_paths[]` is the primary ordered answer list; `paths[]` is the public
+  path list. `candidates[]` is the merged top-k slate.
+- `evidence_pack[].next_read` and `candidates[].next_read` identify bounded
+  verification targets: `cache`, `wiki`, `original`, or `none`.
+- `handoff_action=direct_use` or `answerability=answerable_from_payload` means
+  accept the payload and do not repeat discovery with raw tools.
+- `handoff_action=jikji_retry` means run the one sharper discovery retry.
+- `index_status` values such as `missing`, `stale`, or `failure` are recovery
+  signals, not permission for immediate raw discovery.
+- `max_jikji_retries` is `1` before fallback; `max_raw_fallback_commands` is
+  the fallback command ceiling. `raw_fallback_allowed=false` prohibits raw
+  discovery fallback, not subsequent reading, editing, or testing.
 - If `agent_should_not_rerank` is true, preserve Jikji's order.
 
-## Stop Rule: Do Not Over-Call After a Sufficient Find
+## Stop Rule: Stop Discovery, Not The Task
 
-`jikji find --json` returns a `tool_call_policy` object that you MUST obey:
+Retry proof and stop restrictions apply only to the discovery substep.
+When `tool_call_policy.stop_after_find` is true, do not make another discovery
+call to re-find or re-rank sufficient results. Interpret
+`tool_call_policy.forbidden_tools` only as restrictions on repeated discovery,
+not blanket tool bans. Within discovery, use `allowed_followups` for bounded
+verification of the top path or return `answer_paths[]`/`paths[]` as-is.
 
-- When `tool_call_policy.stop_after_find` is true (i.e. `handoff_action=direct_use`,
-  `answerability=answerable_from_payload`, or `agent_should_not_rerank=true`), the
-  result is already sufficient. Do NOT call any tool in
-  `tool_call_policy.forbidden_tools` (`read_file`, `search`, `grep`, `rg`, `find`,
-  `fd`, `ls`, `cat`, `tree`, `glob`, `skills_list`, etc.).
-- The only allowed follow-ups are in `tool_call_policy.allowed_followups`: verify the
-  top 1 path, or return `answer_paths`/`paths` to the user as-is.
-- You may call another discovery tool only when `stop_after_find` is false and
-  `handoff_action` explicitly permits `jikji_retry` or `raw_fallback_after_retry`.
+Known-path reads, edits, tests, and other requested work remain allowed after
+successful discovery, even if their tools appear in `forbidden_tools`.
+Another discovery call requires `stop_after_find=false` and an explicit
+`jikji_retry` or `raw_fallback_after_retry` handoff.
 
-For a single path-only answer you may add `--first`, but the default public
-protocol remains `jikji find ROOT "query" --json`.
+For a single path-only answer, `--first` is optional; the default protocol is
+`jikji find ROOT "query" --json`.
+
+## Availability And Authorized Setup
+
+If Jikji is missing, report that limitation; do not automatically clone, pull,
+or install it. Installation requires explicit user authorization, including
+any installation outside the repository. If no command can run, report that
+no retry proof is available rather than pretending the retry succeeded.
+
+If the root is not prepared, run `jikji prepare /explicit/root --json` only
+when the user authorizes setup. Discovery itself does not authorize indexing
+new locations or changing the environment.
 
 ## Safety Contract
 
-- Never move, rename, delete, or reorganize source files.
-- Never scan all drives by default; require or infer a bounded explicit root.
-- Treat `.jikji/doc_text/` as sensitive because it may contain extracted document
-  text.
-- Do not commit `.jikji/` or `.jikji_agent_map.md` unless the user explicitly
-  wants generated artifacts tracked.
-- Open original files only for final verification after Jikji returned likely
-  paths.
+- Never move, rename, delete, or reorganize source files as part of discovery.
+  This does not block a separately requested edit of an identified file.
+- Never scan all drives by default; require or infer a bounded root.
+- Treat `.jikji/doc_text/` as sensitive extracted document text.
+- Do not commit `.jikji/` or `.jikji_agent_map.md` unless explicitly requested.
+- Original files may be read directly when their paths are already known,
+  including for the requested work after discovery.
 
 ## Admin Commands
 
-Use these only for setup, refresh, diagnostics, or cleanup:
+For explicit setup, refresh, diagnostics, or cleanup requests, without a find:
 
 ```bash
 jikji prepare /explicit/root --json
@@ -135,48 +125,35 @@ jikji clean /explicit/root --dry-run --json
 jikji clean /explicit/root --json
 ```
 
-## Human GUI Handoff
-
-If the user asks to see or manage Jikji state visually:
+For an explicit visual management request:
 
 ```bash
 jikji gui /explicit/root --background --json
 ```
 
-Return the JSON `url`. The dashboard shows prepare status, LLM Wiki/knowledge
-graph counts, artifact presence, refresh/root-switch controls, and optional
-search/open/download actions.
+Return the JSON `url`. The dashboard provides status, refresh/root-switch
+controls, and optional search/open/download actions.
 
-## Last-Resort Fallback
+## Bounded Discovery Fallback
 
-Only after the JSON contract allows raw fallback:
+Only after the discovery JSON contract permits raw fallback, use its bounded
+command allowance. Prefer `.jikji_agent_map.md`, `.jikji/wiki/index.md`,
+`.jikji/graph_routes.jsonl`, and parser-extracted `.jikji/doc_text/` evidence
+before searching original document bodies. Search native text-like files in
+original locations as the final discovery fallback. These restrictions do not
+apply to normal known-path reads or edits.
 
-```bash
-cat /explicit/root/.jikji_agent_map.md
-cat /explicit/root/.jikji/wiki/index.md
-rg "keyword" /explicit/root/.jikji/graph_routes.jsonl
-rg "keyword" /explicit/root/.jikji/*.jsonl
-rg "keyword" /explicit/root/.jikji/doc_text
-rg "keyword" /explicit/root --glob '!**/.jikji/**'
-```
-
-Use parser-extracted `.jikji/doc_text/` for PDF/HWP/HWPX/Office document bodies.
-Search native text-like files in original locations only as the final fallback.
-
-For media OCR/ASR and archive-member body indexing, use the explicit bounded mode:
+For explicitly authorized media OCR/ASR or archive-member body indexing:
 
 ```bash
 jikji deep-index /explicit/root --json
 ```
 
-The default `prepare` indexes document and code contents, while media and archive
-files remain metadata/name searchable only. `deep-index` enables native OCR/ASR
-when configured through `JIKJI_OCR_ENGINE` or `JIKJI_ASR_ENGINE`, and parses safe
-archive members incrementally under entry-count and byte limits. Re-running it
-is incremental and preserves traversal/bomb/timeout limits.
+Default `prepare` indexes document and code contents; media and archives remain
+metadata/name searchable. `deep-index` enables configured `JIKJI_OCR_ENGINE`
+or `JIKJI_ASR_ENGINE` and bounded safe archive parsing incrementally.
 
 ## Evaluation
 
-For actual-agent comparison, headline comparisons should be raw local agent vs
-the same agent with Jikji attached. Public reports should label the Jikji side as
-`Jikji find`.
+Compare the same agent with and without Jikji for actual local discovery tasks.
+Label the Jikji side `Jikji find`.
