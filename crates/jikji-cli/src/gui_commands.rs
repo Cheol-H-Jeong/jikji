@@ -13,6 +13,7 @@ use crate::output::print_json;
 mod access;
 mod http;
 mod jobs;
+mod preview;
 mod routing;
 mod scenarios;
 mod token;
@@ -226,6 +227,8 @@ mod tests {
             "nav-overview", "nav-search", "nav-index", "nav-tools", "manage-token",
             "search-query", "roots-panel", "files-panel", "indexed-panel", "settings-dialog",
             "search-split", "index-split", "search-preview-pane", "index-preview-pane",
+            "search-preview-modes", "index-preview-modes", "search-snippet-tab", "search-file-tab",
+            "index-snippet-tab", "index-file-tab",
             "search-preview-back", "index-preview-back", "logout", "confirm-dialog", "jobs-strip", "cancel-job"] {
             assert!(markup.contains(&format!("id=\"{id}\"")), "missing {id}");
         }
@@ -237,7 +240,10 @@ mod tests {
         assert!(markup.contains("class=\"skeleton\""));
         assert!(!INDEX_HTML.contains("preview-dialog"));
         assert!(markup.contains("파일을 선택하면 여기에 미리보기가 표시됩니다"));
-        assert!(markup.contains("grid-template-columns:minmax(0,2fr) minmax(0,3fr)"));
+        assert!(markup.contains("grid-template-columns:minmax(0,3fr) minmax(0,2fr)"));
+        for scope in ["search", "index"] {
+            assert!(markup.contains(&format!("id=\"{scope}-preview-modes\" class=\"preview-modes\" role=\"tablist\"")));
+        }
         assert!(INDEX_HTML.find("</main>").unwrap() < INDEX_HTML.find("fetch(").unwrap());
     }
     #[test]
@@ -245,6 +251,7 @@ mod tests {
         let script = INDEX_HTML.split("<script>").nth(1).unwrap();
         for route in ["/api/status", "/api/roots", "/api/files", "/api/indexed-files",
             "/api/find", "/api/preview", "/api/preview/file", "/api/settings",
+            "/api/snippet", "/api/preview/pages", "/api/preview/page?",
             "/api/scenarios", "/api/scenario-run", "/api/doctor", "/api/map", "/api/graph",
             "/api/brief", "/api/clean", "/api/root", "/api/remove-root", "/api/refresh",
             "/api/reindex", "/api/reindex-folder", "/api/remove-folder", "/api/deep-index",
@@ -261,6 +268,13 @@ mod tests {
         assert!(script.contains("response.status===401"));
         assert!(script.contains("location.reload()"));
         assert!(script.contains("d.binary_url.startsWith(\"/api/preview/file\")"));
+        assert!(script.contains("new URL(url,location.origin).origin===location.origin"));
+        assert!(script.contains("modeSeq===p[modeKey]"));
+        assert!(script.contains("snippetSeq"));
+        assert!(script.contains("fileSeq"));
+        assert!(script.contains("img.loading=index===0?\"eager\":\"lazy\""), "first page loads at once, the rest lazily");
+        assert!(script.contains("ArrowLeft"));
+        assert!(script.contains("ArrowRight"));
         assert!(script.contains("document.createTextNode"));
         assert!(script.contains("el(\"mark\""));
         assert!(script.contains("aria-selected"));

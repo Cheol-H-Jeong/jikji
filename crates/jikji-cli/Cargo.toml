@@ -24,6 +24,7 @@ jikji-public-datasets.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tempfile.workspace = true
+hayro = "0.8"
 
 [dev-dependencies]
 rusqlite = { version = "0.32", features = ["bundled"] }

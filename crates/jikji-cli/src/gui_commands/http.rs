@@ -187,7 +187,6 @@ impl HttpResponse {
         self
     }
 
-    #[cfg(test)]
     pub(crate) fn status(&self) -> u16 {
         self.status
     }

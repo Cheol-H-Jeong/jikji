@@ -14,6 +14,7 @@ use super::http::{
     HttpRequest, HttpResponse, malformed_request, query_bool, query_flag, query_value, query_values,
 };
 use super::jobs::{JobRegistry, snapshot_response};
+use super::preview;
 use super::scenarios;
 use super::token::ManagementToken;
 use jikji_core::PrepareOptions;
@@ -110,6 +111,9 @@ pub(crate) fn route_request(
         ("GET", "/api/scenario-run") => scenario_response(state, &request.query),
         ("GET", "/api/preview") => preview_response(state, &request.query),
         ("GET", "/api/preview/file") => preview_file_response(state, request),
+        ("GET", "/api/snippet") => snippet_response(state, &request.query),
+        ("GET", "/api/preview/pages") => preview_pages_response(state, &request.query),
+        ("GET", "/api/preview/page") => preview_page_response(state, &request.query),
         ("GET", "/api/doctor") => with_root(state, doctor_response),
         ("GET", "/api/map") => with_root(state, map_response),
         ("GET", "/api/graph") => with_root(state, |root| graph_response(root, &request.query)),
@@ -832,9 +836,10 @@ fn preview_file_response(state: &GuiState, request: &HttpRequest) -> HttpRespons
         .unwrap_or_default()
         .to_ascii_lowercase();
     if renderer.kind == PreviewKind::Pdf && extension != "pdf" {
-        return match convert_document_to_pdf(&path, renderer.name == "rwhp") {
+        // Shares the converted PDF with the page-image endpoints instead of converting again.
+        return match preview::cached_pdf(&path, || convert_document_to_pdf(&path, renderer.name == "rwhp")) {
             Ok(body) if body.len() as u64 <= MAX_BINARY_PREVIEW_BYTES => {
-                HttpResponse::binary(200, body, media_type)
+                HttpResponse::binary(200, body.as_ref().clone(), media_type)
             }
             Ok(_) => HttpResponse::json(413, json!({"error":"preview target is too large"})),
             Err(error) => HttpResponse::json(
@@ -865,6 +870,122 @@ fn preview_file_response(state: &GuiState, request: &HttpRequest) -> HttpRespons
         );
     }
     response
+}
+
+/// Root and file named by a preview request, or the error response to send.
+fn preview_target(state: &GuiState, query: &str) -> std::result::Result<PathBuf, HttpResponse> {
+    let root = requested_search_root(state, query)?;
+    let rel = query_value(query, "path")
+        .or_else(|| query_value(query, "p"))
+        .ok_or_else(|| HttpResponse::json(400, json!({"error":"missing path"})))?;
+    resolve_root_path(&root, &rel)
+}
+
+/// Indexed text for a file: works for every indexed file, needs no converter.
+fn snippet_response(state: &GuiState, query: &str) -> HttpResponse {
+    let root = match requested_search_root(state, query) {
+        Ok(root) => root,
+        Err(response) => return response,
+    };
+    let Some(rel) = query_value(query, "path").or_else(|| query_value(query, "p")) else {
+        return HttpResponse::json(400, json!({"error":"missing path"}));
+    };
+    // A file that moved since indexing still has its indexed text; only escapes are refused.
+    let full = match resolve_root_path(&root, &rel) {
+        Ok(path) => Some(path),
+        Err(response) if response.status() == 404 => None,
+        Err(response) => return response,
+    };
+    let q = query_value(query, "q").unwrap_or_default();
+    HttpResponse::json(200, preview::snippet_payload(&root, rel.trim_matches('/'), full.as_deref(), &q))
+}
+
+/// PDF bytes for page-image preview: the file itself, or a converted Office/HWP document.
+fn preview_pdf(path: &Path) -> std::result::Result<(std::sync::Arc<Vec<u8>>, &'static str), HttpResponse> {
+    if !path.is_file() {
+        return Err(HttpResponse::json(400, json!({"error":"preview target is not a file"})));
+    }
+    let renderer = preview_renderer(path);
+    if renderer.kind != PreviewKind::Pdf {
+        return Err(HttpResponse::json(415, json!({"error":"page preview is only for documents"})));
+    }
+    if !renderer.available {
+        return Err(HttpResponse::json(503, json!({"error":"renderer unavailable","renderer":renderer.name})));
+    }
+    let native = path
+        .extension()
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("pdf"));
+    let size = path.metadata().map(|metadata| metadata.len()).unwrap_or(u64::MAX);
+    if size > preview::MAX_PAGE_PREVIEW_PDF_BYTES {
+        return Err(HttpResponse::json(413, json!({"error":"preview target is too large"})));
+    }
+    let converter = if native { "native-pdf" } else { "libreoffice" };
+    let bytes = preview::cached_pdf(path, || {
+        if native {
+            fs::read(path).map_err(|error| error.to_string())
+        } else {
+            convert_document_to_pdf(path, renderer.name == "rwhp")
+        }
+    })
+    .map_err(|detail| {
+        HttpResponse::json(422, json!({"error":"preview conversion failed","renderer":renderer.name,"detail":detail}))
+    })?;
+    if bytes.len() as u64 > preview::MAX_PAGE_PREVIEW_PDF_BYTES {
+        return Err(HttpResponse::json(413, json!({"error":"preview target is too large"})));
+    }
+    Ok((bytes, converter))
+}
+
+fn preview_pages_response(state: &GuiState, query: &str) -> HttpResponse {
+    let path = match preview_target(state, query) {
+        Ok(path) => path,
+        Err(response) => return response,
+    };
+    let (bytes, converter) = match preview_pdf(&path) {
+        Ok(pdf) => pdf,
+        Err(response) => return response,
+    };
+    let pages = match preview::page_count(&bytes) {
+        Ok(pages) => pages,
+        Err(detail) => {
+            return HttpResponse::json(422, json!({"error":"preview render failed","detail":detail}));
+        }
+    };
+    let base = query
+        .split('&')
+        .filter(|pair| !pair.starts_with("page=") && !pair.starts_with("q="))
+        .collect::<Vec<_>>()
+        .join("&");
+    let listed = pages.min(preview::MAX_PREVIEW_PAGES);
+    let page_urls = (1..=listed)
+        .map(|page| format!("/api/preview/page?{base}&page={page}"))
+        .collect::<Vec<_>>();
+    HttpResponse::json(
+        200,
+        json!({"pages": pages, "page_urls": page_urls, "truncated_pages": pages > listed, "converter": converter}),
+    )
+}
+
+fn preview_page_response(state: &GuiState, query: &str) -> HttpResponse {
+    let path = match preview_target(state, query) {
+        Ok(path) => path,
+        Err(response) => return response,
+    };
+    let Some(page) = query_value(query, "page").and_then(|value| value.parse::<usize>().ok()) else {
+        return HttpResponse::json(400, json!({"error":"missing page"}));
+    };
+    if page == 0 || page > preview::MAX_PREVIEW_PAGES {
+        return HttpResponse::json(404, json!({"error":"page out of range"}));
+    }
+    let (bytes, _) = match preview_pdf(&path) {
+        Ok(pdf) => pdf,
+        Err(response) => return response,
+    };
+    match preview::render_page_png(&bytes, page) {
+        Ok(Some(png)) => HttpResponse::binary(200, png, "image/png"),
+        Ok(None) => HttpResponse::json(404, json!({"error":"page out of range"})),
+        Err(detail) => HttpResponse::json(422, json!({"error":"preview render failed","detail":detail})),
+    }
 }
 
 fn convert_document_to_pdf(path: &Path, prefer_rwhp: bool) -> std::result::Result<Vec<u8>, String> {
@@ -977,7 +1098,7 @@ fn converted_pdf_in(dir: &Path, source: &Path) -> std::result::Result<Vec<u8>, S
 
 /// Text preview of at most `MAX_TEXT_PREVIEW_BYTES`. Returns `(content, truncated)`; larger
 /// text files are cut at the limit (on a UTF-8 boundary) instead of being refused.
-fn read_text_preview(path: &Path) -> std::io::Result<Option<(String, bool)>> {
+pub(super) fn read_text_preview(path: &Path) -> std::io::Result<Option<(String, bool)>> {
     let mut bytes = Vec::new();
     File::open(path)?
         .take(MAX_TEXT_PREVIEW_BYTES + 1)
@@ -1006,7 +1127,7 @@ fn read_text_preview(path: &Path) -> std::io::Result<Option<(String, bool)>> {
     Ok(Some((text, truncated)))
 }
 
-fn match_ranges(content: &str, query: &str) -> Vec<serde_json::Value> {
+pub(super) fn match_ranges(content: &str, query: &str) -> Vec<serde_json::Value> {
     if query.is_empty() {
         return Vec::new();
     }

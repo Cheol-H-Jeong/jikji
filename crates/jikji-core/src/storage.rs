@@ -563,8 +563,33 @@ pub fn count_artifacts_with_ext(root: &Path, kind: &str, extensions: &[&str]) ->
 }
 
 pub fn load_artifact_by_path(root: &Path, kind: &str, path: &str) -> Result<Option<Value>> {
-    let values = load_artifacts(root, kind)?;
-    Ok(values.into_iter().find(|value| value.get("path").and_then(Value::as_str) == Some(path)))
+    Ok(load_artifacts_for_path(root, kind, path, 1)?.into_iter().next())
+}
+
+/// Rows of `kind` whose `path` equals `path`, in insertion order, at most `limit` of them.
+/// Uses the `(root_id, kind, path)` index, so it stays fast on very large roots.
+pub fn load_artifacts_for_path(root: &Path, kind: &str, path: &str, limit: usize) -> Result<Vec<Value>> {
+    migrate_legacy(root)?;
+    let connection = open_database()?;
+    let Some(root_id) = root_id(&connection, root)? else { return Ok(Vec::new()); };
+    let mut statement = connection
+        .prepare(
+            "SELECT ordinal, row_json FROM artifacts
+             WHERE root_id=?1 AND kind=?2 AND json_extract(row_json, '$.path')=?3
+             ORDER BY ordinal LIMIT ?4",
+        )
+        .map_err(sqlite_error_path)?;
+    let limit = i64::try_from(limit).unwrap_or(i64::MAX);
+    let rows = statement
+        .query_map(params![root_id, kind, path, limit], |row| {
+            Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+        })
+        .map_err(sqlite_error_path)?;
+    rows.map(|row| {
+        let (ordinal, raw) = row.map_err(sqlite_error_path)?;
+        restore_row(&connection, ordinal, &raw)
+    })
+    .collect()
 }
 
 pub fn load_artifact_paths(root: &Path, kind: &str) -> Result<HashSet<String>> {

@@ -623,6 +623,91 @@ fn gui_preview_converts_office_files_whose_names_contain_dots() {
     assert!(file.contains("Content-Type: application/pdf"), "{file}");
 }
 
+/// Minimal valid DOCX (Office Open XML) holding `text` as one paragraph.
+fn minimal_docx(text: &str) -> Vec<u8> {
+    use zip::write::SimpleFileOptions;
+    let mut bytes = std::io::Cursor::new(Vec::new());
+    let mut zip = zip::ZipWriter::new(&mut bytes);
+    let options = SimpleFileOptions::default();
+    let parts = [
+        ("[Content_Types].xml", r#"<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>"#.to_owned()),
+        ("_rels/.rels", r#"<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>"#.to_owned()),
+        ("word/document.xml", format!(r#"<?xml version="1.0" encoding="UTF-8"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>{text}</w:t></w:r></w:p></w:body></w:document>"#)),
+    ];
+    for (name, body) in parts {
+        zip.start_file(name, options).expect("zip entry");
+        zip.write_all(body.as_bytes()).expect("zip body");
+    }
+    zip.finish().expect("zip finish");
+    bytes.into_inner()
+}
+
+#[test]
+fn gui_snippet_mode_shows_indexed_text_for_every_file() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let root = temp.path().join("root");
+    fs::create_dir(&root).expect("root");
+    fs::write(root.join("report.docx"), minimal_docx("quarterly revenue snippet marker")).expect("docx");
+    fs::write(root.join("notes.md"), "# notes\nplain markdown body marker").expect("md");
+    fs::write(root.join("blob.bin"), [0u8, 1, 2, 3, 255]).expect("bin");
+    json_cmd(["prepare", path_str(&root).as_str(), "--json"]);
+    let gui = GuiChild::start(&root);
+
+    let docx = response_json(&gui.get("/api/snippet?path=report.docx&q=revenue"));
+    assert_eq!(docx["source"], "index_cache", "{docx}");
+    let text = docx["text"].as_str().expect("text");
+    assert!(text.contains("quarterly revenue snippet marker"), "{text}");
+    assert!(!text.contains("# Source:"), "cache header must be stripped: {text}");
+    assert_eq!(docx["matches"].as_array().expect("matches").len(), 1);
+
+    let md = response_json(&gui.get("/api/snippet?path=notes.md"));
+    assert!(md["text"].as_str().expect("text").contains("plain markdown body marker"), "{md}");
+
+    let bin = response_json(&gui.get("/api/snippet?path=blob.bin"));
+    assert_eq!(bin["source"], "metadata", "{bin}");
+    assert_eq!(bin["metadata"]["name"], "blob.bin");
+    assert_eq!(bin["metadata"]["size"], 5);
+
+    // A file removed after indexing keeps its indexed snippet.
+    fs::remove_file(root.join("report.docx")).expect("remove");
+    let moved = response_json(&gui.get("/api/snippet?path=report.docx"));
+    assert!(moved["text"].as_str().expect("text").contains("snippet marker"), "{moved}");
+
+    assert_rejected(&gui.get("/api/snippet?path=../outside.txt"));
+    assert!(gui.get_anonymous("/api/snippet?path=notes.md").starts_with("HTTP/1.1 401"));
+}
+
+#[test]
+fn gui_file_preview_mode_renders_office_pages_as_images() {
+    if ["libreoffice", "soffice"]
+        .iter()
+        .all(|name| std::process::Command::new(name).arg("--version").output().is_err())
+    {
+        eprintln!("skipping: LibreOffice is not installed");
+        return;
+    }
+    let temp = tempfile::tempdir().expect("tempdir");
+    let root = temp.path().join("root");
+    fs::create_dir(&root).expect("root");
+    fs::write(root.join("deck_v1.2.docx"), minimal_docx("page image marker")).expect("docx");
+    fs::write(root.join("notes.md"), "not a document").expect("md");
+    let gui = GuiChild::start(&root);
+
+    let pages = response_json(&gui.get("/api/preview/pages?path=deck_v1.2.docx"));
+    assert_eq!(pages["pages"], 1, "{pages}");
+    assert_eq!(pages["converter"], "libreoffice");
+    let url = pages["page_urls"][0].as_str().expect("page url");
+    assert!(url.starts_with("/api/preview/page?") && url.ends_with("&page=1"), "{url}");
+
+    let image = gui.get(url);
+    assert!(image.starts_with("HTTP/1.1 200"), "{}", &image[..image.len().min(300)]);
+    assert!(image.contains("Content-Type: image/png"));
+    assert!(image.contains("\u{fffd}PNG") || image.contains("PNG\r\n"), "body is a PNG");
+    assert!(gui.get("/api/preview/page?path=deck_v1.2.docx&page=2").starts_with("HTTP/1.1 404"));
+    assert!(gui.get("/api/preview/pages?path=notes.md").starts_with("HTTP/1.1 415"));
+    assert_rejected(&gui.get("/api/preview/pages?path=../outside.docx"));
+}
+
 fn response_json(response: &str) -> serde_json::Value {
     let (_, body) = response.split_once("\r\n\r\n").expect("HTTP body");
     serde_json::from_str(body).expect("JSON response")
