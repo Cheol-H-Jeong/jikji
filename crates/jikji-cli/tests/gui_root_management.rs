@@ -177,6 +177,7 @@ fn prepare(root: &Path, data_dir: &Path) {
 struct GuiChild {
     port: u16,
     token: String,
+    session: String,
     child: Child,
 }
 
@@ -186,6 +187,7 @@ impl GuiChild {
         let port = listener.local_addr().expect("address").port();
         drop(listener);
         let token = format!("root-management-{port}");
+        let access_token = format!("root-management-access-{port}");
         let child = Command::new(env!("CARGO_BIN_EXE_jikji"))
             .args([
                 "gui",
@@ -198,6 +200,8 @@ impl GuiChild {
                 "--serve-child",
                 "--manage-token",
                 &token,
+                "--access-token",
+                &access_token,
             ])
             .env("JIKJI_DATA_DIR", data_dir)
             .env(
@@ -220,26 +224,45 @@ impl GuiChild {
             );
             std::thread::sleep(Duration::from_millis(25));
         }
-        Self { port, token, child }
+        let mut gui = Self {
+            port,
+            token,
+            session: String::new(),
+            child,
+        };
+        let login = gui.send("POST", "/api/login", &format!("token={access_token}"));
+        gui.session = login
+            .lines()
+            .find_map(|line| line.strip_prefix("Set-Cookie: "))
+            .and_then(|value| value.split(';').next())
+            .map(str::to_owned)
+            .unwrap_or_else(|| panic!("GUI login failed: {login}"));
+        gui
     }
 
     fn get(&self, path: &str) -> String {
-        self.request("GET", path)
+        self.send("GET", path, "")
     }
 
     fn post(&self, path: &str) -> String {
-        self.request("POST", path)
+        self.send("POST", path, "")
     }
 
-    fn request(&self, method: &str, path: &str) -> String {
+    fn send(&self, method: &str, path: &str, body: &str) -> String {
         let mut stream = TcpStream::connect(("127.0.0.1", self.port)).expect("connect");
         stream
             .set_read_timeout(Some(Duration::from_secs(30)))
             .expect("timeout");
+        let cookie = if self.session.is_empty() {
+            String::new()
+        } else {
+            format!("Cookie: {}\r\n", self.session)
+        };
         write!(
             stream,
-            "{method} {path} HTTP/1.1\r\nHost: 127.0.0.1:{}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n",
-            self.port
+            "{method} {path} HTTP/1.1\r\nHost: 127.0.0.1:{}\r\nConnection: close\r\n{cookie}Content-Type: application/x-www-form-urlencoded\r\nContent-Length: {}\r\n\r\n{body}",
+            self.port,
+            body.len()
         )
         .expect("request");
         let mut response = String::new();

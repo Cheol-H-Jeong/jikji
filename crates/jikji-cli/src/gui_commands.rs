@@ -10,12 +10,14 @@ use serde_json::json;
 use crate::args::GuiArgs;
 use crate::output::print_json;
 
+mod access;
 mod http;
 mod jobs;
 mod routing;
 mod scenarios;
 mod token;
 
+use access::{AccessGate, Gate, security_headers};
 use routing::{GuiState, route_request};
 use token::ManagementToken;
 
@@ -38,6 +40,7 @@ pub(crate) fn run_gui(args: GuiArgs) -> jikji_core::Result<ExitCode> {
         Some(value) => ManagementToken::new(value),
         None => ManagementToken::generate()?,
     };
+    let access_token = access_token(args.access_token.clone())?;
     // Warm the central SQLite BEFORE binding the port. This way, when the
     // hub ready check (TCP connect) succeeds, the expensive first open_database
     // + register_root (which can take 10s+ on a large index with 50k+ docs) has
@@ -57,12 +60,30 @@ pub(crate) fn run_gui(args: GuiArgs) -> jikji_core::Result<ExitCode> {
             "url": url,
             "root": root,
             "background": false,
-            "manage_token": token.as_str()
+            "manage_token": token.as_str(),
+            "access_token": access_token.as_str()
         }))?;
     } else if !args.serve_child {
         println!("Jikji GUI: {url}");
+        println!("Access token: {}", access_token.as_str());
     }
-    serve_loop(listener, GuiState::new(root, token))
+    let gate = AccessGate::new(access_token, args.allow_host);
+    serve_loop(listener, GuiState::new(root, token), gate)
+}
+
+/// Console login token: `--access-token`, else `$JIKJI_GUI_ACCESS_TOKEN`, else a random one.
+fn access_token(flag: Option<String>) -> jikji_core::Result<ManagementToken> {
+    let configured = flag
+        .or_else(|| std::env::var("JIKJI_GUI_ACCESS_TOKEN").ok())
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty());
+    match configured {
+        Some(value) if value.len() < 16 => {
+            Err(invalid_input("GUI access token must be at least 16 characters"))
+        }
+        Some(value) => Ok(ManagementToken::new(value)),
+        None => ManagementToken::generate(),
+    }
 }
 
 fn spawn_background(args: GuiArgs) -> jikji_core::Result<ExitCode> {
@@ -72,6 +93,7 @@ fn spawn_background(args: GuiArgs) -> jikji_core::Result<ExitCode> {
         args.port
     };
     let token = ManagementToken::generate()?;
+    let access_token = access_token(args.access_token.clone())?;
     let exe =
         std::env::current_exe().map_err(|source| jikji_core::io_error("<current-exe>", source))?;
     let mut command = Command::new(exe);
@@ -86,9 +108,14 @@ fn spawn_background(args: GuiArgs) -> jikji_core::Result<ExitCode> {
         .arg("--serve-child")
         .arg("--manage-token")
         .arg(token.as_str())
+        // Passed through the environment so the token never shows up in `ps` output.
+        .env("JIKJI_GUI_ACCESS_TOKEN", access_token.as_str())
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
+    for host in &args.allow_host {
+        command.arg("--allow-host").arg(host);
+    }
     if args.prepare {
         command.arg("--prepare");
     }
@@ -103,12 +130,14 @@ fn spawn_background(args: GuiArgs) -> jikji_core::Result<ExitCode> {
         "root": args.root,
         "background": true,
         "manage_token": token.as_str(),
+        "access_token": access_token.as_str(),
         "cleanup": cleanup_command(child.id()),
     });
     if args.json {
         print_json(&payload)?;
     } else {
         println!("{url}");
+        println!("Access token: {}", access_token.as_str());
     }
     Ok(ExitCode::SUCCESS)
 }
@@ -123,7 +152,7 @@ fn cleanup_command(pid: u32) -> String {
     format!("kill {pid}")
 }
 
-fn serve_loop(listener: TcpListener, state: GuiState) -> jikji_core::Result<ExitCode> {
+fn serve_loop(listener: TcpListener, state: GuiState, gate: AccessGate) -> jikji_core::Result<ExitCode> {
     // Library-root discovery walks HOME / Google Drive FUSE and must not
     // run before accept(). A TCP ready probe succeeds at bind; a synchronous
     // enqueue here delayed the first /api/find by ~14s on a cold Drive cache.
@@ -134,8 +163,9 @@ fn serve_loop(listener: TcpListener, state: GuiState) -> jikji_core::Result<Exit
         match stream {
             Ok(stream) => {
                 let request_state = state.clone();
+                let request_gate = gate.clone();
                 thread::spawn(move || {
-                    let _ = handle_stream(stream, &request_state);
+                    let _ = handle_stream(stream, &request_state, &request_gate);
                 });
             }
             Err(source) => return Err(jikji_core::io_error("<gui-accept>", source)),
@@ -144,10 +174,13 @@ fn serve_loop(listener: TcpListener, state: GuiState) -> jikji_core::Result<Exit
     Ok(ExitCode::SUCCESS)
 }
 
-fn handle_stream(stream: TcpStream, state: &GuiState) -> jikji_core::Result<()> {
+fn handle_stream(stream: TcpStream, state: &GuiState, gate: &AccessGate) -> jikji_core::Result<()> {
     let request = http::HttpRequest::read(&stream)?;
-    let response = route_request(state, &request, INDEX_HTML);
-    http::write_response(stream, &response)
+    let response = match gate.check(&request) {
+        Gate::Allow => route_request(state, &request, INDEX_HTML),
+        Gate::Respond(response) => response,
+    };
+    http::write_response(stream, response, &security_headers())
 }
 
 fn reserve_loopback_port(host: &str) -> jikji_core::Result<u16> {
@@ -192,7 +225,8 @@ mod tests {
         for id in ["main-content", "panel-overview", "panel-search", "panel-index", "panel-tools",
             "nav-overview", "nav-search", "nav-index", "nav-tools", "manage-token",
             "search-query", "roots-panel", "files-panel", "indexed-panel", "settings-dialog",
-            "preview-dialog", "confirm-dialog", "jobs-strip", "cancel-job"] {
+            "search-split", "index-split", "search-preview-pane", "index-preview-pane",
+            "search-preview-back", "index-preview-back", "logout", "confirm-dialog", "jobs-strip", "cancel-job"] {
             assert!(markup.contains(&format!("id=\"{id}\"")), "missing {id}");
         }
         assert!(markup.contains("<main"));
@@ -201,6 +235,9 @@ mod tests {
         assert!(markup.contains("aria-current=\"page\""));
         assert!(markup.contains("aria-busy=\"true\""));
         assert!(markup.contains("class=\"skeleton\""));
+        assert!(!INDEX_HTML.contains("preview-dialog"));
+        assert!(markup.contains("파일을 선택하면 여기에 미리보기가 표시됩니다"));
+        assert!(markup.contains("grid-template-columns:minmax(0,2fr) minmax(0,3fr)"));
         assert!(INDEX_HTML.find("</main>").unwrap() < INDEX_HTML.find("fetch(").unwrap());
     }
     #[test]
@@ -212,12 +249,24 @@ mod tests {
             "/api/brief", "/api/clean", "/api/root", "/api/remove-root", "/api/refresh",
             "/api/reindex", "/api/reindex-folder", "/api/remove-folder", "/api/deep-index",
             "/api/deep-index-target", "/api/index-selection", "/api/exclude-selection",
-            "/api/jobs/", "/cancel", "/download", "/reveal", "/open"] {
+            "/api/jobs/", "/cancel", "/download", "/reveal", "/open", "/api/logout"] {
             assert!(script.contains(route), "missing route {route}");
         }
         for unsafe_api in ["innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval(", "localStorage"] {
             assert!(!INDEX_HTML.contains(unsafe_api), "forbidden API {unsafe_api}");
         }
+        for kind in ["text", "image", "pdf", "audio", "video", "none"] {
+            assert!(script.contains(&format!("case \"{kind}\":")), "missing preview kind {kind}");
+        }
+        assert!(script.contains("response.status===401"));
+        assert!(script.contains("location.reload()"));
+        assert!(script.contains("d.binary_url.startsWith(\"/api/preview/file\")"));
+        assert!(script.contains("document.createTextNode"));
+        assert!(script.contains("el(\"mark\""));
+        assert!(script.contains("aria-selected"));
+        assert!(script.contains("120000"));
+        assert!(script.contains("90000:20000"));
+        assert!(!INDEX_HTML.contains("onclick="));
         assert!(script.contains("value.forEach(item=>p.append(key,String(item)))"));
         assert!(script.contains("output(\"시나리오 결과\",\"/api/scenario-run\",{id:select.value})"));
         assert!(script.contains("Promise.allSettled([loadStatus(),loadRoots()"));

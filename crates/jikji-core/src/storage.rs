@@ -865,20 +865,6 @@ fn statistics_for_id(connection: &Connection, root_id: i64) -> Result<RootStatis
     Ok(statistics)
 }
 
-fn load_artifacts_by_id(connection: &Connection, root_id: i64, kind: &str) -> Result<Vec<Value>> {
-    let mut statement = connection
-        .prepare("SELECT ordinal, row_json FROM artifacts WHERE root_id=?1 AND kind=?2 ORDER BY ordinal")
-        .map_err(sqlite_error_path)?;
-    let rows = statement
-        .query_map(params![root_id, kind], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)))
-        .map_err(sqlite_error_path)?;
-    rows.map(|row| {
-        let (ordinal, raw) = row.map_err(sqlite_error_path)?;
-        restore_row(connection, ordinal, &raw)
-    })
-    .collect()
-}
-
 fn initialize(connection: &Connection, path: &Path) -> Result<()> {
     connection
         .execute_batch(&format!(r#"

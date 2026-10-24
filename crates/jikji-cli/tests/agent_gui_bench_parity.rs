@@ -520,6 +520,109 @@ fn gui_preview_binary_fallback_and_traversal_are_controlled() {
     assert_rejected(&gui.get("/api/preview?path=%2e%2e%2foutside.txt"));
 }
 
+#[test]
+fn gui_refuses_unauthenticated_visitors_and_sends_security_headers() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let root = temp.path().join("root");
+    fs::create_dir(&root).expect("root");
+    fs::write(root.join("secret.txt"), "private body").expect("fixture");
+    let gui = GuiChild::start(&root);
+
+    let page = gui.get_anonymous("/");
+    assert!(page.starts_with("HTTP/1.1 200"), "{page}");
+    assert!(page.contains("/api/login"), "anonymous visitors only get the login page");
+    assert!(!page.contains("panel-overview"), "console markup must not be served without login");
+    for header in [
+        "Content-Security-Policy: default-src 'self'",
+        "X-Frame-Options: DENY",
+        "X-Content-Type-Options: nosniff",
+        "Referrer-Policy: no-referrer",
+    ] {
+        assert!(page.contains(header), "missing {header}");
+    }
+    for path in [
+        "/api/status",
+        "/api/roots",
+        "/api/files",
+        "/api/find?q=private",
+        "/api/preview?path=secret.txt",
+        "/api/preview/file?path=secret.txt",
+        "/download?path=secret.txt",
+    ] {
+        let response = gui.get_anonymous(path);
+        assert!(response.starts_with("HTTP/1.1 401"), "{path}: {response}");
+        assert!(!response.contains("private body"), "{path} leaked file content");
+    }
+    let console = gui.get("/");
+    assert!(console.contains("panel-overview"), "logged-in session gets the console");
+}
+
+#[test]
+fn gui_preview_reports_a_kind_for_every_format() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let root = temp.path().join("root");
+    fs::create_dir(&root).expect("root");
+    fs::write(root.join("note.md"), "# heading\nbody").expect("text");
+    fs::write(root.join("big.log"), "line\n".repeat(80_000)).expect("big text");
+    fs::write(root.join("pic.png"), b"\x89PNG\r\n\x1a\n").expect("png");
+    fs::write(root.join("logo.svg"), "<svg xmlns='http://www.w3.org/2000/svg'/>").expect("svg");
+    fs::write(root.join("song.mp3"), [0u8; 64]).expect("mp3");
+    fs::write(root.join("clip.mp4"), (0u8..=255).cycle().take(4096).collect::<Vec<_>>()).expect("mp4");
+    fs::write(root.join("bundle.zip"), b"PK\x03\x04").expect("zip");
+    fs::write(root.join("blob.bin"), [0, 1, 2, 3]).expect("bin");
+    let gui = GuiChild::start(&root);
+
+    for (path, kind) in [
+        ("note.md", "text"),
+        ("big.log", "text"),
+        ("pic.png", "image"),
+        ("logo.svg", "image"),
+        ("song.mp3", "audio"),
+        ("clip.mp4", "video"),
+        ("bundle.zip", "none"),
+        ("blob.bin", "none"),
+    ] {
+        let preview = response_json(&gui.get(&format!("/api/preview?path={path}")));
+        assert_eq!(preview["kind"], kind, "{path}: {preview}");
+    }
+    let big = response_json(&gui.get("/api/preview?path=big.log"));
+    assert_eq!(big["truncated"], true, "large text is cut, not refused");
+    assert_eq!(big["content"].as_str().expect("content").len(), 256 * 1024);
+    let zip = response_json(&gui.get("/api/preview?path=bundle.zip"));
+    assert_eq!(zip["reason"], "archive");
+
+    let range = gui.get_with_header("/api/preview/file?path=clip.mp4", "Range: bytes=100-199");
+    assert!(range.starts_with("HTTP/1.1 206"), "{range}");
+    assert!(range.contains("Content-Range: bytes 100-199/4096"), "{range}");
+    assert!(range.contains("Content-Length: 100"), "{range}");
+    let whole = gui.get("/api/preview/file?path=clip.mp4");
+    assert!(whole.starts_with("HTTP/1.1 200") && whole.contains("Accept-Ranges: bytes"), "{whole}");
+    let past_end = gui.get_with_header("/api/preview/file?path=clip.mp4", "Range: bytes=5000-");
+    assert!(past_end.starts_with("HTTP/1.1 416"), "{past_end}");
+}
+
+#[test]
+fn gui_preview_converts_office_files_whose_names_contain_dots() {
+    if ["libreoffice", "soffice"]
+        .iter()
+        .all(|name| std::process::Command::new(name).arg("--version").output().is_err())
+    {
+        eprintln!("skipping: LibreOffice is not installed");
+        return;
+    }
+    let temp = tempfile::tempdir().expect("tempdir");
+    let root = temp.path().join("root");
+    fs::create_dir(&root).expect("root");
+    fs::write(root.join("plan_v0.1.final.rtf"), r"{\rtf1\ansi plan body\par}").expect("rtf");
+    let gui = GuiChild::start(&root);
+
+    let preview = response_json(&gui.get("/api/preview?path=plan_v0.1.final.rtf"));
+    assert_eq!(preview["kind"], "pdf", "{preview}");
+    let file = gui.get("/api/preview/file?path=plan_v0.1.final.rtf");
+    assert!(file.starts_with("HTTP/1.1 200"), "converted PDF must be served: {file}");
+    assert!(file.contains("Content-Type: application/pdf"), "{file}");
+}
+
 fn response_json(response: &str) -> serde_json::Value {
     let (_, body) = response.split_once("\r\n\r\n").expect("HTTP body");
     serde_json::from_str(body).expect("JSON response")

@@ -14,6 +14,7 @@ pub(crate) struct GuiChild {
     url: String,
     child: Child,
     manage_token: String,
+    session: String,
     _lock: MutexGuard<'static, ()>,
 }
 
@@ -25,6 +26,7 @@ impl GuiChild {
         let lock = GUI_CHILD_LOCK.lock().expect("gui child lock");
         let port = reserve_loopback_port();
         let manage_token = format!("test-token-{port}");
+        let access_token = format!("test-access-token-{port}");
         let mut command = Command::new(env!("CARGO_BIN_EXE_jikji"));
         command
             .args([
@@ -38,6 +40,8 @@ impl GuiChild {
                 "--serve-child",
                 "--manage-token",
                 manage_token.as_str(),
+                "--access-token",
+                access_token.as_str(),
             ])
             .env(
                 "JIKJI_POST_INSTALL_HOME",
@@ -57,10 +61,13 @@ impl GuiChild {
             let _ = child.wait();
             panic!("connect GUI: {error}");
         }
+        let login = http_request_with("POST", &url, "/api/login", &format!("token={access_token}"), "");
+        let session = session_cookie(&login).unwrap_or_else(|| panic!("GUI login failed: {login}"));
         Self {
             url,
             child,
             manage_token,
+            session,
             _lock: lock,
         }
     }
@@ -70,12 +77,32 @@ impl GuiChild {
     }
 
     pub(crate) fn get(&self, path: &str) -> String {
-        http_request("GET", &self.url, path)
+        http_request_with("GET", &self.url, path, "", &self.session)
     }
 
     pub(crate) fn post(&self, path: &str) -> String {
-        http_request("POST", &self.url, path)
+        http_request_with("POST", &self.url, path, "", &self.session)
     }
+
+    /// Request without the session cookie, as an unauthenticated visitor.
+    pub(crate) fn get_anonymous(&self, path: &str) -> String {
+        http_request("GET", &self.url, path)
+    }
+
+    /// Logged-in GET with one extra raw header line, e.g. `Range: bytes=0-9`.
+    pub(crate) fn get_with_header(&self, path: &str, header: &str) -> String {
+        let cookie = format!("{}\r\n{header}", self.session);
+        http_request_with("GET", &self.url, path, "", &cookie)
+    }
+}
+
+/// `name=value` of the session cookie set by a login response.
+fn session_cookie(response: &str) -> Option<String> {
+    response.lines().find_map(|line| {
+        let value = line.strip_prefix("Set-Cookie: ")?;
+        let pair = value.split(';').next()?;
+        pair.starts_with("jikji_session=").then(|| pair.to_owned())
+    })
 }
 
 impl Drop for GuiChild {
@@ -174,8 +201,17 @@ pub(crate) fn assert_rejected(response: &str) {
 }
 
 fn http_request(method: &str, base_url: &str, path: &str) -> String {
+    http_request_with(method, base_url, path, "", "")
+}
+
+fn http_request_with(method: &str, base_url: &str, path: &str, body: &str, cookie: &str) -> String {
     let (host, port) = parse_url(base_url);
     let started = Instant::now();
+    let cookie = if cookie.is_empty() {
+        String::new()
+    } else {
+        format!("Cookie: {cookie}\r\n")
+    };
     loop {
         match TcpStream::connect((host.as_str(), port)) {
             Ok(mut stream) => {
@@ -183,12 +219,13 @@ fn http_request(method: &str, base_url: &str, path: &str) -> String {
                     .set_read_timeout(Some(Duration::from_secs(15)))
                     .expect("timeout");
                 let request = format!(
-                    "{method} {path} HTTP/1.1\r\nHost: {host}:{port}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n"
+                    "{method} {path} HTTP/1.1\r\nHost: {host}:{port}\r\nConnection: close\r\n{cookie}Content-Type: application/x-www-form-urlencoded\r\nContent-Length: {}\r\n\r\n{body}",
+                    body.len()
                 );
                 stream.write_all(request.as_bytes()).expect("write");
-                let mut response = String::new();
-                stream.read_to_string(&mut response).expect("read");
-                return response;
+                let mut response = Vec::new();
+                stream.read_to_end(&mut response).expect("read");
+                return String::from_utf8_lossy(&response).into_owned();
             }
             Err(error) if started.elapsed() < Duration::from_secs(5) => {
                 let _ = error;

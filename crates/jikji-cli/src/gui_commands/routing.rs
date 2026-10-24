@@ -109,7 +109,7 @@ pub(crate) fn route_request(
         ("GET", "/api/scenarios") => HttpResponse::json(200, scenarios::list()),
         ("GET", "/api/scenario-run") => scenario_response(state, &request.query),
         ("GET", "/api/preview") => preview_response(state, &request.query),
-        ("GET", "/api/preview/file") => preview_file_response(state, &request.query),
+        ("GET", "/api/preview/file") => preview_file_response(state, request),
         ("GET", "/api/doctor") => with_root(state, doctor_response),
         ("GET", "/api/map") => with_root(state, map_response),
         ("GET", "/api/graph") => with_root(state, |root| graph_response(root, &request.query)),
@@ -646,10 +646,31 @@ fn preview_response(state: &GuiState, query: &str) -> HttpResponse {
         "media_type": renderer.media_type,
         "binary_url": format!("/api/preview/file?{}", query),
     });
-    match read_text_preview(&path, metadata.len()) {
-        Ok(Some(content)) => {
+    if renderer.kind != PreviewKind::Text {
+        let kind = if !renderer.available {
+            payload["reason"] = json!("renderer_unavailable");
+            PreviewKind::None
+        } else if renderer.kind == PreviewKind::None {
+            payload["reason"] = json!("archive");
+            PreviewKind::None
+        } else if !renderer.kind.streams() && renderer.kind != PreviewKind::Pdf
+            && metadata.len() > MAX_BINARY_PREVIEW_BYTES
+        {
+            payload["reason"] = json!("too_large");
+            PreviewKind::None
+        } else {
+            renderer.kind
+        };
+        payload["kind"] = json!(kind.as_str());
+        payload["supported"] = json!(kind != PreviewKind::None);
+        return HttpResponse::json(200, payload);
+    }
+    match read_text_preview(&path) {
+        Ok(Some((content, truncated))) => {
             let q = query_value(query, "q").unwrap_or_default();
+            payload["kind"] = json!(PreviewKind::Text.as_str());
             payload["supported"] = json!(true);
+            payload["truncated"] = json!(truncated);
             payload["encoding"] = json!("utf-8");
             payload["matches"] = json!(match_ranges(&content, &q));
             payload["match_unit"] = json!("utf16_code_unit");
@@ -658,25 +679,48 @@ fn preview_response(state: &GuiState, query: &str) -> HttpResponse {
             HttpResponse::json(200, payload)
         }
         Ok(None) => {
-            payload["supported"] = json!(renderer.available && renderer.media_type.is_some());
-            payload["reason"] = json!(if !renderer.available {
-                "renderer_unavailable"
-            } else if renderer.media_type.is_some() {
-                "binary"
-            } else if metadata.len() > MAX_TEXT_PREVIEW_BYTES {
-                "too_large"
-            } else {
-                "binary"
-            });
+            payload["kind"] = json!(PreviewKind::None.as_str());
+            payload["supported"] = json!(false);
+            payload["reason"] = json!("binary");
             HttpResponse::json(200, payload)
         }
         Err(source) => HttpResponse::json(500, json!({"error": source.to_string()})),
     }
 }
 
+/// What the console can render for a file; serialised as the preview `kind`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PreviewKind {
+    Text,
+    Image,
+    Pdf,
+    Audio,
+    Video,
+    None,
+}
+
+impl PreviewKind {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Text => "text",
+            Self::Image => "image",
+            Self::Pdf => "pdf",
+            Self::Audio => "audio",
+            Self::Video => "video",
+            Self::None => "none",
+        }
+    }
+
+    /// Audio and video are streamed with Range requests, so they have no size cap.
+    fn streams(self) -> bool {
+        matches!(self, Self::Audio | Self::Video)
+    }
+}
+
 struct PreviewRenderer {
     name: &'static str,
     available: bool,
+    kind: PreviewKind,
     media_type: Option<&'static str>,
 }
 
@@ -686,52 +730,59 @@ fn preview_renderer(path: &Path) -> PreviewRenderer {
         .and_then(|value| value.to_str())
         .unwrap_or_default()
         .to_ascii_lowercase();
+    let browser = |name, kind, media_type| PreviewRenderer {
+        name,
+        available: true,
+        kind,
+        media_type: Some(media_type),
+    };
+    let office = executable_available("libreoffice") || executable_available("soffice");
     match extension.as_str() {
         "hwp" | "hwpx" => {
             let rwhp = executable_available("rwhp");
             PreviewRenderer {
                 name: if rwhp { "rwhp" } else { "libreoffice-fallback" },
-                available: rwhp
-                    || executable_available("libreoffice")
-                    || executable_available("soffice"),
+                available: rwhp || office,
+                kind: PreviewKind::Pdf,
                 media_type: Some("application/pdf"),
             }
         }
-        "pdf" => PreviewRenderer {
-            name: "browser-pdf",
-            available: true,
+        "pdf" => browser("browser-pdf", PreviewKind::Pdf, "application/pdf"),
+        "doc" | "docx" | "ppt" | "pptx" | "pps" | "ppsx" | "xls" | "xlsx" | "xlsm" | "odt"
+        | "ods" | "odp" | "rtf" => PreviewRenderer {
+            name: "libreoffice",
+            available: office,
+            kind: PreviewKind::Pdf,
             media_type: Some("application/pdf"),
         },
-        "doc" | "docx" | "ppt" | "pptx" | "xls" | "xlsx" | "odt" | "ods" | "odp" => {
+        "png" => browser("browser-image", PreviewKind::Image, "image/png"),
+        "jpg" | "jpeg" => browser("browser-image", PreviewKind::Image, "image/jpeg"),
+        "gif" => browser("browser-image", PreviewKind::Image, "image/gif"),
+        "webp" => browser("browser-image", PreviewKind::Image, "image/webp"),
+        "bmp" => browser("browser-image", PreviewKind::Image, "image/bmp"),
+        "svg" => browser("browser-image", PreviewKind::Image, "image/svg+xml"),
+        "mp3" => browser("browser-audio", PreviewKind::Audio, "audio/mpeg"),
+        "wav" => browser("browser-audio", PreviewKind::Audio, "audio/wav"),
+        "ogg" | "oga" => browser("browser-audio", PreviewKind::Audio, "audio/ogg"),
+        "m4a" => browser("browser-audio", PreviewKind::Audio, "audio/mp4"),
+        "flac" => browser("browser-audio", PreviewKind::Audio, "audio/flac"),
+        "aac" => browser("browser-audio", PreviewKind::Audio, "audio/aac"),
+        "mp4" | "m4v" => browser("browser-video", PreviewKind::Video, "video/mp4"),
+        "webm" => browser("browser-video", PreviewKind::Video, "video/webm"),
+        "ogv" => browser("browser-video", PreviewKind::Video, "video/ogg"),
+        "mov" => browser("browser-video", PreviewKind::Video, "video/quicktime"),
+        "zip" | "7z" | "rar" | "tar" | "gz" | "tgz" | "bz2" | "xz" | "zst" | "jar" | "whl" => {
             PreviewRenderer {
-                name: "libreoffice",
-                available: executable_available("libreoffice") || executable_available("soffice"),
-                media_type: Some("application/pdf"),
+                name: "archive",
+                available: true,
+                kind: PreviewKind::None,
+                media_type: None,
             }
         }
-        "png" => PreviewRenderer {
-            name: "browser-image",
-            available: true,
-            media_type: Some("image/png"),
-        },
-        "jpg" | "jpeg" => PreviewRenderer {
-            name: "browser-image",
-            available: true,
-            media_type: Some("image/jpeg"),
-        },
-        "gif" => PreviewRenderer {
-            name: "browser-image",
-            available: true,
-            media_type: Some("image/gif"),
-        },
-        "webp" => PreviewRenderer {
-            name: "browser-image",
-            available: true,
-            media_type: Some("image/webp"),
-        },
         _ => PreviewRenderer {
             name: "text",
             available: true,
+            kind: PreviewKind::Text,
             media_type: None,
         },
     }
@@ -749,7 +800,8 @@ fn executable_available(name: &str) -> bool {
     }
 }
 
-fn preview_file_response(state: &GuiState, query: &str) -> HttpResponse {
+fn preview_file_response(state: &GuiState, request: &HttpRequest) -> HttpResponse {
+    let query = request.query.as_str();
     let root = match requested_search_root(state, query) {
         Ok(root) => root,
         Err(response) => return response,
@@ -779,21 +831,40 @@ fn preview_file_response(state: &GuiState, query: &str) -> HttpResponse {
         .and_then(|value| value.to_str())
         .unwrap_or_default()
         .to_ascii_lowercase();
-    let rendered = if media_type == "application/pdf" && extension != "pdf" {
-        convert_document_to_pdf(&path, renderer.name == "rwhp")
-    } else {
-        fs::read(&path).map_err(|error| error.to_string())
-    };
-    match rendered {
-        Ok(body) if body.len() as u64 <= MAX_BINARY_PREVIEW_BYTES => {
-            HttpResponse::binary(200, body, media_type)
-        }
-        Ok(_) => HttpResponse::json(413, json!({"error":"preview target is too large"})),
-        Err(error) => HttpResponse::json(
-            422,
-            json!({"error":"preview conversion failed","renderer":renderer.name,"detail":error}),
-        ),
+    if renderer.kind == PreviewKind::Pdf && extension != "pdf" {
+        return match convert_document_to_pdf(&path, renderer.name == "rwhp") {
+            Ok(body) if body.len() as u64 <= MAX_BINARY_PREVIEW_BYTES => {
+                HttpResponse::binary(200, body, media_type)
+            }
+            Ok(_) => HttpResponse::json(413, json!({"error":"preview target is too large"})),
+            Err(error) => HttpResponse::json(
+                422,
+                json!({"error":"preview conversion failed","renderer":renderer.name,"detail":error}),
+            ),
+        };
     }
+    let file = match File::open(&path) {
+        Ok(file) => file,
+        Err(source) => return HttpResponse::json(404, json!({"error": source.to_string()})),
+    };
+    let size = match file.metadata() {
+        Ok(metadata) => metadata.len(),
+        Err(source) => return HttpResponse::json(500, json!({"error": source.to_string()})),
+    };
+    if !renderer.kind.streams() && renderer.kind != PreviewKind::Pdf && size > MAX_BINARY_PREVIEW_BYTES {
+        return HttpResponse::json(413, json!({"error":"preview target is too large"}));
+    }
+    let response = HttpResponse::file_range(file, size, media_type, request.header("range"));
+    if media_type == "image/svg+xml" {
+        // SVG can carry script. Browsers enforce every CSP header they receive, so this strict
+        // sandboxed policy holds even alongside the console-wide one: opened as a document the
+        // file runs no script and gets an opaque origin without the session's reach.
+        return response.with_header(
+            "Content-Security-Policy",
+            "default-src 'none'; style-src 'unsafe-inline'; img-src data:; sandbox".to_owned(),
+        );
+    }
+    response
 }
 
 fn convert_document_to_pdf(path: &Path, prefer_rwhp: bool) -> std::result::Result<Vec<u8>, String> {
@@ -838,11 +909,8 @@ fn convert_with_rwhp(path: &Path) -> std::result::Result<Vec<u8>, String> {
         if output_pdf.is_file() {
             return fs::read(&output_pdf).map_err(|error| error.to_string());
         }
-        if let Some(stem) = path.file_stem() {
-            let fallback = temp.path().join(stem).with_extension("pdf");
-            if fallback.is_file() {
-                return fs::read(fallback).map_err(|error| error.to_string());
-            }
+        if let Ok(body) = converted_pdf_in(temp.path(), path) {
+            return Ok(body);
         }
         last_error = String::from_utf8_lossy(&output.stderr).trim().to_owned();
         if last_error.is_empty() {
@@ -879,29 +947,63 @@ fn convert_with_libreoffice(path: &Path) -> std::result::Result<Vec<u8>, String>
     if !output.status.success() {
         return Err(String::from_utf8_lossy(&output.stderr).trim().to_owned());
     }
-    let stem = path
-        .file_stem()
-        .ok_or_else(|| "preview target has no file stem".to_owned())?;
-    let pdf = temp.path().join(stem).with_extension("pdf");
-    fs::read(pdf).map_err(|error| error.to_string())
+    converted_pdf_in(temp.path(), path)
 }
 
-fn read_text_preview(path: &Path, size: u64) -> std::io::Result<Option<String>> {
-    if size > MAX_TEXT_PREVIEW_BYTES {
-        return Ok(None);
+/// PDF a converter wrote for `source` inside `dir`. LibreOffice and rwhp keep every dot in the
+/// stem (`plan_v0.1.hwp` -> `plan_v0.1.pdf`), so the name is built by appending `.pdf` to the
+/// whole stem; `Path::with_extension` would cut it at the last dot (`plan_v0.pdf`).
+fn converted_pdf_in(dir: &Path, source: &Path) -> std::result::Result<Vec<u8>, String> {
+    let stem = source
+        .file_stem()
+        .ok_or_else(|| "preview target has no file stem".to_owned())?;
+    let mut name = stem.to_os_string();
+    name.push(".pdf");
+    let expected = dir.join(name);
+    if expected.is_file() {
+        return fs::read(&expected).map_err(|error| error.to_string());
     }
-    let mut bytes = Vec::with_capacity(size as usize);
+    let produced = fs::read_dir(dir)
+        .map_err(|error| error.to_string())?
+        .filter_map(|entry| entry.ok().map(|entry| entry.path()))
+        .find(|candidate| {
+            candidate
+                .extension()
+                .is_some_and(|extension| extension.eq_ignore_ascii_case("pdf"))
+        })
+        .ok_or_else(|| "converter produced no PDF".to_owned())?;
+    fs::read(produced).map_err(|error| error.to_string())
+}
+
+/// Text preview of at most `MAX_TEXT_PREVIEW_BYTES`. Returns `(content, truncated)`; larger
+/// text files are cut at the limit (on a UTF-8 boundary) instead of being refused.
+fn read_text_preview(path: &Path) -> std::io::Result<Option<(String, bool)>> {
+    let mut bytes = Vec::new();
     File::open(path)?
         .take(MAX_TEXT_PREVIEW_BYTES + 1)
         .read_to_end(&mut bytes)?;
+    let truncated = bytes.len() as u64 > MAX_TEXT_PREVIEW_BYTES;
+    if truncated {
+        bytes.truncate(MAX_TEXT_PREVIEW_BYTES as usize);
+    }
     if bytes.contains(&0)
         || bytes
             .iter()
-            .any(|byte| *byte < b' ' && !matches!(*byte, b'\t' | b'\n' | b'\r'))
+            .any(|byte| *byte < b' ' && !matches!(*byte, b'\t' | b'\n' | b'\r' | 0x0c))
     {
         return Ok(None);
     }
-    Ok(String::from_utf8(bytes).ok())
+    let text = match String::from_utf8(bytes) {
+        Ok(text) => text,
+        Err(error) if truncated && error.utf8_error().error_len().is_none() => {
+            let valid = error.utf8_error().valid_up_to();
+            let mut bytes = error.into_bytes();
+            bytes.truncate(valid);
+            String::from_utf8(bytes).unwrap_or_default()
+        }
+        Err(_) => return Ok(None),
+    };
+    Ok(Some((text, truncated)))
 }
 
 fn match_ranges(content: &str, query: &str) -> Vec<serde_json::Value> {
@@ -1389,8 +1491,9 @@ fn add_candidate_snippets(root: &Path, query: &str, payload: &mut serde_json::Va
         } else {
             resolve_root_path(&snippet_root, &relative)
                 .ok()
-                .and_then(|path| path.metadata().ok().map(|metadata| (path, metadata.len())))
-                .and_then(|(path, size)| read_text_preview(&path, size).ok().flatten())
+                .filter(|path| path.is_file())
+                .and_then(|path| read_text_preview(&path).ok().flatten())
+                .map(|(content, _)| content)
                 .or_else(|| {
                     candidate
                         .get("ev")
