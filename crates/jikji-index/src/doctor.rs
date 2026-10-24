@@ -1,7 +1,8 @@
 use std::path::{Path, PathBuf};
 
 use jikji_core::storage::{
-    database_path, existing_root_storage_dir, load_artifact, load_artifacts,
+    count_artifacts_with_ext, database_path, existing_root_storage_dir, has_artifacts,
+    load_artifact,
 };
 use jikji_core::{LEGACY_ROOT_AGENT_MAP, ROOT_AGENT_MAP, Result, io_error};
 use serde::Serialize;
@@ -47,7 +48,7 @@ pub fn doctor(root: &Path) -> Result<DoctorReport> {
         .map_err(|source| io_error(root, source))?;
     let mut errors = Vec::new();
     for kind in REQUIRED_KINDS {
-        if load_artifacts(&clean_root, kind)?.is_empty() {
+        if !has_artifacts(&clean_root, kind)? {
             errors.push(format!("missing required artifact row: {kind}"));
         }
     }
@@ -68,18 +69,11 @@ pub fn doctor(root: &Path) -> Result<DoctorReport> {
             }
         }
     }
-    let documents = load_artifacts(&clean_root, "documents")?;
-    let image_docs = documents
-        .iter()
-        .filter(|row| {
-            row.get("ext").and_then(Value::as_str).is_some_and(|ext| {
-                matches!(
-                    ext,
-                    ".png" | ".jpg" | ".jpeg" | ".gif" | ".webp" | ".tif" | ".tiff" | ".bmp"
-                )
-            })
-        })
-        .count();
+    let image_docs = count_artifacts_with_ext(
+        &clean_root,
+        "documents",
+        &[".png", ".jpg", ".jpeg", ".gif", ".webp", ".tif", ".tiff", ".bmp"],
+    )?;
     let media = manifest
         .get("media_index")
         .cloned()

@@ -515,7 +515,51 @@ fn restore_row(connection: &Connection, ordinal: i64, raw: &str) -> Result<Value
 }
 
 pub fn load_artifact(root: &Path, kind: &str) -> Result<Option<Value>> {
-    Ok(load_artifacts(root, kind)?.into_iter().next())
+    migrate_legacy(root)?;
+    let connection = open_database()?;
+    let Some(root_id) = root_id(&connection, root)? else { return Ok(None); };
+    let first = connection
+        .query_row(
+            "SELECT ordinal, row_json FROM artifacts WHERE root_id=?1 AND kind=?2 ORDER BY ordinal LIMIT 1",
+            params![root_id, kind],
+            |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)),
+        )
+        .optional()
+        .map_err(sqlite_error_path)?;
+    first.map(|(ordinal, raw)| restore_row(&connection, ordinal, &raw)).transpose()
+}
+
+/// Whether a root has at least one row of `kind`, without loading any row.
+pub fn has_artifacts(root: &Path, kind: &str) -> Result<bool> {
+    migrate_legacy(root)?;
+    let connection = open_database()?;
+    let Some(root_id) = root_id(&connection, root)? else { return Ok(false); };
+    connection
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM artifacts WHERE root_id=?1 AND kind=?2)",
+            params![root_id, kind],
+            |row| row.get::<_, bool>(0),
+        )
+        .map_err(sqlite_error_path)
+}
+
+/// Number of `kind` rows whose `ext` field is one of `extensions` (e.g. ".png").
+pub fn count_artifacts_with_ext(root: &Path, kind: &str, extensions: &[&str]) -> Result<usize> {
+    if extensions.is_empty() {
+        return Ok(0);
+    }
+    migrate_legacy(root)?;
+    let connection = open_database()?;
+    let Some(root_id) = root_id(&connection, root)? else { return Ok(0); };
+    let placeholders = vec!["?"; extensions.len()].join(",");
+    let sql = format!(
+        "SELECT COUNT(*) FROM artifacts WHERE root_id=? AND kind=? AND json_extract(row_json, '$.ext') IN ({placeholders})"
+    );
+    let mut values: Vec<rusqlite::types::Value> = vec![root_id.into(), kind.to_owned().into()];
+    values.extend(extensions.iter().map(|ext| rusqlite::types::Value::from((*ext).to_owned())));
+    connection
+        .query_row(&sql, rusqlite::params_from_iter(values), |row| row.get::<_, usize>(0))
+        .map_err(sqlite_error_path)
 }
 
 pub fn load_artifact_by_path(root: &Path, kind: &str, path: &str) -> Result<Option<Value>> {
@@ -778,22 +822,45 @@ fn indexed_root(
     })
 }
 
+/// Counts live rows per kind without loading row bodies. Only `files` rows are ever
+/// tombstoned (`status: deleted`), so the other kinds are counted from the index alone
+/// and deleted files are found by a cheap text scan of that one kind. Loading and
+/// decompressing every row made `/api/roots` take tens of seconds on large libraries.
 fn statistics_for_id(connection: &Connection, root_id: i64) -> Result<RootStatistics> {
+    let mut statement = connection
+        .prepare(
+            "SELECT kind, COUNT(*) FROM artifacts
+             WHERE root_id=?1 AND kind IN ('files','folders','documents','chunks','parse_errors')
+             GROUP BY kind",
+        )
+        .map_err(sqlite_error_path)?;
+    let rows = statement
+        .query_map([root_id], |row| Ok((row.get::<_, String>(0)?, row.get::<_, usize>(1)?)))
+        .map_err(sqlite_error_path)?;
     let mut statistics = empty_statistics();
-    for kind in ["files", "folders", "documents", "chunks", "parse_errors"] {
-        let values = load_artifacts_by_id(connection, root_id, kind)?;
-        let count = values
-            .iter()
-            .filter(|value| value.get("status").and_then(Value::as_str) != Some("deleted"))
-            .count();
-        match kind {
+    for row in rows {
+        let (kind, count) = row.map_err(sqlite_error_path)?;
+        match kind.as_str() {
             "files" => statistics.files = count,
             "folders" => statistics.folders = count,
             "documents" => statistics.documents = count,
             "chunks" => statistics.chunks = count,
             "parse_errors" => statistics.parse_errors = count,
-            _ => unreachable!(),
+            _ => {}
         }
+    }
+    if statistics.files > 0 {
+        let deleted = connection
+            .query_row(
+                "SELECT COUNT(*) FROM artifacts
+                 WHERE root_id=?1 AND kind='files'
+                   AND instr(row_json, '\"status\":\"deleted\"') > 0
+                   AND json_extract(row_json, '$.status') = 'deleted'",
+                [root_id],
+                |row| row.get::<_, usize>(0),
+            )
+            .map_err(sqlite_error_path)?;
+        statistics.files -= deleted;
     }
     Ok(statistics)
 }
