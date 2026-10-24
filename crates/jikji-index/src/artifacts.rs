@@ -141,6 +141,5 @@ fn write_index_rows(index_dir: &Path, rows: RowSets<'_>) -> Result<()> {
     write_jsonl(index_dir.join("chunk_map.jsonl"), rows.chunks)?;
     write_jsonl(index_dir.join("duplicate_map.jsonl"), &Vec::<Value>::new())?;
     write_jsonl(index_dir.join("folder_profile.jsonl"), rows.folders)?;
-    write_jsonl(index_dir.join("parse_errors.jsonl"), &Vec::<Value>::new())?;
-    write_jsonl(index_dir.join("graph_routes.jsonl"), &Vec::<Value>::new())
+    write_jsonl(index_dir.join("parse_errors.jsonl"), &Vec::<Value>::new())
 }

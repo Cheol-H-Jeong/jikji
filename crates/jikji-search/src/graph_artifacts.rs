@@ -1,7 +1,8 @@
+use std::fs;
 use std::path::Path;
 
-use jikji_core::Result;
 use jikji_core::storage::replace_artifacts;
+use jikji_core::{Result, ensure_generated_dir, io_error, json_error};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
@@ -10,6 +11,7 @@ use crate::tokenizer::tokens;
 
 pub(crate) fn build_graph_artifacts(
     root: &Path,
+    storage_dir: &Path,
     rows: &[IndexRow],
     folder_profiles: &[Value],
 ) -> Result<(usize, usize)> {
@@ -34,7 +36,7 @@ pub(crate) fn build_graph_artifacts(
     graph
         .routes
         .sort_by_key(|row| row["path"].as_str().unwrap_or("").to_owned());
-    write_graph_rows(root, rows, &graph)?;
+    write_graph_rows(root, storage_dir, rows, &graph)?;
     Ok((graph.nodes.len(), graph.edges.len()))
 }
 
@@ -112,7 +114,12 @@ fn edge_sort_key(edge: &Value) -> String {
     )
 }
 
-fn write_graph_rows(root: &Path, rows: &[IndexRow], graph: &GraphArtifactRows) -> Result<()> {
+fn write_graph_rows(
+    root: &Path,
+    storage_dir: &Path,
+    rows: &[IndexRow],
+    graph: &GraphArtifactRows,
+) -> Result<()> {
     let knowledge_graph = json!({
         "schema_version": 1,
         "root": root.display().to_string(),
@@ -128,9 +135,11 @@ fn write_graph_rows(root: &Path, rows: &[IndexRow], graph: &GraphArtifactRows) -
             "intents": 0,
         },
     });
+    let wiki_markdown = wiki_index(rows);
+    write_graph_files(storage_dir, &knowledge_graph, &graph.routes, &wiki_markdown)?;
     let mut artifacts = vec![
         ("graph", knowledge_graph),
-        ("wiki_index", json!({"markdown": wiki_index(rows)})),
+        ("wiki_index", json!({"markdown": wiki_markdown})),
     ];
     artifacts.extend(
         graph
@@ -146,6 +155,33 @@ fn write_graph_rows(root: &Path, rows: &[IndexRow], graph: &GraphArtifactRows) -
         )
     }));
     replace_artifacts(root, &artifacts)
+}
+
+/// Mirror the graph rows to the files the manifest points at, so every reported path resolves.
+fn write_graph_files(
+    storage_dir: &Path,
+    knowledge_graph: &Value,
+    routes: &[Value],
+    wiki_markdown: &str,
+) -> Result<()> {
+    ensure_generated_dir(storage_dir)?;
+    let graph_path = storage_dir.join("knowledge_graph.json");
+    let graph_text = serde_json::to_string_pretty(knowledge_graph)
+        .map_err(|source| json_error(&graph_path, source))?;
+    fs::write(&graph_path, graph_text).map_err(|source| io_error(&graph_path, source))?;
+    let routes_path = storage_dir.join("graph_routes.jsonl");
+    let mut routes_text = String::new();
+    for route in routes {
+        routes_text.push_str(
+            &serde_json::to_string(route).map_err(|source| json_error(&routes_path, source))?,
+        );
+        routes_text.push('\n');
+    }
+    fs::write(&routes_path, routes_text).map_err(|source| io_error(&routes_path, source))?;
+    let wiki_dir = storage_dir.join("wiki");
+    ensure_generated_dir(&wiki_dir)?;
+    let wiki_path = wiki_dir.join("index.md");
+    fs::write(&wiki_path, wiki_markdown).map_err(|source| io_error(&wiki_path, source))
 }
 
 fn safe_id(prefix: &str, value: &str) -> String {

@@ -1,9 +1,9 @@
 use std::fs;
 
-use jikji_core::storage::{replace_artifacts, root_storage_dir};
+use jikji_core::storage::{database_path, replace_artifacts, root_storage_dir};
 use jikji_core::{
     OWNED_GENERATED_PATHS, PrepareOptions, RETIRED_GENERATED_PATHS, ROOT_AGENT_MAP, Result,
-    ensure_generated_dir, io_error,
+    io_error,
 };
 use jikji_search::SearchArtifactStats;
 use serde_json::{Value, json};
@@ -60,10 +60,12 @@ pub(crate) fn write_static_artifacts(
         },
         "source_tree_signature": scan.signature,
         "search_index_bytes": search_index_bytes(&index_dir),
-        "llm_wiki": ".jikji/wiki/index.md",
-        "knowledge_graph": ".jikji/knowledge_graph.json",
-        "graph_routes": ".jikji/graph_routes.jsonl",
-        "llm_wiki_schema": ".jikji/llm_wiki_schema.md",
+        "index_dir": index_dir,
+        "database": database_path()?,
+        "llm_wiki": index_dir.join("wiki/index.md"),
+        "knowledge_graph": index_dir.join("knowledge_graph.json"),
+        "graph_routes": index_dir.join("graph_routes.jsonl"),
+        "llm_wiki_schema": index_dir.join("llm_wiki_schema.md"),
         "llm_wiki_sources": search_stats.rows,
         "knowledge_graph_nodes": search_stats.graph_nodes,
         "knowledge_graph_edges": search_stats.graph_edges,
@@ -91,6 +93,7 @@ pub(crate) fn write_static_artifacts(
 }
 
 const DISCOVERY_SCOPE: &str = "Apply Jikji only when ALL conditions hold: local file/folder/document discovery intent, an unknown target path or corpus content search, and an explicit or inferred bounded root. Exclude general QA, explanations, coding advice, web search, known-path reads or edits, stat/process/git/build/test/package commands, directory listings, and LSP symbols. Root existence or words file/search alone are not triggers. In mixed tasks only the discovery substep is routed. Retry, fallback, and stop rules apply only to discovery, not later reading, editing, or testing. Explicit Jikji administration requests are separate.";
+const LLM_WIKI_SCHEMA: &str = "# Jikji LLM Wiki Schema\n\nAll paths are relative to this index directory.\n\n- `wiki/index.md`: wiki entry point.\n- `knowledge_graph.json`: corpus/source/folder/term graph.\n- `graph_routes.jsonl`: one low-token route row per source.\n";
 
 fn write_markdown_files(scan: &ScanResult, manifest: &Value) -> Result<()> {
     let index_dir = root_storage_dir(&scan.root)?;
@@ -115,11 +118,8 @@ fn write_markdown_files(scan: &ScanResult, manifest: &Value) -> Result<()> {
         "# Jikji Human Guide\n\nOriginal files were not moved, renamed, or deleted.\n",
     )
     .map_err(|source| io_error(index_dir.join("human_guide.md"), source))?;
-    ensure_generated_dir(&index_dir.join("wiki"))?;
-    if !index_dir.join("wiki").join("index.md").exists() {
-        fs::write(index_dir.join("wiki").join("index.md"), "# Jikji Wiki\n")
-            .map_err(|source| io_error(index_dir.join("wiki").join("index.md"), source))?;
-    }
+    fs::write(index_dir.join("llm_wiki_schema.md"), LLM_WIKI_SCHEMA)
+        .map_err(|source| io_error(index_dir.join("llm_wiki_schema.md"), source))?;
     Ok(())
 }
 

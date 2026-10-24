@@ -65,6 +65,46 @@ fn central_database_isolates_roots() {
     assert_eq!(beta["paths"][0], "beta.txt");
 }
 
+#[test]
+fn doctor_reports_prepared_state_and_resolvable_artifact_paths() {
+    let fixture = Fixture::new();
+    let unprepared = fixture.run(["doctor", fixture.root_str().as_str(), "--json"]);
+    assert!(!unprepared.status.success());
+    let unprepared: Value = serde_json::from_slice(&unprepared.stdout).unwrap();
+    assert_eq!(unprepared["prepared"], false);
+    assert_eq!(unprepared["index_dir"], Value::Null);
+    assert_eq!(unprepared["database"], path_str(&fixture.database()));
+
+    fs::write(fixture.root.join("a.txt"), "refund policy").unwrap();
+    let prepared = fixture.json(["prepare", fixture.root_str().as_str(), "--json"]);
+    let doctor = fixture.json(["doctor", fixture.root_str().as_str(), "--json"]);
+    assert_eq!(doctor["prepared"], true);
+    assert_eq!(doctor["index_dir"], prepared["index_dir"]);
+    assert_eq!(doctor["manifest"]["index_dir"], prepared["index_dir"]);
+    let index_dir = PathBuf::from(prepared["index_dir"].as_str().unwrap());
+    assert!(index_dir.starts_with(&fixture.data));
+    for field in [
+        "llm_wiki",
+        "knowledge_graph",
+        "graph_routes",
+        "llm_wiki_schema",
+    ] {
+        let path = Path::new(doctor["manifest"][field].as_str().unwrap());
+        assert!(
+            path.is_absolute() && path.starts_with(&index_dir),
+            "{field}: {}",
+            path.display()
+        );
+        assert!(path.is_file(), "{field} must exist: {}", path.display());
+    }
+    let routes = fs::read_to_string(doctor["manifest"]["graph_routes"].as_str().unwrap()).unwrap();
+    assert!(
+        routes.contains("\"a.txt\""),
+        "graph routes file is empty: {routes:?}"
+    );
+    assert!(!fixture.root.join(".jikji").exists());
+}
+
 struct Fixture {
     _temp: TempDir,
     root: PathBuf,

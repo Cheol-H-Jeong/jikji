@@ -16,6 +16,8 @@ pub(crate) use gui::GuiArgs;
 pub(crate) use prepare::{CleanArgs, MapArgs, PrepareArgs};
 pub(crate) use search::{BriefArgs, FindArgs, GraphArgs, GraphCommand, SearchArgs};
 
+const ARTIFACT_LOCATION_HELP: &str = "Artifact location: the central index is DATA/jikji/index.sqlite and per-root files live in DATA/jikji/roots/<root_id>/ (reported as index_dir). DATA is $JIKJI_DATA_DIR when set, otherwise the OS user data directory (Linux: $XDG_DATA_HOME or ~/.local/share; macOS: ~/Library/Application Support; Windows: %LOCALAPPDATA%). The prepared folder only receives .jikji_agent_map.md and, unless --no-agent-rules, routing blocks in AGENTS.md/CLAUDE.md/.cursorrules.";
+
 #[derive(Debug, Parser)]
 #[command(
     name = "jikji",
@@ -30,7 +32,10 @@ pub(crate) struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub(crate) enum Command {
-    #[command(about = "Create or update .jikji artifacts for a folder.")]
+    #[command(
+        about = "Create or update the Jikji index for a folder.",
+        after_help = ARTIFACT_LOCATION_HELP
+    )]
     Prepare(PrepareArgs),
     #[command(about = "Deeply index archive members and media text for a folder.")]
     DeepIndex(PrepareArgs),
@@ -40,7 +45,10 @@ pub(crate) enum Command {
     Clean(CleanArgs),
     #[command(about = "Print the generated agent map for a folder.")]
     Map(MapArgs),
-    #[command(about = "Verify expected generated artifacts for a folder.")]
+    #[command(
+        about = "Verify expected generated artifacts for a folder; --json reports prepared, index_dir, and database.",
+        after_help = ARTIFACT_LOCATION_HELP
+    )]
     Doctor {
         root: PathBuf,
         #[arg(long)]

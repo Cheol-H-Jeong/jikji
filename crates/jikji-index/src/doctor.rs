@@ -1,6 +1,8 @@
 use std::path::{Path, PathBuf};
 
-use jikji_core::storage::{load_artifact, load_artifacts};
+use jikji_core::storage::{
+    database_path, existing_root_storage_dir, load_artifact, load_artifacts,
+};
 use jikji_core::{LEGACY_ROOT_AGENT_MAP, ROOT_AGENT_MAP, Result, io_error};
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -9,12 +11,26 @@ use serde_json::{Value, json};
 pub struct DoctorReport {
     pub root: PathBuf,
     pub ok: bool,
+    /// Machine-readable "is this root prepared?" answer; same as `ok`.
+    pub prepared: bool,
+    /// Absolute per-root artifact directory, `None` when the root was never prepared.
+    pub index_dir: Option<PathBuf>,
+    /// Absolute central SQLite index shared by all roots.
+    pub database: PathBuf,
     pub warnings: Vec<String>,
     pub errors: Vec<String>,
     pub manifest: Value,
     pub image_support: Value,
     pub media_support: Value,
 }
+
+/// Manifest fields that name generated files; each must resolve to an existing path.
+const MANIFEST_PATH_FIELDS: &[&str] = &[
+    "llm_wiki",
+    "knowledge_graph",
+    "graph_routes",
+    "llm_wiki_schema",
+];
 
 const REQUIRED_KINDS: &[&str] = &[
     "manifest",
@@ -39,6 +55,19 @@ pub fn doctor(root: &Path) -> Result<DoctorReport> {
     if manifest.get("root").and_then(Value::as_str) != Some(clean_root.to_string_lossy().as_ref()) {
         errors.push("manifest root does not match selected root".to_owned());
     }
+    let index_dir = existing_root_storage_dir(&clean_root)?;
+    if !manifest.is_null() {
+        for field in MANIFEST_PATH_FIELDS {
+            match manifest.get(field).and_then(Value::as_str).map(Path::new) {
+                Some(path) if path.is_absolute() && path.exists() => {}
+                Some(path) => errors.push(format!(
+                    "manifest {field} path does not resolve: {}",
+                    path.display()
+                )),
+                None => errors.push(format!("manifest {field} path is missing")),
+            }
+        }
+    }
     let documents = load_artifacts(&clean_root, "documents")?;
     let image_docs = documents
         .iter()
@@ -58,6 +87,9 @@ pub fn doctor(root: &Path) -> Result<DoctorReport> {
     Ok(DoctorReport {
         root: clean_root,
         ok: errors.is_empty(),
+        prepared: errors.is_empty(),
+        index_dir,
+        database: database_path()?,
         warnings: Vec::new(),
         errors,
         manifest,

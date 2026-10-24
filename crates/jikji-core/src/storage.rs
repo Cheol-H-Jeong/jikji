@@ -421,6 +421,15 @@ pub fn root_storage_dir(root: &Path) -> Result<PathBuf> {
     Ok(data_dir()?.join("jikji/roots").join(id.to_string()))
 }
 
+/// Storage directory of an already registered root; never registers a new root.
+pub fn existing_root_storage_dir(root: &Path) -> Result<Option<PathBuf>> {
+    let connection = open_database()?;
+    let Some(id) = root_id(&connection, root)? else {
+        return Ok(None);
+    };
+    Ok(Some(data_dir()?.join("jikji/roots").join(id.to_string())))
+}
+
 pub fn replace_artifacts(root: &Path, artifacts: &[(&str, Value)]) -> Result<()> {
     replace_artifact_rows(root, artifacts, &[])
 }

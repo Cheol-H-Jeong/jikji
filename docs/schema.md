@@ -25,6 +25,21 @@ Required fields include:
 - `source_tree_signature`: content-free freshness fingerprint with `algorithm`,
   `digest`, `files`, `folders`, `total_size`, and `max_mtime_ns`; computed from
   relative path, size, and `mtime_ns` only
+- `index_dir`: absolute per-root artifact directory
+- `database`: absolute central SQLite index path
+- `llm_wiki`, `knowledge_graph`, `graph_routes`, `llm_wiki_schema`: absolute
+  paths inside `index_dir`; each file exists after `prepare`
+
+### Artifact location and prepared state
+
+`DATA` is `$JIKJI_DATA_DIR` when set (the supported override), otherwise the OS
+user data directory: Linux `$XDG_DATA_HOME` or `~/.local/share`, macOS
+`~/Library/Application Support`, Windows `%LOCALAPPDATA%`. The central index is
+`DATA/jikji/index.sqlite`; per-root files live in `DATA/jikji/roots/<root_id>/`,
+where `root_id` is the `roots.id` row whose `canonical_root` is the prepared
+folder. Integrators should not infer this layout: `jikji doctor ROOT --json`
+reports `prepared` (`true`/`false`), `index_dir` (`null` when never prepared),
+and `database`, and exits non-zero when the root is not prepared.
 
 `owned_paths` lists the generated artifact surface the Rust CLI may regenerate
 or clean. For the current central-storage layout, JSONL maps, parser caches,

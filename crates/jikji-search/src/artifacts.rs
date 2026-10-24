@@ -23,7 +23,8 @@ pub fn build_search_artifacts(
     let sqlite = build_sqlite_index(root, file_cards, chunk_rows)?;
     let storage_dir = root_storage_dir(root)?;
     let rows = rows_from_cards(root, &storage_dir, file_cards, chunk_rows);
-    let (graph_nodes, graph_edges) = build_graph_artifacts(root, &rows, folder_profiles)?;
+    let (graph_nodes, graph_edges) =
+        build_graph_artifacts(root, &storage_dir, &rows, folder_profiles)?;
     Ok(SearchArtifactStats {
         rows: sqlite.rows,
         terms: sqlite.terms,
