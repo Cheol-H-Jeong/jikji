@@ -61,7 +61,7 @@ pub fn doctor(root: &Path) -> Result<DoctorReport> {
             match manifest.get(field).and_then(Value::as_str).map(Path::new) {
                 Some(path) if path.is_absolute() && path.exists() => {}
                 Some(path) => errors.push(format!(
-                    "manifest {field} path does not resolve: {}",
+                    "manifest {field} path does not resolve: {} (re-run `jikji prepare` to refresh an index built by an older release)",
                     path.display()
                 )),
                 None => errors.push(format!("manifest {field} path is missing")),
