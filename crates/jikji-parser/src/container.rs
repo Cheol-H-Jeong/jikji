@@ -42,8 +42,14 @@ impl DocumentParser for OfficeOpenXmlParser {
     }
 
     fn parse(&self, input: ParserInput<'_>) -> ParsedDocument {
-        if suffix(input.path.to_string_lossy().as_ref()) == "docx" {
-            let Some(text) = docx_text(input.bytes, input.max_chars) else {
+        let ext = suffix(input.path.to_string_lossy().as_ref());
+        let structured = match ext.as_str() {
+            "docx" => Some(docx_text(input.bytes, input.max_chars)),
+            "pptx" | "ppsx" => Some(pptx_text(input.bytes, input.max_chars)),
+            _ => None,
+        };
+        if let Some(text) = structured {
+            let Some(text) = text else {
                 return ParsedDocument::failed(self.name());
             };
             return ParsedDocument::new(text, ParseStatus::Success, self.name());
@@ -126,10 +132,52 @@ fn docx_text(bytes: &[u8], max_chars: usize) -> Option<String> {
     if bytes.len() as u64 > MAX_XML_BYTES {
         return None;
     }
-    word_xml_text(&decode_xml_strict(&bytes)?, max_chars)
+    word_xml_text(&decode_xml_strict(&bytes)?, "w", max_chars)
 }
 
-fn word_xml_text(xml: &str, max_chars: usize) -> Option<String> {
+/// Slide text in slide order (`ppt/slides/slideN.xml` sorted by N, not archive order), one line
+/// per paragraph and a blank line between slides. Layouts, masters and notes are not slides.
+fn pptx_text(bytes: &[u8], max_chars: usize) -> Option<String> {
+    let mut archive = ZipArchive::new(Cursor::new(bytes)).ok()?;
+    if archive.len() > MAX_ZIP_ENTRIES {
+        return None;
+    }
+    let mut slides: Vec<(u32, String)> = archive
+        .file_names()
+        .filter_map(|name| {
+            let number = name.strip_prefix("ppt/slides/slide")?.strip_suffix(".xml")?;
+            Some((number.parse().ok()?, name.to_owned()))
+        })
+        .collect();
+    slides.sort_unstable();
+    let mut remaining_bytes = MAX_XML_BYTES;
+    let mut text = String::new();
+    for (_, name) in slides {
+        let file = archive.by_name(&name).ok()?;
+        if file.size() > remaining_bytes {
+            return None;
+        }
+        let mut bytes = Vec::new();
+        file.take(remaining_bytes + 1).read_to_end(&mut bytes).ok()?;
+        remaining_bytes = remaining_bytes.checked_sub(bytes.len() as u64)?;
+        let slide = word_xml_text(&decode_xml_strict(&bytes)?, "a", max_chars)?;
+        if slide.trim().is_empty() {
+            continue;
+        }
+        if !text.is_empty() {
+            text.push_str("\n\n");
+        }
+        text.push_str(slide.trim());
+        if text.chars().count() >= max_chars {
+            break;
+        }
+    }
+    Some(cap_chars(&text, max_chars))
+}
+
+/// Text of a WordprocessingML (`w`) or DrawingML (`a`) part: only `t` elements, runs joined
+/// within a paragraph, a line break per paragraph or table row.
+fn word_xml_text(xml: &str, ns: &str, max_chars: usize) -> Option<String> {
     let mut rest = xml;
     let mut text = String::new();
     let mut stack: Vec<&str> = Vec::new();
@@ -141,7 +189,7 @@ fn word_xml_text(xml: &str, max_chars: usize) -> Option<String> {
         }
         if let Some(cdata) = rest.strip_prefix("<![CDATA[") {
             let (body, tail) = cdata.split_once("]]>")?;
-            if skipped == 0 && stack.last().is_some_and(|name| is_word_element(name, "t")) {
+            if skipped == 0 && stack.last().is_some_and(|name| is_word_element(name, ns, "t")) {
                 text.push_str(body);
             }
             rest = tail;
@@ -176,9 +224,9 @@ fn word_xml_text(xml: &str, max_chars: usize) -> Option<String> {
                 .trim_start_matches('/')
                 .split(|c: char| c.is_whitespace() || c == '/')
                 .next()?;
-            let ignore = is_word_element(name, "del")
-                || is_word_element(name, "delText")
-                || is_word_element(name, "instrText");
+            let ignore = is_word_element(name, ns, "del")
+                || is_word_element(name, ns, "delText")
+                || is_word_element(name, ns, "instrText");
             if closing {
                 if stack.pop()? != name {
                     return None;
@@ -187,16 +235,16 @@ fn word_xml_text(xml: &str, max_chars: usize) -> Option<String> {
                     skipped = skipped.checked_sub(1)?;
                 }
                 if skipped == 0
-                    && (is_word_element(name, "p") || is_word_element(name, "tr"))
+                    && (is_word_element(name, ns, "p") || is_word_element(name, ns, "tr"))
                     && !text.ends_with('\n')
                 {
                     text.push('\n');
                 }
             } else {
                 if skipped == 0 {
-                    if is_word_element(name, "tab") {
+                    if is_word_element(name, ns, "tab") {
                         text.push('\t');
-                    } else if is_word_element(name, "br") || is_word_element(name, "cr") {
+                    } else if is_word_element(name, ns, "br") || is_word_element(name, ns, "cr") {
                         text.push('\n');
                     }
                 }
@@ -213,7 +261,7 @@ fn word_xml_text(xml: &str, max_chars: usize) -> Option<String> {
         } else {
             let end = rest.find('<').unwrap_or(rest.len());
             let body = &rest[..end];
-            if skipped == 0 && stack.last().is_some_and(|name| is_word_element(name, "t")) {
+            if skipped == 0 && stack.last().is_some_and(|name| is_word_element(name, ns, "t")) {
                 let mut remaining = body;
                 while let Some((before, entity)) = remaining.split_once('&') {
                     text.push_str(before);
@@ -250,8 +298,12 @@ fn word_xml_text(xml: &str, max_chars: usize) -> Option<String> {
     Some(cap_chars(text.trim_end_matches('\n'), max_chars))
 }
 
-fn is_word_element(name: &str, local: &str) -> bool {
-    name == local || name.strip_prefix("w:") == Some(local)
+fn is_word_element(name: &str, ns: &str, local: &str) -> bool {
+    name == local
+        || name
+            .strip_prefix(ns)
+            .and_then(|rest| rest.strip_prefix(':'))
+            == Some(local)
 }
 
 fn zip_text(bytes: &[u8], predicate: &dyn Fn(&str) -> bool, max_chars: usize) -> Option<String> {

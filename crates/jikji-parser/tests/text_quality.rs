@@ -212,3 +212,27 @@ fn docx_rejects_oversized_expansion_without_panicking() {
     assert_eq!(result.status, ParseStatus::Failed);
     assert!(result.text.is_empty());
 }
+
+#[test]
+fn pptx_runs_join_and_slide_parts_are_ordered_without_layout_noise() {
+    let mut archive = zip::ZipWriter::new(Cursor::new(Vec::new()));
+    for (name, body) in [
+        ("ppt/slides/slide10.xml", "<a:p><a:r><a:t>열 번째</a:t></a:r></a:p>"),
+        ("ppt/slides/slide2.xml", "<a:p><a:r><a:t>계</a:t></a:r><a:r><a:t>약서</a:t></a:r></a:p><a:p><a:r><a:t>A &amp; B</a:t></a:r></a:p>"),
+        ("ppt/slides/slide1.xml", "<a:p><a:r><a:t>첫 슬라이드</a:t></a:r></a:p><a:posOffset>7620</a:posOffset>"),
+        ("ppt/slideLayouts/slideLayout1.xml", "<a:p><a:r><a:t>자리표시자</a:t></a:r></a:p>"),
+        ("ppt/notesSlides/notesSlide1.xml", "<a:p><a:r><a:t>발표자 노트</a:t></a:r></a:p>"),
+    ] {
+        archive.start_file(name, SimpleFileOptions::default()).unwrap();
+        write!(archive, "<p:sld xmlns:p='urn:p' xmlns:a='urn:a'>{body}</p:sld>").unwrap();
+    }
+    let bytes = archive.finish().unwrap().into_inner();
+    let registry = ParserRegistry::with_defaults();
+    for ext in ["pptx", "ppsx"] {
+        let parsed = registry.parse_bytes(&format!("deck.{ext}"), &bytes, 4000);
+        assert_eq!(parsed.status, ParseStatus::Success);
+        assert_eq!(parsed.text, "첫 슬라이드\n\n계약서\nA & B\n\n열 번째");
+    }
+    let malformed = zip_xml("ppt/slides/slide1.xml", b"<p:sld><a:t>broken</p:sld>");
+    assert_eq!(registry.parse_bytes("bad.pptx", &malformed, 4000).status, ParseStatus::Failed);
+}
