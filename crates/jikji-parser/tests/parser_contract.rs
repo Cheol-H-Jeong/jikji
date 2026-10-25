@@ -245,7 +245,7 @@ fn office_pdf_hwp_and_binary_parsers_are_best_effort_without_panics() {
 
     let legacy_bytes = utf16le_bom("doctoken-5005");
     let legacy = parse_fixture(&registry, "legacy.doc", legacy_bytes.as_slice());
-    assert_eq!(legacy.status, ParseStatus::Unsupported);
+    assert_eq!(legacy.status, ParseStatus::Failed);
     assert!(legacy.text.is_empty());
 
     let hwp_bytes = utf16le_bom("hwptoken-6006");

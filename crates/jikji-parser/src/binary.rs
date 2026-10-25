@@ -44,11 +44,22 @@ impl DocumentParser for LegacyOfficeParser {
     }
 
     fn supports_extension(&self, extension: &str) -> bool {
-        matches!(extension, "doc" | "ppt" | "pps" | "xls")
+        matches!(extension, "doc" | "dot" | "ppt" | "pps" | "pot" | "xls")
     }
 
-    fn parse(&self, _input: ParserInput<'_>) -> ParsedDocument {
-        ParsedDocument::new(String::new(), ParseStatus::Unsupported, self.name())
+    fn parse(&self, input: ParserInput<'_>) -> ParsedDocument {
+        let extension = crate::extension_for_path(input.path);
+        let text = match extension.as_str() {
+            "doc" | "dot" => crate::legacy_office::word_text(input.bytes, input.max_chars),
+            "ppt" | "pps" | "pot" => crate::legacy_office::powerpoint_text(input.bytes, input.max_chars),
+            _ => return ParsedDocument::new(String::new(), ParseStatus::Unsupported, self.name()),
+        };
+        match text {
+            Ok(text) if !text.trim().is_empty() => {
+                ParsedDocument::new(text, ParseStatus::Success, self.name())
+            }
+            _ => ParsedDocument::failed(self.name()),
+        }
     }
 }
 

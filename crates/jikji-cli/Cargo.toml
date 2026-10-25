@@ -12,6 +12,7 @@ name = "jikji"
 path = "src/main.rs"
 
 [dependencies]
+encoding_rs = "0.8"
 clap.workspace = true
 getrandom.workspace = true
 jikji-agent.workspace = true
@@ -19,6 +20,7 @@ jikji-bench.workspace = true
 jikji-core.workspace = true
 jikji-hermes-bench.workspace = true
 jikji-index.workspace = true
+jikji-parser.workspace = true
 jikji-search.workspace = true
 jikji-public-datasets.workspace = true
 serde.workspace = true

@@ -1122,9 +1122,32 @@ pub(super) fn read_text_preview(path: &Path) -> std::io::Result<Option<(String, 
             bytes.truncate(valid);
             String::from_utf8(bytes).unwrap_or_default()
         }
-        Err(_) => return Ok(None),
+        Err(error) => match legacy_text(error.as_bytes(), truncated) {
+            Some(text) => text,
+            None => return Ok(None),
+        },
     };
     Ok(Some((text, truncated)))
+}
+
+/// Non-UTF-8 text files in this corpus are Korean Windows (CP949) or Western Windows-1252.
+/// CP949 is tried strictly first (a cut multi-byte tail is dropped); 1252 decodes any byte.
+fn legacy_text(bytes: &[u8], truncated: bool) -> Option<String> {
+    fn cp949(input: &[u8]) -> Option<String> {
+        encoding_rs::EUC_KR
+            .decode_without_bom_handling_and_without_replacement(input)
+            .map(std::borrow::Cow::into_owned)
+    }
+    if let Some(text) = cp949(bytes) {
+        return Some(text);
+    }
+    if truncated {
+        if let Some(text) = bytes.split_last().and_then(|(_, head)| cp949(head)) {
+            return Some(text);
+        }
+    }
+    let (text, _, had_errors) = encoding_rs::WINDOWS_1252.decode(bytes);
+    (!had_errors).then(|| text.into_owned())
 }
 
 pub(super) fn match_ranges(content: &str, query: &str) -> Vec<serde_json::Value> {

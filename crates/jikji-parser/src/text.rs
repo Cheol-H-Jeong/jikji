@@ -79,9 +79,10 @@ impl DocumentParser for RtfParser {
     fn name(&self) -> &'static str { "rtf" }
     fn supports_extension(&self, extension: &str) -> bool { extension == "rtf" }
     fn parse(&self, input: ParserInput<'_>) -> ParsedDocument {
-        let Some(raw) = decode_text_strict(input.bytes, input.max_chars.saturating_mul(6)) else { return ParsedDocument::failed(self.name()); };
-        let stripped = Regex::new(r"\\[a-zA-Z]+-?\d* ?|\\'[0-9a-fA-F]{2}|[{}]").map_or(raw.clone(), |regex| regex.replace_all(raw.as_str(), "").into_owned());
-        ParsedDocument::new(cap_chars(collapse_whitespace(stripped.as_str()).as_str(), input.max_chars), ParseStatus::Success, self.name())
+        match crate::rtf::rtf_text(input.bytes, input.max_chars) {
+            Some(text) if !text.trim().is_empty() => ParsedDocument::new(text, ParseStatus::Success, self.name()),
+            _ => ParsedDocument::failed(self.name()),
+        }
     }
 }
 

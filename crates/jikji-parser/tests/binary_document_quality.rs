@@ -49,17 +49,34 @@ fn valid_pdf_without_rendered_text_is_metadata_only() {
 }
 
 #[test]
-fn legacy_office_extensions_are_explicitly_unsupported() {
+fn legacy_office_garbage_yields_no_text() {
     let registry = ParserRegistry::with_defaults();
     let mut utf16 = vec![0xff, 0xfe];
     for unit in "not-a-real-office-document".encode_utf16() {
         utf16.extend_from_slice(&unit.to_le_bytes());
     }
-    for extension in ["doc", "ppt", "pps", "xls"] {
+    for extension in ["doc", "ppt", "pps"] {
         for bytes in [b"random printable bytes".as_slice(), &utf16] {
             let parsed = registry.parse_bytes(&format!("opaque.{extension}"), bytes, 4_000);
-            assert_eq!(parsed.status, ParseStatus::Unsupported);
-            assert!(parsed.text.is_empty());
+            assert_eq!(parsed.status, ParseStatus::Failed, "{extension}");
+            assert!(parsed.text.is_empty(), "{extension}");
         }
     }
+    let parsed = registry.parse_bytes("opaque.xls", b"random printable bytes", 4_000);
+    assert_eq!(parsed.status, ParseStatus::Unsupported);
+    assert!(parsed.text.is_empty());
+}
+
+#[test]
+fn doc_files_that_are_really_rtf_or_docx_are_parsed_by_content() {
+    let registry = ParserRegistry::with_defaults();
+    let rtf = registry.parse_bytes(
+        "saved-by-word.doc",
+        br"{\rtf1\ansi\ansicpg949 \'c3\'aa\'ba\'bf body\par}",
+        4_000,
+    );
+    assert_eq!(rtf.status, ParseStatus::Success);
+    assert_eq!(rtf.text, "챗봇 body");
+    let html = registry.parse_bytes("exported.doc", b"<html><body><p>html marker</p></body></html>", 4_000);
+    assert!(html.text.contains("html marker"), "{html:?}");
 }

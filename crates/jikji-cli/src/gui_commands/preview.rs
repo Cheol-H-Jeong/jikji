@@ -75,14 +75,16 @@ pub(crate) fn snippet_payload(root: &Path, rel_path: &str, full: Option<&Path>, 
                 "heading_hint": chunk.get("heading_hint").cloned().unwrap_or(Value::Null),
             }));
         }
-        if !text.is_empty() {
-            if readable(&text) {
-                return text_payload(rel_path, "index_chunks", text, query, metadata, parts);
-            }
-            return metadata_payload(rel_path, "unreadable_text", metadata);
+        if !text.is_empty() && readable(&text) {
+            return text_payload(rel_path, "index_chunks", text, query, metadata, parts);
         }
     }
     if let Some(path) = full.filter(|path| path.is_file()) {
+        // Indexed text is missing or was produced by an older parser (raw OLE bytes for legacy
+        // .doc/.ppt/.hwp). Extract it from the original now so the snippet is never empty.
+        if let Some(text) = parse_original(path) {
+            return text_payload(rel_path, "parsed_now", text, query, metadata, Vec::new());
+        }
         if let Ok(Some((text, truncated))) = super::routing::read_text_preview(path) {
             let mut payload = text_payload(rel_path, "file_text", text, query, metadata, Vec::new());
             if truncated {
@@ -91,7 +93,32 @@ pub(crate) fn snippet_payload(root: &Path, rel_path: &str, full: Option<&Path>, 
             return payload;
         }
     }
-    metadata_payload(rel_path, "not_indexed", metadata)
+    let reason = if file_row.is_some() { "unreadable_text" } else { "not_indexed" };
+    metadata_payload(rel_path, reason, metadata)
+}
+
+/// Largest original file parsed on demand for a snippet.
+const MAX_PARSE_NOW_BYTES: u64 = 64 * 1024 * 1024;
+
+/// Extensions parsed on demand: the legacy formats older releases cached as raw container bytes,
+/// handled by Jikji's own bounds-checked parsers. Third-party extractors (PDF in particular) can
+/// panic on hostile files, and with `panic = "abort"` that would take the whole console down.
+const PARSE_NOW_EXTENSIONS: &[&str] = &["doc", "dot", "ppt", "pps", "pot", "hwp", "rtf"];
+
+/// Text extracted from the original file with the indexer's own parsers, when they know the
+/// format and produce readable text. Plain text files are left to `read_text_preview`.
+fn parse_original(path: &Path) -> Option<String> {
+    let ext = path.extension()?.to_str()?.to_ascii_lowercase();
+    if !PARSE_NOW_EXTENSIONS.contains(&ext.as_str()) || path.metadata().ok()?.len() > MAX_PARSE_NOW_BYTES {
+        return None;
+    }
+    let registry = jikji_parser::ParserRegistry::with_defaults();
+    let parsed = registry.parse_path(path, MAX_SNIPPET_TEXT_CHARS);
+    let parsed_ok = parsed.status == jikji_parser::ParseStatus::Success
+        && parsed.parser_name != "plain-text"
+        && !parsed.text.trim().is_empty()
+        && readable(&parsed.text);
+    parsed_ok.then_some(parsed.text)
 }
 
 /// Parser text cache for this file, or `None` when missing, empty or unreadable.
@@ -130,18 +157,100 @@ fn strip_cache_header(text: &str) -> &str {
     rest.strip_prefix('\n').unwrap_or(rest)
 }
 
-/// Old releases cached the raw OLE container of legacy .doc/.hwp files as text; that shows as
-/// pages of `ÿ` and control characters and must not be presented as a snippet.
+/// Old releases cached container bytes of legacy .doc/.ppt/.xls/.hwp (and renamed .docx) as
+/// text. That shows as the OLE header (`þÿÿÿ`), zip headers, the HWP stream directory, or binary
+/// decoded as UTF-16, which looks like scattered CJK and private-use characters. None of it may
+/// be shown as a snippet.
 fn readable(text: &str) -> bool {
-    let sample = text.chars().take(4000);
-    let (mut total, mut bad) = (0usize, 0usize);
-    for ch in sample {
+    let trimmed = text.trim_start();
+    if trimmed.starts_with("þÿÿÿ")
+        || trimmed.starts_with("PK")
+        || trimmed.starts_with("Root Entry")
+        || trimmed.contains("[Content_Types].xml")
+    {
+        return false;
+    }
+    let (mut total, mut bad, mut cjk, mut hangul, mut ascii_words) = (0usize, 0usize, 0usize, 0usize, 0usize);
+    let mut in_word = false;
+    for ch in text.chars().take(4000) {
         total += 1;
-        if ch == '\u{fffd}' || ch == 'ÿ' || ch == 'þ' || (ch.is_control() && !matches!(ch, '\n' | '\r' | '\t')) {
+        let code = ch as u32;
+        let suspicious = ch == '\u{fffd}'
+            || ch == 'ÿ'
+            || ch == 'þ'
+            || (ch.is_control() && !matches!(ch, '\n' | '\r' | '\t'))
+            || (0xE000..=0xF8FF).contains(&code)
+            || (0x2000..=0x206F).contains(&code) && !matches!(ch, '\u{2010}'..='\u{2027}' | '\u{2030}'..='\u{205E}')
+            || (0x1100..=0x11FF).contains(&code)
+            || (0x0600..=0x0FFF).contains(&code)
+            || (0x1200..=0x18FF).contains(&code);
+        if suspicious {
             bad += 1;
         }
+        if (0x4E00..=0x9FFF).contains(&code) || (0x3400..=0x4DBF).contains(&code) {
+            cjk += 1;
+        }
+        if (0xAC00..=0xD7A3).contains(&code) {
+            hangul += 1;
+        }
+        let letter = ch.is_ascii_alphabetic();
+        if letter && !in_word {
+            ascii_words += 1;
+        }
+        in_word = letter;
     }
-    total == 0 || (bad as f64) / (total as f64) < UNREADABLE_RATIO
+    if total == 0 {
+        return true;
+    }
+    // Binary read as UTF-16 lands mostly in the CJK ideograph block with almost no Hangul or
+    // Latin words around it; real Chinese/Japanese text is rare in this corpus but still passes
+    // when it is not mixed with the other noise signals.
+    let ideograph_noise = cjk * 4 > total && hangul * 10 < cjk && bad > 0;
+    (bad as f64) / (total as f64) < UNREADABLE_RATIO
+        && !ideograph_noise
+        && !mixed_script_noise(text)
+        && (hangul > 0 || ascii_words > 0 || cjk > 0 || bad == 0)
+}
+
+/// Script group of a character, for spotting binary decoded as UTF-16: such text jumps between
+/// unrelated writing systems (Han, Hangul, kana, Cyrillic, Armenian, Ethiopic, …) every few
+/// characters, which real documents never do.
+fn script_group(ch: char) -> Option<u8> {
+    let code = ch as u32;
+    Some(match code {
+        0x0041..=0x007A | 0x00C0..=0x024F => 0,
+        0x0370..=0x03FF => 1,
+        0x0400..=0x052F => 2,
+        0x0530..=0x058F => 3,
+        0x0590..=0x05FF => 4,
+        0x0600..=0x0FFF => 5,
+        0x1100..=0x11FF | 0x3130..=0x318F | 0xAC00..=0xD7A3 => 6,
+        0x1200..=0x18FF => 7,
+        0x3040..=0x30FF => 8,
+        0x3400..=0x4DBF | 0x4E00..=0x9FFF => 9,
+        0xA000..=0xABFF => 10,
+        0xE000..=0xF8FF => 11,
+        _ => return None,
+    })
+}
+
+/// True when, across 40-character windows, letters switch between four or more script groups.
+fn mixed_script_noise(text: &str) -> bool {
+    let letters: Vec<u8> = text.chars().take(4000).filter_map(script_group).collect();
+    if letters.len() < 12 {
+        return false;
+    }
+    let noisy_windows = letters
+        .chunks(40)
+        .filter(|window| {
+            let mut seen = [false; 12];
+            for &group in *window {
+                seen[group as usize] = true;
+            }
+            seen.iter().filter(|&&present| present).count() >= 4
+        })
+        .count();
+    noisy_windows * 3 >= letters.len().div_ceil(40)
 }
 
 fn text_payload(
@@ -334,13 +443,60 @@ pub(crate) fn render_page_png(bytes: &Arc<Vec<u8>>, page: usize) -> Result<Optio
 
 #[cfg(test)]
 mod tests {
-    use super::{readable, strip_cache_header};
+    use super::{parse_original, readable, snippet_payload, strip_cache_header};
+
+    #[test]
+    fn unindexed_legacy_doc_snippet_is_extracted_from_the_original() {
+        let dir = std::env::temp_dir().join(format!("jikji-snippet-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let doc = dir.join("saved-by-word.doc");
+        std::fs::write(&doc, br"{\rtf1\ansi\ansicpg949{\fonttbl{\f0 Gulim;}} \'c3\'aa\'ba\'bf \'ba\'bb\'b9\'ae refund\par}").unwrap();
+        let payload = snippet_payload(&dir, "saved-by-word.doc", Some(&doc), "");
+        assert_eq!(payload["source"], "parsed_now", "{payload}");
+        let text = payload["text"].as_str().unwrap();
+        assert!(text.contains("챗봇 본문 refund"), "{text}");
+        assert!(!text.contains("Gulim"), "{text}");
+        // PDF extraction can panic on hostile input; it must never run on the request path.
+        let pdf = dir.join("x.pdf");
+        std::fs::write(&pdf, b"%PDF-1.4\n%garbage").unwrap();
+        assert!(parse_original(&pdf).is_none());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn cp949_and_latin1_text_files_show_as_snippets() {
+        let dir = std::env::temp_dir().join(format!("jikji-snippet-enc-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let korean = dir.join("design.txt");
+        let (bytes, _, _) = encoding_rs::EUC_KR.encode("속성명\t데이터 타입\r\nCLCT_DB_NM\tVARCHAR\t원시데이터명\r\n");
+        std::fs::write(&korean, &bytes).unwrap();
+        let payload = snippet_payload(&dir, "design.txt", Some(&korean), "");
+        assert_eq!(payload["source"], "file_text", "{payload}");
+        assert!(payload["text"].as_str().unwrap().contains("원시데이터명"));
+        let western = dir.join("tags.txt");
+        std::fs::write(&western, b"3IV1 \tcaf\xe9 codec used by 3ivx\r\n").unwrap();
+        let payload = snippet_payload(&dir, "tags.txt", Some(&western), "");
+        assert!(payload["text"].as_str().unwrap().contains("café codec"), "{payload}");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 
     #[test]
     fn legacy_ole_garbage_is_not_readable_but_korean_text_is() {
         assert!(!readable(&"þÿÿÿ ÿÿÿÿÿÿÿÿÿÿÿÿ\u{1}\u{2}".repeat(40)));
         assert!(readable("용역 계약서 본문 refund policy\n두 번째 줄"));
         assert!(readable(""));
+    }
+
+    #[test]
+    fn container_bytes_cached_by_old_releases_are_not_readable() {
+        // Samples taken from the production index (old releases cached these as "text").
+        assert!(!readable("2‘oWf [Content_Types].xml ”ËjÃ0 …þƒÑ¶ØJº( Š4NDõB"));
+        assert!(!readable("Root Entry FileHeader DocInfo HwpSummaryInformation Root Ent"));
+        assert!(!readable("扪扪村村 ሄᘀ膄ȀԻ蹥Ի蹥楆 색쒳났ﲬ ᇉ뜀ꗇギ색탆 ꌥ\u{2000}情岸ギ 薺\u{2000}㨀"));
+        assert!(!readable("Ԁ吸촇준Ȁ Ȁ뀄섀Ȁ 尀瀀Ȁ ††††††††††††††††††††††††††††††††††"));
+        // Real text with typographic punctuation, numbers and mixed scripts stays readable.
+        assert!(readable("일 일 업 무 보 고 (2025.7.7.) 보고일자 : 2025. 7. 7. — “AI 사업” 관리…"));
+        assert!(readable("Machine Learning for entrepreneurship 코드 SIT31009"));
     }
 
     #[test]

@@ -7,7 +7,9 @@ use std::path::{Path, PathBuf};
 mod archive;
 mod binary;
 mod container;
+mod legacy_office;
 mod media;
+mod rtf;
 mod structured;
 mod text;
 mod utils;
@@ -158,7 +160,13 @@ impl ParserRegistry {
 
     fn parse_path_with_bytes(&self, path: &Path, bytes: &[u8], max_chars: usize) -> ParsedDocument {
         let extension = extension_for_path(path);
-        let Some(parser) = self.parser_for_extension(extension.as_str()) else {
+        // Legacy Office names are often reused for other formats: Word saves RTF, HTML or a
+        // renamed .docx as ".doc". Pick the parser from the content in that case.
+        let effective = match (extension.as_str(), sniff_document_format(bytes)) {
+            ("doc" | "dot" | "xls" | "ppt" | "pps", Some(sniffed)) => sniffed,
+            _ => extension.as_str(),
+        };
+        let Some(parser) = self.parser_for_extension(effective) else {
             return ParsedDocument::unsupported();
         };
         parser.parse(ParserInput {
@@ -167,6 +175,26 @@ impl ParserRegistry {
             max_chars,
         })
     }
+}
+
+/// Document format recognised from the leading bytes, for files whose extension lies.
+/// `None` for compound (OLE) files and anything unrecognised, which keep their extension.
+fn sniff_document_format(bytes: &[u8]) -> Option<&'static str> {
+    let head = bytes.get(..bytes.len().min(512)).unwrap_or_default();
+    if head.starts_with(b"{\\rtf") {
+        return Some("rtf");
+    }
+    if head.starts_with(b"PK\x03\x04") {
+        return Some("docx");
+    }
+    let text = String::from_utf8_lossy(head).trim_start_matches('\u{feff}').trim_start().to_ascii_lowercase();
+    if text.starts_with("<html") || text.starts_with("<!doctype html") || (text.starts_with("<?xml") && text.contains("<html")) {
+        return Some("html");
+    }
+    if text.starts_with("mime-version:") {
+        return Some("eml");
+    }
+    None
 }
 
 fn normalize_extension(extension: &str) -> String {

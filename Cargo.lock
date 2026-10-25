@@ -1021,6 +1021,7 @@ name = "jikji-cli"
 version = "0.1.1"
 dependencies = [
  "clap",
+ "encoding_rs",
  "flate2",
  "getrandom 0.4.3",
  "hayro",
@@ -1029,6 +1030,7 @@ dependencies = [
  "jikji-core",
  "jikji-hermes-bench",
  "jikji-index",
+ "jikji-parser",
  "jikji-public-datasets",
  "jikji-search",
  "rusqlite",

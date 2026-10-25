@@ -247,6 +247,26 @@ mod tests {
         assert!(INDEX_HTML.find("</main>").unwrap() < INDEX_HTML.find("fetch(").unwrap());
     }
     #[test]
+    fn console_keeps_explorer_regions_dark_and_results_score_free() {
+        let (markup, script) = INDEX_HTML.split_once("<script>").unwrap();
+        assert!(markup.contains(":root{color-scheme:dark;"));
+        assert!(markup.contains("scrollbar-width:thin"));
+        assert!(markup.contains("scrollbar-color:var(--border-hover) transparent"));
+        assert!(markup.contains("::-webkit-scrollbar-thumb"));
+        assert!(markup.contains("--scrollbar-size:8px"));
+        assert!(markup.contains("height:calc(100dvh - var(--header))"));
+        assert!(markup.contains("#search-results,#files-view,#indexed-view{flex:1;min-height:0;overflow:auto"));
+        assert!(markup.contains("#roots-panel{flex:1;min-height:0;overflow:auto"));
+        assert!(markup.contains("class=\"preview-title-row\""));
+        assert!(markup.contains("class=\"preview-controls\""));
+        assert!(!script.contains("점수"));
+        assert!(!INDEX_HTML.contains("score-cell"));
+        assert!(script.contains("Number(b.score??b.s??0)-Number(a.score??a.s??0)"));
+        assert!(script.contains("cell.colSpan=2"));
+        assert!(script.contains("parsed_now:\"원본에서 추출\""));
+        assert!(!script.contains("신뢰도"));
+    }
+    #[test]
     fn console_uses_the_api_contract_without_unsafe_dom_or_persistence() {
         let script = INDEX_HTML.split("<script>").nth(1).unwrap();
         for route in ["/api/status", "/api/roots", "/api/files", "/api/indexed-files",
