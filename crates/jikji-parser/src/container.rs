@@ -42,6 +42,12 @@ impl DocumentParser for OfficeOpenXmlParser {
     }
 
     fn parse(&self, input: ParserInput<'_>) -> ParsedDocument {
+        if suffix(input.path.to_string_lossy().as_ref()) == "docx" {
+            let Some(text) = docx_text(input.bytes, input.max_chars) else {
+                return ParsedDocument::failed(self.name());
+            };
+            return ParsedDocument::new(text, ParseStatus::Success, self.name());
+        }
         let matcher = |name: &str| {
             let lower = name.to_ascii_lowercase();
             (lower.starts_with("word/") && lower.ends_with(".xml"))
@@ -102,8 +108,158 @@ impl DocumentParser for HwpxParser {
     }
 }
 
+// Bound decompression independently of the compressed file and requested text length.
+const MAX_XML_BYTES: u64 = 16 * 1024 * 1024;
+const MAX_ZIP_ENTRIES: usize = 10_000;
+
+fn docx_text(bytes: &[u8], max_chars: usize) -> Option<String> {
+    let mut archive = ZipArchive::new(Cursor::new(bytes)).ok()?;
+    if archive.len() > MAX_ZIP_ENTRIES {
+        return None;
+    }
+    let file = archive.by_name("word/document.xml").ok()?;
+    if file.size() > MAX_XML_BYTES {
+        return None;
+    }
+    let mut bytes = Vec::new();
+    file.take(MAX_XML_BYTES + 1).read_to_end(&mut bytes).ok()?;
+    if bytes.len() as u64 > MAX_XML_BYTES {
+        return None;
+    }
+    word_xml_text(&decode_xml_strict(&bytes)?, max_chars)
+}
+
+fn word_xml_text(xml: &str, max_chars: usize) -> Option<String> {
+    let mut rest = xml;
+    let mut text = String::new();
+    let mut stack: Vec<&str> = Vec::new();
+    let mut skipped = 0usize;
+    while !rest.is_empty() {
+        if let Some(comment) = rest.strip_prefix("<!--") {
+            rest = comment.split_once("-->")?.1;
+            continue;
+        }
+        if let Some(cdata) = rest.strip_prefix("<![CDATA[") {
+            let (body, tail) = cdata.split_once("]]>")?;
+            if skipped == 0 && stack.last().is_some_and(|name| is_word_element(name, "t")) {
+                text.push_str(body);
+            }
+            rest = tail;
+            continue;
+        }
+        if let Some(tag) = rest.strip_prefix('<') {
+            let mut quote = None;
+            let end = tag.char_indices().find_map(|(index, ch)| {
+                if let Some(q) = quote {
+                    if ch == q {
+                        quote = None;
+                    }
+                } else if matches!(ch, '\'' | '"') {
+                    quote = Some(ch);
+                } else if ch == '>' {
+                    return Some(index);
+                }
+                None
+            })?;
+            let tag_body = tag[..end].trim();
+            rest = &tag[end + 1..];
+            if tag_body.starts_with('?') {
+                continue;
+            }
+            // No DTD or external entity expansion on the request path.
+            if tag_body.starts_with('!') {
+                return None;
+            }
+            let closing = tag_body.starts_with('/');
+            let empty = tag_body.ends_with('/');
+            let name = tag_body
+                .trim_start_matches('/')
+                .split(|c: char| c.is_whitespace() || c == '/')
+                .next()?;
+            let ignore = is_word_element(name, "del")
+                || is_word_element(name, "delText")
+                || is_word_element(name, "instrText");
+            if closing {
+                if stack.pop()? != name {
+                    return None;
+                }
+                if ignore {
+                    skipped = skipped.checked_sub(1)?;
+                }
+                if skipped == 0
+                    && (is_word_element(name, "p") || is_word_element(name, "tr"))
+                    && !text.ends_with('\n')
+                {
+                    text.push('\n');
+                }
+            } else {
+                if skipped == 0 {
+                    if is_word_element(name, "tab") {
+                        text.push('\t');
+                    } else if is_word_element(name, "br") || is_word_element(name, "cr") {
+                        text.push('\n');
+                    }
+                }
+                if !empty {
+                    if stack.len() >= 256 {
+                        return None;
+                    }
+                    stack.push(name);
+                    if ignore {
+                        skipped += 1;
+                    }
+                }
+            }
+        } else {
+            let end = rest.find('<').unwrap_or(rest.len());
+            let body = &rest[..end];
+            if skipped == 0 && stack.last().is_some_and(|name| is_word_element(name, "t")) {
+                let mut remaining = body;
+                while let Some((before, entity)) = remaining.split_once('&') {
+                    text.push_str(before);
+                    let (entity, tail) = entity.split_once(';')?;
+                    let ch = match entity {
+                        "amp" => '&',
+                        "lt" => '<',
+                        "gt" => '>',
+                        "quot" => '"',
+                        "apos" => '\'',
+                        _ => {
+                            let value = if let Some(hex) = entity.strip_prefix("#x") {
+                                u32::from_str_radix(hex, 16).ok()?
+                            } else {
+                                entity.strip_prefix('#')?.parse().ok()?
+                            };
+                            char::from_u32(value)?
+                        }
+                    };
+                    if ch.is_control() && !matches!(ch, '\n' | '\r' | '\t') {
+                        return None;
+                    }
+                    text.push(ch);
+                    remaining = tail;
+                }
+                text.push_str(remaining);
+            }
+            rest = &rest[end..];
+        }
+    }
+    if !stack.is_empty() {
+        return None;
+    }
+    Some(cap_chars(text.trim_end_matches('\n'), max_chars))
+}
+
+fn is_word_element(name: &str, local: &str) -> bool {
+    name == local || name.strip_prefix("w:") == Some(local)
+}
+
 fn zip_text(bytes: &[u8], predicate: &dyn Fn(&str) -> bool, max_chars: usize) -> Option<String> {
     let mut archive = ZipArchive::new(Cursor::new(bytes)).ok()?;
+    if archive.len() > MAX_ZIP_ENTRIES {
+        return None;
+    }
+    let mut remaining_bytes = MAX_XML_BYTES;
     let mut parts = Vec::new();
     let mut total = 0usize;
     for index in 0..archive.len() {
@@ -112,8 +268,15 @@ fn zip_text(bytes: &[u8], predicate: &dyn Fn(&str) -> bool, max_chars: usize) ->
         if !predicate(name.as_str()) {
             continue;
         }
+        if file.size() > remaining_bytes {
+            return None;
+        }
         let mut bytes = Vec::new();
-        file.read_to_end(&mut bytes).ok()?;
+        (&mut file)
+            .take(remaining_bytes + 1)
+            .read_to_end(&mut bytes)
+            .ok()?;
+        remaining_bytes = remaining_bytes.checked_sub(bytes.len() as u64)?;
         let xml = decode_xml_strict(bytes.as_slice())?;
         let xml = strip_xml_tags(xml.as_str(), max_chars);
         if !xml.trim().is_empty() {

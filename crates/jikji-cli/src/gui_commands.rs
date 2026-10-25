@@ -247,6 +247,74 @@ mod tests {
         assert!(INDEX_HTML.find("</main>").unwrap() < INDEX_HTML.find("fetch(").unwrap());
     }
     #[test]
+    fn console_preview_helpers_render_safe_typed_content() {
+        use std::io::Write;
+        use std::process::{Command, Stdio};
+        let script = INDEX_HTML.split_once("function queryRanges(").unwrap().1;
+        let helpers = format!("function queryRanges({}", script.split_once("function snippetCard(").unwrap().0);
+        let harness = r#"
+const assert = require('node:assert/strict');
+class Node {
+  constructor(tag, text='') { this.tagName=tag.toUpperCase(); this.text=text; this.children=[]; this.attributes={}; }
+  append(...nodes) { this.children.push(...nodes); }
+  setAttribute(key,value) { this.attributes[key]=value; }
+  set textContent(value) { this.text=value; this.children=[]; }
+  get textContent() { return this.text+this.children.map(n=>n.textContent).join(''); }
+}
+const document={createTextNode:text=>new Node('#text',text)};
+const el=(tag,text='',cls='')=>Object.assign(new Node(tag,text),{className:cls});
+const ext=path=>path.split('.').pop().toLowerCase();
+const nodes=new Map(),$=id=>{if(!nodes.has(id))nodes.set(id,new Node('button'));return nodes.get(id)};
+const state={previews:{search:{item:{path:'manual.pdf'},mode:'file'}}};
+"#;
+        let assertions = r#"
+for (const [path,label] of [['manual.PDF','PDF'],['report.docx','문서 본문'],['memo.hwp','문서 본문'],['notes.txt','텍스트'],['main.py','코드'],['readme.md','마크다운'],['archive.zip',''],['mystery.bin','']]) assert.equal(fileModeLabel(path),label);
+for (const [path,label] of [['template.dot','문서 본문'],['template.dotx','문서 본문'],['slides.pot','문서 본문'],['main.lua','코드'],['paper.tex','코드'],['analysis.R','코드'],['docs/manual.rst','텍스트'],['src/Makefile','코드'],['Dockerfile.dev','코드'],['config/.env','코드'],['config/.env.local','코드']]) assert.equal(fileModeLabel(path),label);
+updatePreviewTabs('search');
+assert.equal($('search-file-tab').textContent,'PDF');
+state.previews.search.item={path:'report.docx'};
+updatePreviewTabs('search');
+assert.equal($('search-file-tab').textContent,'문서 본문');
+assert.equal(state.previews.search.mode,'file');
+state.previews.search.item={path:'archive.zip'};
+updatePreviewTabs('search');
+assert.equal($('search-file-tab').hidden,true);
+assert.equal(state.previews.search.mode,'snippet');
+assert.equal($('search-snippet-tab').tabIndex,0);
+assert.equal($('search-preview-content').attributes['aria-labelledby'],'search-snippet-tab');
+assert.deepEqual(queryRanges('😀 계약서 계약서','계약서'),[{start:3,end:6},{start:7,end:10}]);
+assert.deepEqual(queryRanges('a+b aab','a+b'),[{start:0,end:3}]);
+assert.deepEqual(queryRanges('x',''),[]);
+assert.deepEqual(queryRanges('😀 계약서 사이 a+b','계약서 a+b'),[{start:3,end:6},{start:10,end:13}]);
+assert.deepEqual(queryRanges('계약서 계약','계약 계약서'),[{start:0,end:3},{start:4,end:6}]);
+assert.deepEqual(queryRanges('alpha beta alpha','alpha beta'),[{start:0,end:10}]);
+assert.deepEqual(queryRanges('anything','   '),[]);
+const hostile='<img src=x onerror=alert(1)> 계약서';
+const highlighted=highlightText(hostile,'계약서','div');
+assert.equal(highlighted.textContent,hostile);
+assert.deepEqual(highlighted.children.map(n=>n.tagName),['#TEXT','MARK','#TEXT']);
+const ranged=rangeText('😀 계약서',[{start:3,end:6},{start:0,end:99}]);
+assert.equal(ranged.textContent,'😀 계약서');
+assert.equal(ranged.children[1].textContent,'계약서');
+const md=markdownBody('# 제목\n- 계약서\n> 인용\n```js\n<script>alert(1)</script>\n```','계약서');
+assert.deepEqual(md.children.map(n=>n.tagName),['H1','UL','BLOCKQUOTE','PRE']);
+assert.ok(md.textContent.includes('<script>alert(1)</script>'));
+const pane={scrollTop:0,clientHeight:300,querySelector:()=>({getBoundingClientRect:()=>({top:600})}),getBoundingClientRect:()=>({top:100})};
+scrollToFirstMatch(pane);
+assert.equal(pane.scrollTop,400);
+console.log('typed preview, UTF-16 ranges, literal hostile text, Markdown structure, pane-only scrolling: passed');
+"#;
+        let mut child = Command::new("node")
+            .arg("-")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn().expect("Node.js is required for console JavaScript behavior tests");
+        child.stdin.take().unwrap().write_all(format!("{harness}\n{helpers}\n{assertions}").as_bytes()).unwrap();
+        let output = child.wait_with_output().unwrap();
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    }
+    #[test]
     fn console_keeps_explorer_regions_dark_and_results_score_free() {
         let (markup, script) = INDEX_HTML.split_once("<script>").unwrap();
         assert!(markup.contains(":root{color-scheme:dark;"));
@@ -282,7 +350,7 @@ mod tests {
         for unsafe_api in ["innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval(", "localStorage"] {
             assert!(!INDEX_HTML.contains(unsafe_api), "forbidden API {unsafe_api}");
         }
-        for kind in ["text", "image", "pdf", "audio", "video", "none"] {
+        for kind in ["document", "text", "image", "pdf", "audio", "video", "none"] {
             assert!(script.contains(&format!("case \"{kind}\":")), "missing preview kind {kind}");
         }
         assert!(script.contains("response.status===401"));

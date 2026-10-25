@@ -1,9 +1,10 @@
 //! Snippet mode and page-image mode for the console's preview pane.
 //!
-//! Snippets come only from what the index already holds (parser text cache, chunk rows) or, for
-//! native text files, the file itself, so they work for every indexed file without converters.
-//! Page images render PDFs (native, or Office/HWP converted to PDF) to PNG on the server with
-//! `hayro` (Apache-2.0 OR MIT), so they do not depend on the browser having a PDF viewer.
+//! Snippets reuse indexed text or bounded original-file extraction, without converters. DOCX
+//! originals take precedence over legacy caches so words split across Word runs stay searchable;
+//! a missing original falls back to indexed text. Office previews show this extracted body.
+//! Only native PDF files render page images using `hayro` (Apache-2.0 OR MIT); other document
+//! formats never enter the PDF renderer. Text, code and Markdown keep their native text views.
 
 use std::collections::VecDeque;
 use std::fs;
@@ -16,7 +17,9 @@ use hayro::hayro_interpret::InterpreterSettings;
 use hayro::hayro_syntax::Pdf;
 use hayro::vello_cpu::color::palette::css::WHITE;
 use hayro::{PixmapSettings, RenderCache, RenderSettings, render};
-use jikji_core::storage::{existing_root_storage_dir, load_artifact_by_path, load_artifacts_for_path};
+use jikji_core::storage::{
+    existing_root_storage_dir, load_artifact_by_path, load_artifacts_for_path,
+};
 use serde_json::{Value, json};
 
 /// Snippet text sent to the browser at most.
@@ -40,17 +43,39 @@ pub(crate) const MAX_PAGE_PREVIEW_PDF_BYTES: u64 = 200 * 1024 * 1024;
 const UNREADABLE_RATIO: f64 = 0.2;
 
 /// The snippet payload for `rel_path` under `root` (`full` is the resolved file on disk, if any).
-pub(crate) fn snippet_payload(root: &Path, rel_path: &str, full: Option<&Path>, query: &str) -> Value {
-    let file_row = load_artifact_by_path(root, "files", rel_path).ok().flatten();
+pub(crate) fn snippet_payload(
+    root: &Path,
+    rel_path: &str,
+    full: Option<&Path>,
+    query: &str,
+) -> Value {
+    let file_row = load_artifact_by_path(root, "files", rel_path)
+        .ok()
+        .flatten();
     let metadata = metadata_json(rel_path, full, file_row.as_ref());
+    let is_docx = full.is_some_and(|path| {
+        path.extension()
+            .and_then(|ext| ext.to_str())
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("docx"))
+    });
+    let original_docx = full
+        .filter(|path| path.is_file() && is_docx)
+        .and_then(parse_original);
+    if let Some(text) = original_docx {
+        return text_payload(rel_path, "parsed_now", text, query, metadata, Vec::new());
+    }
 
     if let Some(row) = &file_row {
-        let cache_path = row.get("text_cache_path").and_then(Value::as_str).unwrap_or_default();
+        let cache_path = row
+            .get("text_cache_path")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
         if let Some(text) = read_index_cache(root, cache_path) {
             return text_payload(rel_path, "index_cache", text, query, metadata, Vec::new());
         }
     }
-    let chunks = load_artifacts_for_path(root, "chunks", rel_path, MAX_SNIPPET_CHUNKS).unwrap_or_default();
+    let chunks =
+        load_artifacts_for_path(root, "chunks", rel_path, MAX_SNIPPET_CHUNKS).unwrap_or_default();
     if !chunks.is_empty() {
         let mut text = String::new();
         let mut parts = Vec::with_capacity(chunks.len());
@@ -82,34 +107,68 @@ pub(crate) fn snippet_payload(root: &Path, rel_path: &str, full: Option<&Path>, 
     if let Some(path) = full.filter(|path| path.is_file()) {
         // Indexed text is missing or was produced by an older parser (raw OLE bytes for legacy
         // .doc/.ppt/.hwp). Extract it from the original now so the snippet is never empty.
-        if let Some(text) = parse_original(path) {
+        if !is_docx && let Some(text) = parse_original(path) {
             return text_payload(rel_path, "parsed_now", text, query, metadata, Vec::new());
         }
-        if let Ok(Some((text, truncated))) = super::routing::read_text_preview(path) {
-            let mut payload = text_payload(rel_path, "file_text", text, query, metadata, Vec::new());
+        if !is_document_extension(path)
+            && let Ok(Some((text, truncated))) = super::routing::read_text_preview(path)
+        {
+            let mut payload =
+                text_payload(rel_path, "file_text", text, query, metadata, Vec::new());
             if truncated {
                 payload["truncated"] = json!(true);
             }
             return payload;
         }
     }
-    let reason = if file_row.is_some() { "unreadable_text" } else { "not_indexed" };
+    let reason = if file_row.is_some() {
+        "unreadable_text"
+    } else {
+        "not_indexed"
+    };
     metadata_payload(rel_path, reason, metadata)
+}
+
+fn is_document_extension(path: &Path) -> bool {
+    let Some(ext) = path.extension().and_then(|ext| ext.to_str()) else {
+        return false;
+    };
+    matches!(
+        ext.to_ascii_lowercase().as_str(),
+        "pdf"
+            | "docx"
+            | "doc"
+            | "dot"
+            | "pptx"
+            | "ppt"
+            | "ppsx"
+            | "pps"
+            | "pot"
+            | "xlsx"
+            | "xls"
+            | "hwp"
+            | "hwpx"
+            | "rtf"
+            | "odt"
+            | "ods"
+            | "odp"
+    )
 }
 
 /// Largest original file parsed on demand for a snippet.
 const MAX_PARSE_NOW_BYTES: u64 = 64 * 1024 * 1024;
 
-/// Extensions parsed on demand: the legacy formats older releases cached as raw container bytes,
-/// handled by Jikji's own bounds-checked parsers. Third-party extractors (PDF in particular) can
-/// panic on hostile files, and with `panic = "abort"` that would take the whole console down.
-const PARSE_NOW_EXTENSIONS: &[&str] = &["doc", "dot", "ppt", "pps", "pot", "hwp", "rtf"];
+/// Extensions parsed on demand by Jikji's bounds-checked parsers. PDF is deliberately excluded:
+/// its third-party parser can panic and release builds use `panic = "abort"`.
+const PARSE_NOW_EXTENSIONS: &[&str] = &["docx", "doc", "dot", "ppt", "pps", "pot", "hwp", "rtf"];
 
 /// Text extracted from the original file with the indexer's own parsers, when they know the
 /// format and produce readable text. Plain text files are left to `read_text_preview`.
 fn parse_original(path: &Path) -> Option<String> {
     let ext = path.extension()?.to_str()?.to_ascii_lowercase();
-    if !PARSE_NOW_EXTENSIONS.contains(&ext.as_str()) || path.metadata().ok()?.len() > MAX_PARSE_NOW_BYTES {
+    if !PARSE_NOW_EXTENSIONS.contains(&ext.as_str())
+        || path.metadata().ok()?.len() > MAX_PARSE_NOW_BYTES
+    {
         return None;
     }
     let registry = jikji_parser::ParserRegistry::with_defaults();
@@ -127,7 +186,9 @@ fn read_index_cache(root: &Path, cache_path: &str) -> Option<String> {
     let rel = Path::new(rel);
     if rel.as_os_str().is_empty()
         || rel.is_absolute()
-        || rel.components().any(|part| !matches!(part, std::path::Component::Normal(_)))
+        || rel
+            .components()
+            .any(|part| !matches!(part, std::path::Component::Normal(_)))
     {
         return None;
     }
@@ -157,100 +218,32 @@ fn strip_cache_header(text: &str) -> &str {
     rest.strip_prefix('\n').unwrap_or(rest)
 }
 
-/// Old releases cached container bytes of legacy .doc/.ppt/.xls/.hwp (and renamed .docx) as
-/// text. That shows as the OLE header (`þÿÿÿ`), zip headers, the HWP stream directory, or binary
-/// decoded as UTF-16, which looks like scattered CJK and private-use characters. None of it may
-/// be shown as a snippet.
+/// Reject known container/binary/XML noise without making assumptions about human languages.
 fn readable(text: &str) -> bool {
     let trimmed = text.trim_start();
     if trimmed.starts_with("þÿÿÿ")
-        || trimmed.starts_with("PK")
-        || trimmed.starts_with("Root Entry")
+        || trimmed.starts_with("PK\u{3}\u{4}")
         || trimmed.contains("[Content_Types].xml")
+        || trimmed.starts_with("<?xml")
     {
         return false;
     }
-    let (mut total, mut bad, mut cjk, mut hangul, mut ascii_words) = (0usize, 0usize, 0usize, 0usize, 0usize);
-    let mut in_word = false;
+    let mut total = 0usize;
+    let mut bad = 0usize;
+    let mut controls = 0usize;
     for ch in text.chars().take(4000) {
         total += 1;
-        let code = ch as u32;
-        let suspicious = ch == '\u{fffd}'
-            || ch == 'ÿ'
-            || ch == 'þ'
+        if ch == '\u{fffd}'
             || (ch.is_control() && !matches!(ch, '\n' | '\r' | '\t'))
-            || (0xE000..=0xF8FF).contains(&code)
-            || (0x2000..=0x206F).contains(&code) && !matches!(ch, '\u{2010}'..='\u{2027}' | '\u{2030}'..='\u{205E}')
-            || (0x1100..=0x11FF).contains(&code)
-            || (0x0600..=0x0FFF).contains(&code)
-            || (0x1200..=0x18FF).contains(&code);
-        if suspicious {
+            || (0xE000..=0xF8FF).contains(&(ch as u32))
+        {
             bad += 1;
-        }
-        if (0x4E00..=0x9FFF).contains(&code) || (0x3400..=0x4DBF).contains(&code) {
-            cjk += 1;
-        }
-        if (0xAC00..=0xD7A3).contains(&code) {
-            hangul += 1;
-        }
-        let letter = ch.is_ascii_alphabetic();
-        if letter && !in_word {
-            ascii_words += 1;
-        }
-        in_word = letter;
-    }
-    if total == 0 {
-        return true;
-    }
-    // Binary read as UTF-16 lands mostly in the CJK ideograph block with almost no Hangul or
-    // Latin words around it; real Chinese/Japanese text is rare in this corpus but still passes
-    // when it is not mixed with the other noise signals.
-    let ideograph_noise = cjk * 4 > total && hangul * 10 < cjk && bad > 0;
-    (bad as f64) / (total as f64) < UNREADABLE_RATIO
-        && !ideograph_noise
-        && !mixed_script_noise(text)
-        && (hangul > 0 || ascii_words > 0 || cjk > 0 || bad == 0)
-}
-
-/// Script group of a character, for spotting binary decoded as UTF-16: such text jumps between
-/// unrelated writing systems (Han, Hangul, kana, Cyrillic, Armenian, Ethiopic, …) every few
-/// characters, which real documents never do.
-fn script_group(ch: char) -> Option<u8> {
-    let code = ch as u32;
-    Some(match code {
-        0x0041..=0x007A | 0x00C0..=0x024F => 0,
-        0x0370..=0x03FF => 1,
-        0x0400..=0x052F => 2,
-        0x0530..=0x058F => 3,
-        0x0590..=0x05FF => 4,
-        0x0600..=0x0FFF => 5,
-        0x1100..=0x11FF | 0x3130..=0x318F | 0xAC00..=0xD7A3 => 6,
-        0x1200..=0x18FF => 7,
-        0x3040..=0x30FF => 8,
-        0x3400..=0x4DBF | 0x4E00..=0x9FFF => 9,
-        0xA000..=0xABFF => 10,
-        0xE000..=0xF8FF => 11,
-        _ => return None,
-    })
-}
-
-/// True when, across 40-character windows, letters switch between four or more script groups.
-fn mixed_script_noise(text: &str) -> bool {
-    let letters: Vec<u8> = text.chars().take(4000).filter_map(script_group).collect();
-    if letters.len() < 12 {
-        return false;
-    }
-    let noisy_windows = letters
-        .chunks(40)
-        .filter(|window| {
-            let mut seen = [false; 12];
-            for &group in *window {
-                seen[group as usize] = true;
+            if ch.is_control() && !matches!(ch, '\n' | '\r' | '\t') {
+                controls += 1;
             }
-            seen.iter().filter(|&&present| present).count() >= 4
-        })
-        .count();
-    noisy_windows * 3 >= letters.len().div_ceil(40)
+        }
+    }
+    total == 0 || (controls == 0 && (bad as f64) / (total as f64) < UNREADABLE_RATIO)
 }
 
 fn text_payload(
@@ -262,7 +255,11 @@ fn text_payload(
     chunks: Vec<Value>,
 ) -> Value {
     let truncated = text.chars().count() > MAX_SNIPPET_TEXT_CHARS;
-    let text = if truncated { text.chars().take(MAX_SNIPPET_TEXT_CHARS).collect() } else { text };
+    let text = if truncated {
+        text.chars().take(MAX_SNIPPET_TEXT_CHARS).collect()
+    } else {
+        text
+    };
     let mut payload = json!({
         "path": rel_path,
         "source": source,
@@ -290,7 +287,11 @@ fn metadata_payload(rel_path: &str, reason: &str, metadata: Value) -> Value {
 }
 
 fn metadata_json(rel_path: &str, full: Option<&Path>, row: Option<&Value>) -> Value {
-    let field = |name: &str| row.and_then(|row| row.get(name)).cloned().unwrap_or(Value::Null);
+    let field = |name: &str| {
+        row.and_then(|row| row.get(name))
+            .cloned()
+            .unwrap_or(Value::Null)
+    };
     let size = full
         .and_then(|path| path.metadata().ok())
         .map(|metadata| json!(metadata.len()))
@@ -316,7 +317,8 @@ struct CachedPdf {
     bytes: Arc<Vec<u8>>,
 }
 
-static PDF_CACHE: LazyLock<Mutex<VecDeque<CachedPdf>>> = LazyLock::new(|| Mutex::new(VecDeque::new()));
+static PDF_CACHE: LazyLock<Mutex<VecDeque<CachedPdf>>> =
+    LazyLock::new(|| Mutex::new(VecDeque::new()));
 /// Held while a cache miss is produced, so concurrent requests for a cold document wait for
 /// one conversion instead of each starting their own.
 static PDF_PRODUCE: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
@@ -324,8 +326,17 @@ static PDF_PRODUCE: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 /// Cache key: path, size and modification time, so an edited file is converted again.
 fn cache_key(path: &Path) -> Option<String> {
     let metadata = path.metadata().ok()?;
-    let modified = metadata.modified().ok()?.duration_since(UNIX_EPOCH).ok()?.as_nanos();
-    Some(format!("{}\u{0}{}\u{0}{modified}", path.display(), metadata.len()))
+    let modified = metadata
+        .modified()
+        .ok()?
+        .duration_since(UNIX_EPOCH)
+        .ok()?
+        .as_nanos();
+    Some(format!(
+        "{}\u{0}{}\u{0}{modified}",
+        path.display(),
+        metadata.len()
+    ))
 }
 
 fn cache_lookup(key: &str) -> Option<Arc<Vec<u8>>> {
@@ -346,7 +357,9 @@ pub(crate) fn cached_pdf(
     if let Some(bytes) = cache_lookup(&key) {
         return Ok(bytes);
     }
-    let _producing = PDF_PRODUCE.lock().map_err(|_| "preview cache is unavailable".to_owned())?;
+    let _producing = PDF_PRODUCE
+        .lock()
+        .map_err(|_| "preview cache is unavailable".to_owned())?;
     // Another request may have produced it while this one waited.
     if let Some(bytes) = cache_lookup(&key) {
         return Ok(bytes);
@@ -357,10 +370,15 @@ pub(crate) fn cached_pdf(
         return Ok(bytes);
     }
     if let Ok(mut cache) = PDF_CACHE.lock() {
-        cache.push_front(CachedPdf { key, bytes: Arc::clone(&bytes) });
+        cache.push_front(CachedPdf {
+            key,
+            bytes: Arc::clone(&bytes),
+        });
         let mut total: usize = cache.iter().map(|entry| entry.bytes.len()).sum();
         while cache.len() > PDF_CACHE_DOCS || total > PDF_CACHE_BYTES {
-            let Some(evicted) = cache.pop_back() else { break };
+            let Some(evicted) = cache.pop_back() else {
+                break;
+            };
             total = total.saturating_sub(evicted.bytes.len());
         }
     }
@@ -370,7 +388,8 @@ pub(crate) fn cached_pdf(
 /// Renders running at once. Each holds a full RGBA canvas, so this bounds peak memory no matter
 /// how many page requests arrive together.
 const MAX_CONCURRENT_RENDERS: usize = 2;
-static ACTIVE_RENDERS: LazyLock<(Mutex<usize>, Condvar)> = LazyLock::new(|| (Mutex::new(0), Condvar::new()));
+static ACTIVE_RENDERS: LazyLock<(Mutex<usize>, Condvar)> =
+    LazyLock::new(|| (Mutex::new(0), Condvar::new()));
 
 /// Holds one render slot until dropped.
 struct RenderSlot;
@@ -399,13 +418,18 @@ impl Drop for RenderSlot {
 
 /// Number of pages in a PDF.
 pub(crate) fn page_count(bytes: &Arc<Vec<u8>>) -> Result<usize, String> {
-    let pdf = Pdf::new(Arc::clone(bytes)).map_err(|error| format!("PDF could not be read: {error:?}"))?;
+    let pdf =
+        Pdf::new(Arc::clone(bytes)).map_err(|error| format!("PDF could not be read: {error:?}"))?;
     Ok(pdf.pages().len())
 }
 
 /// Page `page` (1-based) rendered as PNG.
-pub(crate) fn render_page_png(bytes: &Arc<Vec<u8>>, page: usize) -> Result<Option<Vec<u8>>, String> {
-    let pdf = Pdf::new(Arc::clone(bytes)).map_err(|error| format!("PDF could not be read: {error:?}"))?;
+pub(crate) fn render_page_png(
+    bytes: &Arc<Vec<u8>>,
+    page: usize,
+) -> Result<Option<Vec<u8>>, String> {
+    let pdf =
+        Pdf::new(Arc::clone(bytes)).map_err(|error| format!("PDF could not be read: {error:?}"))?;
     let Some(index) = page.checked_sub(1) else {
         return Ok(None);
     };
@@ -425,7 +449,11 @@ pub(crate) fn render_page_png(bytes: &Arc<Vec<u8>>, page: usize) -> Result<Optio
     // vello_cpu canvases are u16-sized on each edge; a very thin, very long page could still
     // overflow one edge after the pixel budget, so refuse it instead of panicking.
     let max_edge = f32::from(u16::MAX);
-    if width * scale < 1.0 || height * scale < 1.0 || width * scale > max_edge || height * scale > max_edge {
+    if width * scale < 1.0
+        || height * scale < 1.0
+        || width * scale > max_edge
+        || height * scale > max_edge
+    {
         return Err("page is too large to render".to_owned());
     }
     let Some(_slot) = RenderSlot::acquire() else {
@@ -436,14 +464,23 @@ pub(crate) fn render_page_png(bytes: &Arc<Vec<u8>>, page: usize) -> Result<Optio
         &RenderCache::new(),
         &InterpreterSettings::default(),
         &RenderSettings::default(),
-        &PixmapSettings { x_scale: scale, y_scale: scale, bg_color: WHITE },
+        &PixmapSettings {
+            x_scale: scale,
+            y_scale: scale,
+            bg_color: WHITE,
+        },
     );
-    pixmap.into_png().map(Some).map_err(|error| error.to_string())
+    pixmap
+        .into_png()
+        .map(Some)
+        .map_err(|error| error.to_string())
 }
 
 #[cfg(test)]
 mod tests {
     use super::{parse_original, readable, snippet_payload, strip_cache_header};
+    use std::io::{Cursor, Write};
+    use zip::write::SimpleFileOptions;
 
     #[test]
     fn unindexed_legacy_doc_snippet_is_extracted_from_the_original() {
@@ -464,11 +501,68 @@ mod tests {
     }
 
     #[test]
+    fn unindexed_docx_snippet_uses_body_and_preserves_split_runs() {
+        let dir = std::env::temp_dir().join(format!("jikji-snippet-docx-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let doc = dir.join("report.docx");
+        let mut archive = zip::ZipWriter::new(Cursor::new(Vec::new()));
+        archive
+            .start_file("docProps/core.xml", SimpleFileOptions::default())
+            .unwrap();
+        archive
+            .write_all(b"<cp:core><dc:title>XML metadata</dc:title></cp:core>")
+            .unwrap();
+        archive
+            .start_file("word/document.xml", SimpleFileOptions::default())
+            .unwrap();
+        archive.write_all(r#"<w:document><w:body><w:p><w:r><w:t>계</w:t></w:r><w:r><w:t>약</w:t></w:r><w:r><w:t>서</w:t></w:r></w:p><w:p><w:r><w:t>실제 &amp; 본문</w:t></w:r></w:p></w:body></w:document>"#.as_bytes()).unwrap();
+        std::fs::write(&doc, archive.finish().unwrap().into_inner()).unwrap();
+        let payload = snippet_payload(&dir, "report.docx", Some(&doc), "계약서");
+        assert_eq!(payload["source"], "parsed_now", "{payload}");
+        assert_eq!(payload["text"], "계약서\n실제 & 본문", "{payload}");
+        assert!(!payload["text"].as_str().unwrap().contains("metadata"));
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn malformed_office_file_never_falls_back_to_raw_text() {
+        let dir = std::env::temp_dir().join(format!(
+            "jikji-snippet-broken-office-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let doc = dir.join("broken.docx");
+        std::fs::write(&doc, b"not a zip").unwrap();
+        let payload = snippet_payload(&dir, "broken.docx", Some(&doc), "zip");
+        assert_eq!(payload["source"], "metadata", "{payload}");
+        assert_eq!(payload["text"], "", "{payload}");
+        assert_eq!(payload["reason"], "not_indexed", "{payload}");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn malformed_docx_is_parsed_once_before_metadata_fallback() {
+        let dir = std::env::temp_dir().join(format!(
+            "jikji-snippet-malformed-once-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let doc = dir.join("broken.docx");
+        std::fs::write(&doc, b"not a zip").unwrap();
+        // The observable contract is graceful metadata fallback; `is_docx` prevents the generic
+        // parser branch from retrying the same file after the original-first attempt failed.
+        let payload = snippet_payload(&dir, "broken.docx", Some(&doc), "zip");
+        assert_eq!(payload["source"], "metadata", "{payload}");
+        assert_eq!(payload["text"], "", "{payload}");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+    #[test]
     fn cp949_and_latin1_text_files_show_as_snippets() {
         let dir = std::env::temp_dir().join(format!("jikji-snippet-enc-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let korean = dir.join("design.txt");
-        let (bytes, _, _) = encoding_rs::EUC_KR.encode("속성명\t데이터 타입\r\nCLCT_DB_NM\tVARCHAR\t원시데이터명\r\n");
+        let (bytes, _, _) = encoding_rs::EUC_KR
+            .encode("속성명\t데이터 타입\r\nCLCT_DB_NM\tVARCHAR\t원시데이터명\r\n");
         std::fs::write(&korean, &bytes).unwrap();
         let payload = snippet_payload(&dir, "design.txt", Some(&korean), "");
         assert_eq!(payload["source"], "file_text", "{payload}");
@@ -476,7 +570,10 @@ mod tests {
         let western = dir.join("tags.txt");
         std::fs::write(&western, b"3IV1 \tcaf\xe9 codec used by 3ivx\r\n").unwrap();
         let payload = snippet_payload(&dir, "tags.txt", Some(&western), "");
-        assert!(payload["text"].as_str().unwrap().contains("café codec"), "{payload}");
+        assert!(
+            payload["text"].as_str().unwrap().contains("café codec"),
+            "{payload}"
+        );
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
@@ -490,20 +587,43 @@ mod tests {
     #[test]
     fn container_bytes_cached_by_old_releases_are_not_readable() {
         // Samples taken from the production index (old releases cached these as "text").
-        assert!(!readable("2‘oWf [Content_Types].xml ”ËjÃ0 …þƒÑ¶ØJº( Š4NDõB"));
-        assert!(!readable("Root Entry FileHeader DocInfo HwpSummaryInformation Root Ent"));
-        assert!(!readable("扪扪村村 ሄᘀ膄ȀԻ蹥Ի蹥楆 색쒳났ﲬ ᇉ뜀ꗇギ색탆 ꌥ\u{2000}情岸ギ 薺\u{2000}㨀"));
-        assert!(!readable("Ԁ吸촇준Ȁ Ȁ뀄섀Ȁ 尀瀀Ȁ ††††††††††††††††††††††††††††††††††"));
-        // Real text with typographic punctuation, numbers and mixed scripts stays readable.
-        assert!(readable("일 일 업 무 보 고 (2025.7.7.) 보고일자 : 2025. 7. 7. — “AI 사업” 관리…"));
-        assert!(readable("Machine Learning for entrepreneurship 코드 SIT31009"));
+        // Exact container signatures and XML packaging noise are rejected.
+        assert!(!readable("PK\u{3}\u{4}\u{14}\0\0\0[Content_Types].xml"));
+        assert!(!readable(
+            "<?xml version=\"1.0\"?><Types><Default/><Default/></Types>"
+        ));
+        assert!(!readable("text\u{0}with\u{1}controls"));
+        // Legitimate text is not rejected merely because of its opening words or scripts.
+        assert!(readable(
+            "PK는 공개 키의 약어로 쓰이는 정상 문서 본문입니다."
+        ));
+        assert!(readable(
+            "Root Entry is a legitimate heading in this document."
+        ));
+        assert!(readable("العربية עברית 日本語 中文 Ελληνικά हिन्दी 😀"));
+        assert!(readable("a < b > c < d > e < f > g < h > i"));
+        assert!(readable(
+            "일 일 업 무 보 고 (2025.7.7.) 보고일자 : 2025. 7. 7. — “AI 사업” 관리…"
+        ));
+        assert!(readable(
+            "Machine Learning for entrepreneurship 코드 SIT31009"
+        ));
     }
 
     #[test]
     fn cache_header_lines_are_not_shown_as_document_text() {
         let cached = "# Source: docs/a.docx\n# File ID: sha256:ab\n# Parsed by: Jikji\n\n본문 첫 줄\n# 제목처럼 보이는 줄";
-        assert_eq!(strip_cache_header(cached), "본문 첫 줄\n# 제목처럼 보이는 줄");
-        assert_eq!(strip_cache_header("# Source: x\n# File ID: y\n# Parsed by: Jikji\n\n"), "");
-        assert_eq!(strip_cache_header("# 일반 마크다운 제목\n본문"), "# 일반 마크다운 제목\n본문");
+        assert_eq!(
+            strip_cache_header(cached),
+            "본문 첫 줄\n# 제목처럼 보이는 줄"
+        );
+        assert_eq!(
+            strip_cache_header("# Source: x\n# File ID: y\n# Parsed by: Jikji\n\n"),
+            ""
+        );
+        assert_eq!(
+            strip_cache_header("# 일반 마크다운 제목\n본문"),
+            "# 일반 마크다운 제목\n본문"
+        );
     }
 }

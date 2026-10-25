@@ -650,6 +650,21 @@ fn preview_response(state: &GuiState, query: &str) -> HttpResponse {
         "media_type": renderer.media_type,
         "binary_url": format!("/api/preview/file?{}", query),
     });
+    if renderer.kind == PreviewKind::Document {
+        let q = query_value(query, "q").unwrap_or_default();
+        let snippet = preview::snippet_payload(&root, rel.trim_matches('/'), Some(&path), &q);
+        payload["kind"] = json!(PreviewKind::Document.as_str());
+        payload["supported"] = json!(true);
+        payload["content"] = snippet["text"].clone();
+        payload["matches"] = snippet["matches"].clone();
+        payload["match_unit"] = json!("utf16_code_unit");
+        payload["source"] = snippet["source"].clone();
+        payload["truncated"] = snippet["truncated"].clone();
+        if let Some(reason) = snippet.get("reason") {
+            payload["reason"] = reason.clone();
+        }
+        return HttpResponse::json(200, payload);
+    }
     if renderer.kind != PreviewKind::Text {
         let kind = if !renderer.available {
             payload["reason"] = json!("renderer_unavailable");
@@ -696,6 +711,8 @@ fn preview_response(state: &GuiState, query: &str) -> HttpResponse {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum PreviewKind {
     Text,
+    /// Office/HWP/RTF documents: the parsed text the indexer holds, shown as text.
+    Document,
     Image,
     Pdf,
     Audio,
@@ -707,6 +724,7 @@ impl PreviewKind {
     fn as_str(self) -> &'static str {
         match self {
             Self::Text => "text",
+            Self::Document => "document",
             Self::Image => "image",
             Self::Pdf => "pdf",
             Self::Audio => "audio",
@@ -740,24 +758,14 @@ fn preview_renderer(path: &Path) -> PreviewRenderer {
         kind,
         media_type: Some(media_type),
     };
-    let office = executable_available("libreoffice") || executable_available("soffice");
     match extension.as_str() {
-        "hwp" | "hwpx" => {
-            let rwhp = executable_available("rwhp");
-            PreviewRenderer {
-                name: if rwhp { "rwhp" } else { "libreoffice-fallback" },
-                available: rwhp || office,
-                kind: PreviewKind::Pdf,
-                media_type: Some("application/pdf"),
-            }
-        }
         "pdf" => browser("browser-pdf", PreviewKind::Pdf, "application/pdf"),
-        "doc" | "docx" | "ppt" | "pptx" | "pps" | "ppsx" | "xls" | "xlsx" | "xlsm" | "odt"
-        | "ods" | "odp" | "rtf" => PreviewRenderer {
-            name: "libreoffice",
-            available: office,
-            kind: PreviewKind::Pdf,
-            media_type: Some("application/pdf"),
+        "doc" | "docx" | "dot" | "dotx" | "ppt" | "pptx" | "pps" | "ppsx" | "pot" | "xls"
+        | "xlsx" | "xlsm" | "odt" | "ods" | "odp" | "rtf" | "hwp" | "hwpx" => PreviewRenderer {
+            name: "indexed-text",
+            available: true,
+            kind: PreviewKind::Document,
+            media_type: None,
         },
         "png" => browser("browser-image", PreviewKind::Image, "image/png"),
         "jpg" | "jpeg" => browser("browser-image", PreviewKind::Image, "image/jpeg"),
@@ -792,18 +800,6 @@ fn preview_renderer(path: &Path) -> PreviewRenderer {
     }
 }
 
-fn executable_available(name: &str) -> bool {
-    #[cfg(all(unix, not(target_os = "macos")))]
-    {
-        executable_on_path(name).is_some()
-    }
-    #[cfg(any(target_os = "macos", windows))]
-    {
-        std::env::var_os("PATH")
-            .is_some_and(|path| std::env::split_paths(&path).any(|dir| dir.join(name).is_file()))
-    }
-}
-
 fn preview_file_response(state: &GuiState, request: &HttpRequest) -> HttpResponse {
     let query = request.query.as_str();
     let root = match requested_search_root(state, query) {
@@ -829,24 +825,6 @@ fn preview_file_response(state: &GuiState, request: &HttpRequest) -> HttpRespons
             503,
             json!({"error":"renderer unavailable","renderer":renderer.name}),
         );
-    }
-    let extension = path
-        .extension()
-        .and_then(|value| value.to_str())
-        .unwrap_or_default()
-        .to_ascii_lowercase();
-    if renderer.kind == PreviewKind::Pdf && extension != "pdf" {
-        // Shares the converted PDF with the page-image endpoints instead of converting again.
-        return match preview::cached_pdf(&path, || convert_document_to_pdf(&path, renderer.name == "rwhp")) {
-            Ok(body) if body.len() as u64 <= MAX_BINARY_PREVIEW_BYTES => {
-                HttpResponse::binary(200, body.as_ref().clone(), media_type)
-            }
-            Ok(_) => HttpResponse::json(413, json!({"error":"preview target is too large"})),
-            Err(error) => HttpResponse::json(
-                422,
-                json!({"error":"preview conversion failed","renderer":renderer.name,"detail":error}),
-            ),
-        };
     }
     let file = match File::open(&path) {
         Ok(file) => file,
@@ -900,40 +878,21 @@ fn snippet_response(state: &GuiState, query: &str) -> HttpResponse {
     HttpResponse::json(200, preview::snippet_payload(&root, rel.trim_matches('/'), full.as_deref(), &q))
 }
 
-/// PDF bytes for page-image preview: the file itself, or a converted Office/HWP document.
-fn preview_pdf(path: &Path) -> std::result::Result<(std::sync::Arc<Vec<u8>>, &'static str), HttpResponse> {
+/// PDF bytes for page-image preview. Only real PDF files have pages; documents are shown as
+/// their parsed text instead (`kind: "document"`).
+fn preview_pdf(path: &Path) -> std::result::Result<std::sync::Arc<Vec<u8>>, HttpResponse> {
     if !path.is_file() {
         return Err(HttpResponse::json(400, json!({"error":"preview target is not a file"})));
     }
-    let renderer = preview_renderer(path);
-    if renderer.kind != PreviewKind::Pdf {
-        return Err(HttpResponse::json(415, json!({"error":"page preview is only for documents"})));
+    if preview_renderer(path).kind != PreviewKind::Pdf {
+        return Err(HttpResponse::json(415, json!({"error":"page preview is only for PDF files"})));
     }
-    if !renderer.available {
-        return Err(HttpResponse::json(503, json!({"error":"renderer unavailable","renderer":renderer.name})));
-    }
-    let native = path
-        .extension()
-        .is_some_and(|extension| extension.eq_ignore_ascii_case("pdf"));
     let size = path.metadata().map(|metadata| metadata.len()).unwrap_or(u64::MAX);
     if size > preview::MAX_PAGE_PREVIEW_PDF_BYTES {
         return Err(HttpResponse::json(413, json!({"error":"preview target is too large"})));
     }
-    let converter = if native { "native-pdf" } else { "libreoffice" };
-    let bytes = preview::cached_pdf(path, || {
-        if native {
-            fs::read(path).map_err(|error| error.to_string())
-        } else {
-            convert_document_to_pdf(path, renderer.name == "rwhp")
-        }
-    })
-    .map_err(|detail| {
-        HttpResponse::json(422, json!({"error":"preview conversion failed","renderer":renderer.name,"detail":detail}))
-    })?;
-    if bytes.len() as u64 > preview::MAX_PAGE_PREVIEW_PDF_BYTES {
-        return Err(HttpResponse::json(413, json!({"error":"preview target is too large"})));
-    }
-    Ok((bytes, converter))
+    preview::cached_pdf(path, || fs::read(path).map_err(|error| error.to_string()))
+        .map_err(|detail| HttpResponse::json(422, json!({"error":"preview read failed","detail":detail})))
 }
 
 fn preview_pages_response(state: &GuiState, query: &str) -> HttpResponse {
@@ -941,7 +900,7 @@ fn preview_pages_response(state: &GuiState, query: &str) -> HttpResponse {
         Ok(path) => path,
         Err(response) => return response,
     };
-    let (bytes, converter) = match preview_pdf(&path) {
+    let bytes = match preview_pdf(&path) {
         Ok(pdf) => pdf,
         Err(response) => return response,
     };
@@ -962,7 +921,7 @@ fn preview_pages_response(state: &GuiState, query: &str) -> HttpResponse {
         .collect::<Vec<_>>();
     HttpResponse::json(
         200,
-        json!({"pages": pages, "page_urls": page_urls, "truncated_pages": pages > listed, "converter": converter}),
+        json!({"pages": pages, "page_urls": page_urls, "truncated_pages": pages > listed, "converter": "native-pdf"}),
     )
 }
 
@@ -977,7 +936,7 @@ fn preview_page_response(state: &GuiState, query: &str) -> HttpResponse {
     if page == 0 || page > preview::MAX_PREVIEW_PAGES {
         return HttpResponse::json(404, json!({"error":"page out of range"}));
     }
-    let (bytes, _) = match preview_pdf(&path) {
+    let bytes = match preview_pdf(&path) {
         Ok(pdf) => pdf,
         Err(response) => return response,
     };
@@ -988,113 +947,6 @@ fn preview_page_response(state: &GuiState, query: &str) -> HttpResponse {
     }
 }
 
-fn convert_document_to_pdf(path: &Path, prefer_rwhp: bool) -> std::result::Result<Vec<u8>, String> {
-    let mut errors = Vec::new();
-    if prefer_rwhp && executable_available("rwhp") {
-        match convert_with_rwhp(path) {
-            Ok(body) => return Ok(body),
-            Err(error) => errors.push(format!("rwhp: {error}")),
-        }
-    }
-    match convert_with_libreoffice(path) {
-        Ok(body) => Ok(body),
-        Err(error) => {
-            errors.push(format!("libreoffice: {error}"));
-            Err(errors.join("; "))
-        }
-    }
-}
-
-fn convert_with_rwhp(path: &Path) -> std::result::Result<Vec<u8>, String> {
-    let temp = tempfile::tempdir().map_err(|error| error.to_string())?;
-    let output_pdf = temp.path().join("preview.pdf");
-    let attempts = [
-        vec![
-            "to-pdf".to_owned(),
-            path.display().to_string(),
-            output_pdf.display().to_string(),
-        ],
-        vec![
-            "convert".to_owned(),
-            path.display().to_string(),
-            output_pdf.display().to_string(),
-        ],
-    ];
-    let mut last_error = String::from("rwhp produced no PDF");
-    for args in attempts {
-        let output = Command::new("rwhp")
-            .args(&args)
-            .current_dir(temp.path())
-            .output()
-            .map_err(|error| error.to_string())?;
-        if output_pdf.is_file() {
-            return fs::read(&output_pdf).map_err(|error| error.to_string());
-        }
-        if let Ok(body) = converted_pdf_in(temp.path(), path) {
-            return Ok(body);
-        }
-        last_error = String::from_utf8_lossy(&output.stderr).trim().to_owned();
-        if last_error.is_empty() {
-            last_error = String::from_utf8_lossy(&output.stdout).trim().to_owned();
-        }
-        if last_error.is_empty() {
-            last_error = format!("rwhp exited {}", output.status);
-        }
-    }
-    Err(last_error)
-}
-
-fn libreoffice_program() -> Option<&'static str> {
-    if executable_available("libreoffice") {
-        Some("libreoffice")
-    } else if executable_available("soffice") {
-        Some("soffice")
-    } else {
-        None
-    }
-}
-
-fn convert_with_libreoffice(path: &Path) -> std::result::Result<Vec<u8>, String> {
-    let temp = tempfile::tempdir().map_err(|error| error.to_string())?;
-    let Some(program) = libreoffice_program() else {
-        return Err("libreoffice/soffice is not available".to_owned());
-    };
-    let output = Command::new(program)
-        .args(["--headless", "--convert-to", "pdf", "--outdir"])
-        .arg(temp.path())
-        .arg(path)
-        .output()
-        .map_err(|error| error.to_string())?;
-    if !output.status.success() {
-        return Err(String::from_utf8_lossy(&output.stderr).trim().to_owned());
-    }
-    converted_pdf_in(temp.path(), path)
-}
-
-/// PDF a converter wrote for `source` inside `dir`. LibreOffice and rwhp keep every dot in the
-/// stem (`plan_v0.1.hwp` -> `plan_v0.1.pdf`), so the name is built by appending `.pdf` to the
-/// whole stem; `Path::with_extension` would cut it at the last dot (`plan_v0.pdf`).
-fn converted_pdf_in(dir: &Path, source: &Path) -> std::result::Result<Vec<u8>, String> {
-    let stem = source
-        .file_stem()
-        .ok_or_else(|| "preview target has no file stem".to_owned())?;
-    let mut name = stem.to_os_string();
-    name.push(".pdf");
-    let expected = dir.join(name);
-    if expected.is_file() {
-        return fs::read(&expected).map_err(|error| error.to_string());
-    }
-    let produced = fs::read_dir(dir)
-        .map_err(|error| error.to_string())?
-        .filter_map(|entry| entry.ok().map(|entry| entry.path()))
-        .find(|candidate| {
-            candidate
-                .extension()
-                .is_some_and(|extension| extension.eq_ignore_ascii_case("pdf"))
-        })
-        .ok_or_else(|| "converter produced no PDF".to_owned())?;
-    fs::read(produced).map_err(|error| error.to_string())
-}
 
 /// Text preview of at most `MAX_TEXT_PREVIEW_BYTES`. Returns `(content, truncated)`; larger
 /// text files are cut at the limit (on a UTF-8 boundary) instead of being refused.
@@ -1151,16 +1003,40 @@ fn legacy_text(bytes: &[u8], truncated: bool) -> Option<String> {
 }
 
 pub(super) fn match_ranges(content: &str, query: &str) -> Vec<serde_json::Value> {
-    if query.is_empty() {
-        return Vec::new();
+    let terms = std::iter::once(query)
+        .chain(query.split_whitespace())
+        .map(str::trim)
+        .filter(|term| !term.is_empty())
+        .collect::<Vec<_>>();
+    for term in terms {
+        let needle = term.to_lowercase();
+        let mut ranges = Vec::new();
+        let mut skip_until = 0;
+        for (start, _) in content.char_indices() {
+            if start < skip_until {
+                continue;
+            }
+            let mut end = start;
+            let mut folded = String::new();
+            for ch in content[start..].chars() {
+                end += ch.len_utf8();
+                folded.extend(ch.to_lowercase());
+                if folded.len() >= needle.len() {
+                    break;
+                }
+            }
+            if folded == needle {
+                let utf16_start = content[..start].encode_utf16().count();
+                let utf16_end = utf16_start + content[start..end].encode_utf16().count();
+                ranges.push(json!({"start": utf16_start, "end": utf16_end}));
+                skip_until = end;
+            }
+        }
+        if !ranges.is_empty() {
+            return ranges;
+        }
     }
-    content
-        .match_indices(query)
-        .map(|(byte_start, value)| {
-            let start = content[..byte_start].encode_utf16().count();
-            json!({"start": start, "end": start + value.encode_utf16().count()})
-        })
-        .collect()
+    Vec::new()
 }
 
 fn relative_display_path(root: &Path, path: &Path) -> String {
@@ -1612,58 +1488,51 @@ fn add_candidate_snippets(root: &Path, query: &str, payload: &mut serde_json::Va
             continue;
         };
         candidate["path"] = json!(relative);
-        candidate["score"] = candidate
-            .get("s")
-            .cloned()
-            .unwrap_or(serde_json::Value::Null);
+        candidate["score"] = candidate.get("s").cloned().unwrap_or(serde_json::Value::Null);
         let snippet_root = candidate
             .get("root")
             .and_then(serde_json::Value::as_str)
             .map(PathBuf::from)
             .unwrap_or_else(|| root.to_path_buf());
         let on_fuse_drive = snippet_root.components().any(|component| {
-            matches!(
-                component.as_os_str().to_str(),
-                Some("GoogleDrive" | "Google Drive")
-            )
+            matches!(component.as_os_str().to_str(), Some("GoogleDrive" | "Google Drive"))
         });
-        let snippet = if on_fuse_drive {
-            candidate
-                .get("ev")
-                .and_then(serde_json::Value::as_str)
-                .map(str::to_owned)
+        let resolved = (!on_fuse_drive)
+            .then(|| resolve_root_path(&snippet_root, &relative).ok())
+            .flatten();
+        let snippet = preview::snippet_payload(&snippet_root, &relative, resolved.as_deref(), query);
+        let text = snippet["text"].as_str().unwrap_or_default();
+        candidate["preview_snippet"] = if text.is_empty() {
+            serde_json::Value::Null
         } else {
-            resolve_root_path(&snippet_root, &relative)
-                .ok()
-                .filter(|path| path.is_file())
-                .and_then(|path| read_text_preview(&path).ok().flatten())
-                .map(|(content, _)| content)
-                .or_else(|| {
-                    candidate
-                        .get("ev")
-                        .and_then(serde_json::Value::as_str)
-                        .map(str::to_owned)
-                })
-        }
-        .map(|content| preview_snippet(&content, query));
-        candidate["preview_snippet"] =
-            snippet.map_or(serde_json::Value::Null, serde_json::Value::String);
+            json!(preview_snippet(text, query))
+        };
     }
 }
 
 fn preview_snippet(content: &str, query: &str) -> String {
-    let chars = content.chars().collect::<Vec<_>>();
+    let collapsed = content.split_whitespace().collect::<Vec<_>>().join(" ");
+    let match_utf16 = match_ranges(&collapsed, query)
+        .first()
+        .and_then(|range| range["start"].as_u64())
+        .and_then(|start| usize::try_from(start).ok())
+        .unwrap_or(0);
+    let chars = collapsed.chars().collect::<Vec<_>>();
     if chars.len() <= MAX_SNIPPET_CHARS {
-        return content.to_owned();
+        return collapsed;
     }
-    let match_start = if query.is_empty() {
-        0
-    } else {
-        content
-            .find(query)
-            .map(|byte| content[..byte].chars().count())
-            .unwrap_or(0)
-    };
+    let mut consumed_utf16 = 0;
+    let match_start = chars
+        .iter()
+        .position(|ch| {
+            if consumed_utf16 >= match_utf16 {
+                true
+            } else {
+                consumed_utf16 += ch.len_utf16();
+                false
+            }
+        })
+        .unwrap_or(chars.len());
     let start = match_start.saturating_sub(MAX_SNIPPET_CHARS / 3);
     let end = (start + MAX_SNIPPET_CHARS).min(chars.len());
     let mut snippet = chars[start..end].iter().collect::<String>();
@@ -2348,11 +2217,27 @@ mod find_filter_tests {
         append_find_option_flags, apply_first_result, candidate_matches_extensions,
         candidate_rel_path, keep_indexed_find_candidate, keep_listed_root, parse_exclude_patterns,
         parse_extensions, paths_look_like_same_root, paths_refer_to_same_root,
-        percent_encode_query, prepare_options_from_query, preview_renderer,
+        percent_encode_query, prepare_options_from_query, preview_renderer, PreviewKind,
     };
     use std::collections::HashMap;
 
     use serde_json::json;
+
+    #[test]
+    fn unicode_preview_snippet_preserves_late_korean_match() {
+        for prefix in ["Ω", "İ", "K", "ΩİK😀"] {
+            let content = format!("{}{} 계약서 본문{}", prefix.repeat(100), "도입 ".repeat(100), " 후문".repeat(100));
+            for query in ["계약서", "absent 계약서"] {
+                let snippet = super::preview_snippet(&content, query);
+                assert!(snippet.contains("계약서 본문"), "{prefix}: {snippet}");
+                assert!(snippet.chars().count() <= 242);
+            }
+        }
+        let content = "도입 ".repeat(100);
+        for query in ["", "없는단어"] {
+            assert!(super::preview_snippet(&content, query).starts_with("도입 "));
+        }
+    }
 
     #[test]
     fn indexed_find_candidate_does_not_require_full_query_substring() {
@@ -2558,12 +2443,14 @@ mod find_filter_tests {
     }
 
     #[test]
-    fn preview_renderer_maps_hwp_to_pdf() {
+    fn preview_renderer_distinguishes_documents_from_pdf() {
         use std::path::Path;
-        let renderer = preview_renderer(Path::new("memo.hwp"));
-        assert_eq!(renderer.media_type, Some("application/pdf"));
-        assert!(renderer.name == "rwhp" || renderer.name == "libreoffice-fallback");
+        let document = preview_renderer(Path::new("memo.hwp"));
+        assert_eq!(document.kind, PreviewKind::Document);
+        assert_eq!(document.media_type, None);
+        assert_eq!(document.name, "indexed-text");
         let pdf = preview_renderer(Path::new("memo.pdf"));
+        assert_eq!(pdf.kind, PreviewKind::Pdf);
         assert_eq!(pdf.name, "browser-pdf");
         assert_eq!(pdf.media_type, Some("application/pdf"));
     }

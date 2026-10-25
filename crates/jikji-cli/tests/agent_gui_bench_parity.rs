@@ -602,25 +602,21 @@ fn gui_preview_reports_a_kind_for_every_format() {
 }
 
 #[test]
-fn gui_preview_converts_office_files_whose_names_contain_dots() {
-    if ["libreoffice", "soffice"]
-        .iter()
-        .all(|name| std::process::Command::new(name).arg("--version").output().is_err())
-    {
-        eprintln!("skipping: LibreOffice is not installed");
-        return;
-    }
+fn gui_document_preview_uses_parsed_text_and_rejects_binary_endpoints() {
     let temp = tempfile::tempdir().expect("tempdir");
     let root = temp.path().join("root");
     fs::create_dir(&root).expect("root");
-    fs::write(root.join("plan_v0.1.final.rtf"), r"{\rtf1\ansi plan body\par}").expect("rtf");
+    fs::write(root.join("plan_v0.1.final.docx"), minimal_docx("😀가 Contract Needle body")).expect("docx");
     let gui = GuiChild::start(&root);
-
-    let preview = response_json(&gui.get("/api/preview?path=plan_v0.1.final.rtf"));
-    assert_eq!(preview["kind"], "pdf", "{preview}");
-    let file = gui.get("/api/preview/file?path=plan_v0.1.final.rtf");
-    assert!(file.starts_with("HTTP/1.1 200"), "converted PDF must be served: {file}");
-    assert!(file.contains("Content-Type: application/pdf"), "{file}");
+    let preview = response_json(&gui.get("/api/preview?path=plan_v0.1.final.docx&q=needle"));
+    assert_eq!(preview["kind"], "document", "{preview}");
+    assert_eq!(preview["source"], "parsed_now", "{preview}");
+    assert!(preview["content"].as_str().expect("content").contains("Contract Needle body"));
+    assert_eq!(preview["matches"][0]["start"], 13);
+    assert_eq!(preview["matches"][0]["end"], 19);
+    assert!(gui.get("/api/preview/file?path=plan_v0.1.final.docx").starts_with("HTTP/1.1 415"));
+    assert!(gui.get("/api/preview/pages?path=plan_v0.1.final.docx").starts_with("HTTP/1.1 415"));
+    assert!(gui.get("/api/preview/page?path=plan_v0.1.final.docx&page=1").starts_with("HTTP/1.1 415"));
 }
 
 /// Minimal valid DOCX (Office Open XML) holding `text` as one paragraph.
@@ -643,69 +639,72 @@ fn minimal_docx(text: &str) -> Vec<u8> {
 }
 
 #[test]
-fn gui_snippet_mode_shows_indexed_text_for_every_file() {
+fn gui_find_and_snippet_use_indexed_docx_body_without_cache_headers() {
     let temp = tempfile::tempdir().expect("tempdir");
     let root = temp.path().join("root");
     fs::create_dir(&root).expect("root");
-    fs::write(root.join("report.docx"), minimal_docx("quarterly revenue snippet marker")).expect("docx");
+    let late_body = format!("{} needlepreview2026 body marker", "intro ".repeat(100));
+    fs::write(root.join("report.docx"), minimal_docx(&late_body)).expect("docx");
     fs::write(root.join("notes.md"), "# notes\nplain markdown body marker").expect("md");
     fs::write(root.join("blob.bin"), [0u8, 1, 2, 3, 255]).expect("bin");
     json_cmd(["prepare", path_str(&root).as_str(), "--json"]);
     let gui = GuiChild::start(&root);
-
-    let docx = response_json(&gui.get("/api/snippet?path=report.docx&q=revenue"));
-    assert_eq!(docx["source"], "index_cache", "{docx}");
-    let text = docx["text"].as_str().expect("text");
-    assert!(text.contains("quarterly revenue snippet marker"), "{text}");
-    assert!(!text.contains("# Source:"), "cache header must be stripped: {text}");
+    let found = response_json(&gui.get("/api/find?q=needlepreview2026"));
+    let snippet = found["candidates"].as_array().expect("candidates").iter()
+        .find(|candidate| candidate["p"] == "report.docx").expect("docx candidate")
+        ["preview_snippet"].as_str().expect("preview snippet");
+    assert!(snippet.contains("needlepreview2026 body marker"), "{snippet}");
+    assert!(!snippet.contains("# Source:") && !snippet.contains("# File ID:"), "{snippet}");
+    assert!(snippet.chars().count() <= 242, "{snippet}");
+    let docx = response_json(&gui.get("/api/snippet?path=report.docx&q=NEEDLEPREVIEW2026"));
+    assert!(docx["text"].as_str().expect("text").contains("needlepreview2026 body marker"));
     assert_eq!(docx["matches"].as_array().expect("matches").len(), 1);
-
-    let md = response_json(&gui.get("/api/snippet?path=notes.md"));
-    assert!(md["text"].as_str().expect("text").contains("plain markdown body marker"), "{md}");
-
-    let bin = response_json(&gui.get("/api/snippet?path=blob.bin"));
-    assert_eq!(bin["source"], "metadata", "{bin}");
-    assert_eq!(bin["metadata"]["name"], "blob.bin");
-    assert_eq!(bin["metadata"]["size"], 5);
-
-    // A file removed after indexing keeps its indexed snippet.
+    assert!(!docx["text"].as_str().expect("text").contains("# Source:"));
     fs::remove_file(root.join("report.docx")).expect("remove");
     let moved = response_json(&gui.get("/api/snippet?path=report.docx"));
-    assert!(moved["text"].as_str().expect("text").contains("snippet marker"), "{moved}");
-
+    assert!(moved["text"].as_str().expect("text").contains("body marker"), "{moved}");
     assert_rejected(&gui.get("/api/snippet?path=../outside.txt"));
     assert!(gui.get_anonymous("/api/snippet?path=notes.md").starts_with("HTTP/1.1 401"));
 }
 
 #[test]
-fn gui_file_preview_mode_renders_office_pages_as_images() {
-    if ["libreoffice", "soffice"]
-        .iter()
-        .all(|name| std::process::Command::new(name).arg("--version").output().is_err())
-    {
-        eprintln!("skipping: LibreOffice is not installed");
-        return;
-    }
+fn gui_pdf_pages_stay_native_and_malformed_documents_fail_gracefully() {
     let temp = tempfile::tempdir().expect("tempdir");
     let root = temp.path().join("root");
     fs::create_dir(&root).expect("root");
-    fs::write(root.join("deck_v1.2.docx"), minimal_docx("page image marker")).expect("docx");
-    fs::write(root.join("notes.md"), "not a document").expect("md");
+    fs::write(root.join("broken.docx"), b"not a zip").expect("broken docx");
+    fs::write(root.join("native.pdf"), minimal_pdf()).expect("pdf");
     let gui = GuiChild::start(&root);
-
-    let pages = response_json(&gui.get("/api/preview/pages?path=deck_v1.2.docx"));
+    let broken = response_json(&gui.get("/api/preview?path=broken.docx"));
+    assert_eq!(broken["kind"], "document", "{broken}");
+    assert_eq!(broken["content"], "", "{broken}");
+    assert!(broken["reason"].is_string(), "{broken}");
+    let pdf = response_json(&gui.get("/api/preview?path=native.pdf"));
+    assert_eq!(pdf["kind"], "pdf", "{pdf}");
+    let file = gui.get("/api/preview/file?path=native.pdf");
+    assert!(file.starts_with("HTTP/1.1 200") && file.contains("Content-Type: application/pdf"), "{file}");
+    let pages = response_json(&gui.get("/api/preview/pages?path=native.pdf"));
+    assert_eq!(pages["converter"], "native-pdf", "{pages}");
     assert_eq!(pages["pages"], 1, "{pages}");
-    assert_eq!(pages["converter"], "libreoffice");
-    let url = pages["page_urls"][0].as_str().expect("page url");
-    assert!(url.starts_with("/api/preview/page?") && url.ends_with("&page=1"), "{url}");
+    assert_rejected(&gui.get("/api/preview/pages?path=../outside.pdf"));
+}
 
-    let image = gui.get(url);
-    assert!(image.starts_with("HTTP/1.1 200"), "{}", &image[..image.len().min(300)]);
-    assert!(image.contains("Content-Type: image/png"));
-    assert!(image.contains("\u{fffd}PNG") || image.contains("PNG\r\n"), "body is a PNG");
-    assert!(gui.get("/api/preview/page?path=deck_v1.2.docx&page=2").starts_with("HTTP/1.1 404"));
-    assert!(gui.get("/api/preview/pages?path=notes.md").starts_with("HTTP/1.1 415"));
-    assert_rejected(&gui.get("/api/preview/pages?path=../outside.docx"));
+fn minimal_pdf() -> Vec<u8> {
+    let mut body = b"%PDF-1.4\n".to_vec();
+    let mut offsets = Vec::new();
+    for object in [
+        "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n",
+        "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n",
+        "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 100] >>\nendobj\n",
+    ] {
+        offsets.push(body.len());
+        body.extend_from_slice(object.as_bytes());
+    }
+    let xref = body.len();
+    body.extend_from_slice(b"xref\n0 4\n0000000000 65535 f \n");
+    for offset in offsets { body.extend_from_slice(format!("{offset:010} 00000 n \n").as_bytes()); }
+    body.extend_from_slice(format!("trailer\n<< /Root 1 0 R /Size 4 >>\nstartxref\n{xref}\n%%EOF\n").as_bytes());
+    body
 }
 
 fn response_json(response: &str) -> serde_json::Value {
